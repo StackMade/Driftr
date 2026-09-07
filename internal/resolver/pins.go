@@ -76,6 +76,26 @@ func ProjectPins(dir string) ([]Pin, error) {
 	return pins, nil
 }
 
+// ResolvePin returns the installed version a pin selects, using the same
+// matching the resolver applies on the shim path: exact versions, partial specs
+// like "24", and LTS aliases. ok is false when the spec is unresolvable or no
+// installed version satisfies it, which means the pin protects nothing.
+func ResolvePin(tool, spec string) (string, bool, error) {
+	v, err := version.Parse(spec)
+	if err != nil {
+		return "", false, err
+	}
+	match, known := installedMatcher(v)
+	if !known {
+		return "", false, nil
+	}
+	best, found, err := newestInstalledMatching(tool, match)
+	if err != nil || !found {
+		return "", false, err
+	}
+	return best.String(), true, nil
+}
+
 // pinAt returns the version pinned for a tool in a single directory, checking
 // each source in resolution order. Adding a source means adding one block here.
 func pinAt(tool, dir string, cfg *config.ProjectConfig, pkg *config.PackageJSON) (string, Source, bool, error) {

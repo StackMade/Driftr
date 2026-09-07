@@ -92,6 +92,31 @@ Removes the version directory from `~/.driftr/tools/<tool>/<version>/`.
 - If the version is pinned in a `.driftr.toml` or `package.json` in the current directory or any parent directory, a warning naming that file is printed
 - Cached archives in `~/.driftr/cache/` are not removed (they will be reused if you reinstall)
 
+## driftr prune
+
+Remove installed versions that nothing references.
+
+```bash
+driftr prune --dry-run     # show the plan, delete nothing
+driftr prune               # show the plan, then ask before deleting
+driftr prune --tool node -y
+```
+
+A version counts as referenced when it is the global default for its tool, or when the project in the current directory pins it. Pins are resolved the same way the shims resolve them, so a partial pin such as `24`, an `lts/jod` alias, or an `engines.node` range protects the installed version it would actually select. Everything else is listed with its size and removed after you confirm.
+
+**Scope:** prune sees the global default and the pins that apply to the current directory. It does not scan the machine for other checkouts, so a version that only some other project pins looks unreferenced from here and will be offered for removal. Run it from the project you care about, or start with `--dry-run`.
+
+**Flags:**
+
+- `--dry-run` prints the plan and exits without touching anything
+- `-y`, `--yes` skips the confirmation prompt
+- `--tool <name>` restricts the run to one tool
+
+**Notes:**
+
+- If one directory cannot be removed, the rest still are, and the failures are reported at the end with an `rm -rf` command for manual cleanup
+- Cached archives in `~/.driftr/cache/` are not touched, use `driftr cache clean` for those
+
 ## driftr default
 
 Set the global default version for a tool.

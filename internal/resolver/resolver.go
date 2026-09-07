@@ -61,6 +61,25 @@ func resolveInstalledPartial(tool string, v version.Version) (string, string, er
 	return best.String(), binPath, nil
 }
 
+// installedMatcher returns the predicate that selects the installed versions a
+// spec accepts: exact and partial versions match by component, LTS aliases by
+// major. known is false for an LTS codename this build does not know, which is
+// the one case that cannot be matched offline.
+func installedMatcher(v version.Version) (match func(version.Version) bool, known bool) {
+	if !v.LTS {
+		return v.Matches, true
+	}
+	if v.LTSCodename == "" {
+		// Node.js LTS lines are the even majors from v4 onwards.
+		return func(iv version.Version) bool { return iv.Major >= 4 && iv.Major%2 == 0 }, true
+	}
+	major, ok := version.LTSCodenameMajor(v.LTSCodename)
+	if !ok {
+		return nil, false
+	}
+	return func(iv version.Version) bool { return iv.Major == major }, true
+}
+
 // newestInstalledMatching returns the highest installed version of a tool that
 // satisfies match. Purely local — it never touches the network.
 func newestInstalledMatching(tool string, match func(version.Version) bool) (version.Version, bool, error) {
@@ -428,19 +447,14 @@ func resolveVersionFilePin(tool, ver, dir string, source Source) (*Resolution, e
 
 	// LTS aliases resolve against installed versions only — the shim hot path
 	// must never hit the network.
-	match := func(iv version.Version) bool {
-		// Node.js LTS lines are the even majors from v4 onwards.
-		return iv.Major >= 4 && iv.Major%2 == 0
+	match, known := installedMatcher(v)
+	if !known {
+		fmt.Fprintf(os.Stderr, "warning: %s in %s pins unknown LTS alias %q; ignoring\n", source, dir, ver)
+		return nil, nil
 	}
 	alias := "lts"
 	if v.LTSCodename != "" {
-		major, ok := version.LTSCodenameMajor(v.LTSCodename)
-		if !ok {
-			fmt.Fprintf(os.Stderr, "warning: %s in %s pins unknown LTS alias %q; ignoring\n", source, dir, ver)
-			return nil, nil
-		}
 		alias = "lts/" + v.LTSCodename
-		match = func(iv version.Version) bool { return iv.Major == major }
 	}
 
 	best, ok, err := newestInstalledMatching(tool, match)
