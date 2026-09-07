@@ -37,6 +37,13 @@ var (
 	// torn down when the parent test function returns would be gone before
 	// they finish.
 	fixtureURL string
+	// updatableBin is a second copy of the binary, for the one script that
+	// runs self-update. It is built here rather than copied by the script:
+	// copying a binary and executing it right away races with any concurrent
+	// fork in the process, which inherits the still-open write descriptor and
+	// makes the exec fail with ETXTBSY on Linux. Building it before m.Run
+	// keeps every write to it strictly before the parallel scripts start.
+	updatableBin string
 	// coverDir, when set, is where the coverage-instrumented driftr binary
 	// writes its raw profiles. See run.
 	coverDir string
@@ -66,7 +73,7 @@ func run(m *testing.M) int {
 	// changes. It is not GOCOVERDIR because `go test -coverprofile` overwrites
 	// that variable in the test binary's environment with a temp directory of
 	// its own.
-	args := []string{"build", "-o", driftrBin}
+	var buildFlags []string
 	if dir := os.Getenv("DRIFTR_E2E_COVERDIR"); dir != "" {
 		coverDir, err = filepath.Abs(dir)
 		if err != nil {
@@ -79,19 +86,18 @@ func run(m *testing.M) int {
 		}
 		// The pattern is absolute rather than ./... — the build runs from the
 		// e2e directory, where ./... would match this package and nothing else.
-		args = append(args, "-cover", "-covermode=atomic", "-coverpkg=github.com/stackmade/driftr/...")
+		buildFlags = append(buildFlags, "-cover", "-covermode=atomic", "-coverpkg=github.com/stackmade/driftr/...")
 	}
-	args = append(args, "../cmd/driftr")
 
 	// The shims driftr generates embed the absolute path of the binary that
-	// created them (os.Executable), so this has to be a genuine binary rather
-	// than a testscript-registered command backed by the test process.
-	build := exec.Command("go", args...)
-	build.Stderr = os.Stderr
-	build.Stdout = os.Stdout
-	if err := build.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "e2e: build driftr: %v\n", err)
-		return 1
+	// created them (os.Executable), so these have to be genuine binaries rather
+	// than testscript-registered commands backed by the test process.
+	updatableBin = filepath.Join(tmp, "driftr-updatable")
+	for _, out := range []string{driftrBin, updatableBin} {
+		if err := buildDriftr(out, buildFlags); err != nil {
+			fmt.Fprintf(os.Stderr, "e2e: build %s: %v\n", filepath.Base(out), err)
+			return 1
+		}
 	}
 
 	handler, err := fixture.Handler()
@@ -104,6 +110,15 @@ func run(m *testing.M) int {
 	fixtureURL = srv.URL
 
 	return m.Run()
+}
+
+// buildDriftr compiles cmd/driftr to out.
+func buildDriftr(out string, flags []string) error {
+	args := append([]string{"build", "-o", out}, flags...)
+	build := exec.Command("go", append(args, "../cmd/driftr")...)
+	build.Stderr = os.Stderr
+	build.Stdout = os.Stdout
+	return build.Run()
 }
 
 func TestDriftr(t *testing.T) {
@@ -132,9 +147,11 @@ func TestDriftr(t *testing.T) {
 			env.Setenv("DRIFTR_UPDATE_API", fixtureURL+"/update/api")
 			env.Setenv("DRIFTR_UPDATE_MIRROR", fixtureURL+"/update/download")
 
-			// self-update overwrites the binary it is running from, so the
-			// script has to copy this one first. Every script shares it.
+			// self-update overwrites the binary it runs from, so the script
+			// that exercises it gets one of its own. DRIFTR_BIN is the shared
+			// one, there to assert it was left alone.
 			env.Setenv("DRIFTR_BIN", driftrBin)
+			env.Setenv("DRIFTR_UPDATABLE_BIN", updatableBin)
 
 			if coverDir != "" {
 				env.Setenv("GOCOVERDIR", coverDir)
