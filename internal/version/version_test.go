@@ -1,6 +1,7 @@
 package version
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -205,4 +206,46 @@ func TestMatchesMajor(t *testing.T) {
 	if a.MatchesMajor(c) {
 		t.Error("expected 24.0.0 to NOT match major with 22.0.0")
 	}
+}
+
+// FuzzParse asserts that Parse never panics and that a fully specified,
+// non-alias version survives a String()/Parse() round trip.
+func FuzzParse(f *testing.F) {
+	seeds := []string{
+		"24", "24.0", "24.0.1", "v24.0.1", "node@24", "node@v24.0.1",
+		"0.12.18", "latest", "node@latest", "lts", "lts/*", "lts/jod", "LTS/Iron",
+		"", " ", "abc", "24.abc", "node@", "v", "@", "@@@",
+		"99999999999999999999.0.0", "-1.-1.-1", "+1.0.0", "1.2.3.4",
+		"lts/", "lts//", "lts/lts/lts/lts", "lts/\x00",
+		"24.0.1\x00", "２４.０.１", "١٢.٣.٤", "24.0.1\n", "  24.0.1  ",
+		strings.Repeat("9", 400), strings.Repeat("1.", 200) + "1",
+	}
+	for _, s := range seeds {
+		f.Add(s)
+	}
+
+	f.Fuzz(func(t *testing.T, s string) {
+		v, err := Parse(s)
+		if err != nil {
+			return
+		}
+		// Every accessor must be safe on anything Parse accepted.
+		_ = v.String()
+		_ = v.MajorMinor()
+		_ = v.Matches(v)
+		_ = v.MatchesMajor(v)
+
+		if v.Latest || v.LTS || v.IsPartial() {
+			return
+		}
+
+		rt, err := Parse(v.String())
+		if err != nil {
+			t.Fatalf("Parse(%q) = %+v, but Parse(%q) failed: %v", s, v, v.String(), err)
+		}
+		if rt.Major != v.Major || rt.Minor != v.Minor || rt.Patch != v.Patch {
+			t.Errorf("round trip of %q: Parse(%q) = {%d, %d, %d}, want {%d, %d, %d}",
+				s, v.String(), rt.Major, rt.Minor, rt.Patch, v.Major, v.Minor, v.Patch)
+		}
+	})
 }

@@ -1,6 +1,9 @@
 package version
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func mustParse(t *testing.T, s string) Version {
 	t.Helper()
@@ -232,4 +235,66 @@ func TestRange_LowerBoundMajor(t *testing.T) {
 			}
 		})
 	}
+}
+
+// FuzzParseRange asserts that ParseRange never panics, that matching a parsed
+// range against an arbitrary version is safe, and that nothing below the
+// range's own lower bound major can satisfy it.
+func FuzzParseRange(f *testing.F) {
+	seeds := []struct {
+		rng string
+		ver string
+	}{
+		{"18", "18.20.4"},
+		{"18.1", "18.1.9"},
+		{"18.1.0", "18.1.0"},
+		{">=18", "20.0.0"},
+		{">18.1.0", "18.1.1"},
+		{"<21", "20.9.9"},
+		{"<=20.9.0", "20.9.0"},
+		{"^20.9.0", "20.11.1"},
+		{"^0.2.3", "0.2.9"},
+		{"^0.0.3", "0.0.3"},
+		{"~18.1", "18.1.4"},
+		{"~18", "18.9.9"},
+		{"18.x", "18.4.0"},
+		{"*", "24.0.0"},
+		{">= 18 < 21", "20.0.0"},
+		{"18 || 20 || 22", "22.1.0"},
+		{"18 - 20", "19.0.0"},
+		{"", ""},
+		{"   ", "0"},
+		{">=", "1"},
+		{"||||", "1.2.3"},
+		{"^^^^18", "18.0.0"},
+		{"9223372036854775807", "9223372036854775807.0.0"},
+		{"^9223372036854775807", "0.0.0"},
+		{"18.0.0-rc.1", "18.0.0"},
+		{"x.x.x", "1.1.1"},
+		{"\x00", "\x00"},
+		{"18 " + strings.Repeat("|| 20 ", 100), "20.0.0"},
+	}
+	for _, s := range seeds {
+		f.Add(s.rng, s.ver)
+	}
+
+	f.Fuzz(func(t *testing.T, rng, ver string) {
+		r, err := ParseRange(rng)
+		if err != nil {
+			return
+		}
+
+		// Matching must be safe for any version, parsed or zero.
+		v, verErr := Parse(ver)
+		_ = r.Matches(v)
+		_ = r.Matches(Version{})
+
+		low, ok := r.LowerBoundMajor()
+		// Majors in a range are never negative (parsePartial rejects them), so
+		// anything below the lower bound major cannot satisfy the range.
+		// Negative majors are excluded: compare() subtracts, which overflows.
+		if ok && verErr == nil && v.Major >= 0 && v.Major < low && r.Matches(v) {
+			t.Errorf("ParseRange(%q).Matches(%q) = true, but LowerBoundMajor() = %d", rng, ver, low)
+		}
+	})
 }

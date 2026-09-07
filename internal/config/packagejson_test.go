@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -499,4 +500,106 @@ func TestEnginesNode_NilReceiver(t *testing.T) {
 	if got := pkg.EnginesNode(); got != "" {
 		t.Errorf("EnginesNode() = %q, want empty", got)
 	}
+}
+
+// FuzzLoadPackageJSON feeds arbitrary bytes through the package.json reader and
+// asserts the documented contract: never panic, an error means a nil result,
+// and a non-nil result means at least one of the three fields carries a value.
+func FuzzLoadPackageJSON(f *testing.F) {
+	seeds := []string{
+		`{"name": "myapp", "driftr": {"node": "20.11.0"}}`,
+		`{"packageManager": "pnpm@9.15.0"}`,
+		`{"packageManager": "yarn@1.22.22+sha512.abc"}`,
+		`{"engines": {"node": ">=18 <21"}}`,
+		`{"driftr": {}}`,
+		`{"driftr": {"node": ""}}`,
+		`{}`, ``, `[]`, `null`, `{`, `{"driftr": null}`, `{"driftr": []}`,
+		`{"driftr": {"node": 22}}`, `{"engines": {"node": null}}`,
+		`{"packageManager": "@"}`, `{"packageManager": "pnpm@"}`,
+		`{"packageManager": "@9.0.0"}`, `{"packageManager": "pnpm@+abc"}`,
+		"{\"driftr\": {\"node\": \"\x00\"}}",
+		`{"driftr": {"node": "20.11.0"}, "driftr": {"node": "18.0.0"}}`,
+		strings.Repeat(`{"a":`, 200) + "1" + strings.Repeat("}", 200),
+	}
+	for _, s := range seeds {
+		f.Add([]byte(s))
+	}
+
+	dir := f.TempDir()
+	path := filepath.Join(dir, "package.json")
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		if err := os.WriteFile(path, data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		pkg, err := LoadPackageJSON(dir)
+		if err != nil {
+			if pkg != nil {
+				t.Fatalf("LoadPackageJSON() returned both a result and an error: %v", err)
+			}
+			return
+		}
+		if pkg == nil {
+			// (nil, nil) is the documented "nothing configured" answer.
+			return
+		}
+		// Accessors must be safe on anything that parsed.
+		tool, ver := pkg.PackageManagerTool()
+		if (tool == "") != (ver == "") {
+			t.Errorf("PackageManagerTool(%q) = (%q, %q), want both set or both empty",
+				pkg.PackageManager, tool, ver)
+		}
+		if !pkg.Driftr.hasVersions() && pkg.PackageManager == "" && pkg.EnginesNode() == "" {
+			t.Errorf("LoadPackageJSON() returned a non-nil result with nothing configured: %q", data)
+		}
+	})
+}
+
+// FuzzPatchTopLevelKey asserts that the order-preserving JSON rewriter either
+// fails or emits valid JSON that contains the patched key.
+func FuzzPatchTopLevelKey(f *testing.F) {
+	seeds := []string{
+		`{"name": "myapp"}`,
+		`{"name": "myapp", "driftr": {"node": "20.11.0"}}`,
+		"{\n\t\"name\": \"myapp\"\n}",
+		`{}`, ``, `[]`, `{`, `}`, `{"a"}`, `{"a": }`, `{1: 2}`,
+		`{"driftr": null}`, `{"a": 1}trailing`,
+		"{\"\x00\": 1}", `{"a": "\ud800"}`, `{"a": 1e999}`,
+		`{"a": 1, "a": 2}`,
+		strings.Repeat(`{"a":`, 100) + "1" + strings.Repeat("}", 100),
+	}
+	for _, s := range seeds {
+		f.Add([]byte(s))
+	}
+
+	value := json.RawMessage(`{"node":"22.14.0"}`)
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		out, err := patchTopLevelKey(data, "driftr", value)
+		if err != nil {
+			return
+		}
+		var got map[string]json.RawMessage
+		if err := json.Unmarshal(out, &got); err != nil {
+			t.Fatalf("patchTopLevelKey(%q) produced invalid JSON %q: %v", data, out, err)
+		}
+		if !bytes.Equal(got["driftr"], value) {
+			t.Errorf("patchTopLevelKey(%q) = %q, driftr key is %q, want %q",
+				data, out, got["driftr"], value)
+		}
+
+		// Removing the key again must leave it gone.
+		removed, err := patchTopLevelKey(out, "driftr", nil)
+		if err != nil {
+			t.Fatalf("patchTopLevelKey(%q, nil) failed on its own output: %v", out, err)
+		}
+		var afterRemove map[string]json.RawMessage
+		if err := json.Unmarshal(removed, &afterRemove); err != nil {
+			t.Fatalf("patchTopLevelKey(%q, nil) produced invalid JSON %q: %v", out, removed, err)
+		}
+		if _, ok := afterRemove["driftr"]; ok {
+			t.Errorf("patchTopLevelKey(%q, nil) = %q, driftr key still present", out, removed)
+		}
+	})
 }

@@ -99,3 +99,42 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
+
+  fuzz:
+    name: Fuzz parsers
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: ./internal/version/
+            target: FuzzParse
+          - package: ./internal/version/
+            target: FuzzParseRange
+          - package: ./internal/config/
+            target: FuzzParseVersionFile
+          - package: ./internal/config/
+            target: FuzzLoadPackageJSON
+          - package: ./internal/config/
+            target: FuzzPatchTopLevelKey
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: true
+
+      - name: Fuzz ${{ matrix.target }}
+        run: go test ${{ matrix.package }} -run '^$' -fuzz '^${{ matrix.target }}$' -fuzztime 2m
+
+      # A crasher lands in <package>/testdata/fuzz/<target>/; keep it so the
+      # input can be replayed locally and committed as a regression seed.
+      - name: Upload failing corpus
+        if: failure()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: fuzz-crashers-${{ matrix.target }}
+          path: internal/**/testdata/fuzz/
+          if-no-files-found: ignore
