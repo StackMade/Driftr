@@ -15,13 +15,6 @@ import (
 	"github.com/stackmade/driftr/internal/version"
 )
 
-// RequireInstalled verifies a version string parses correctly and the version is installed.
-// For partial versions (e.g. "24", "24.14") and "latest", it finds the best matching
-// installed version. Returns the normalized version string and binary path, or an actionable error.
-func RequireInstalled(versionSpec string) (string, string, error) {
-	return RequireToolInstalled("node", versionSpec)
-}
-
 // RequireToolInstalled verifies a tool version is installed, with partial version resolution.
 func RequireToolInstalled(tool, versionSpec string) (string, string, error) {
 	v, err := version.Parse(versionSpec)
@@ -196,16 +189,6 @@ type Resolution struct {
 	BinaryPath string
 	Source     Source
 	ProjectDir string // set when Source == SourceProject
-}
-
-// ResolveNode determines which Node.js version to use.
-func ResolveNode(explicit string) (*Resolution, error) {
-	return ResolveTool("node", explicit, false)
-}
-
-// ResolveNodeVerbose determines which Node.js version to use, with optional tracing.
-func ResolveNodeVerbose(explicit string, verbose bool) (*Resolution, error) {
-	return ResolveTool("node", explicit, verbose)
 }
 
 // EnvVarName returns the environment variable that overrides a tool's version

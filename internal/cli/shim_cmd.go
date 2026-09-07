@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -69,7 +70,7 @@ func HandleShimError(err error, tool string) (*resolver.ResolvedBinary, error) {
 		return nil, err
 	}
 
-	if !promptInstall(notInstalled) {
+	if !promptInstall(os.Stdin, notInstalled) {
 		// User declined — fail quietly with a non-zero code; the prompt
 		// already explained the situation.
 		return nil, &ExitError{Code: 1}
@@ -90,16 +91,19 @@ func autoInstall(e *resolver.NotInstalledError, tool string) (*resolver.Resolved
 }
 
 // promptInstall asks the user whether to install a missing version.
-func promptInstall(e *resolver.NotInstalledError) bool {
+func promptInstall(in io.Reader, e *resolver.NotInstalledError) bool {
 	msg := fmt.Sprintf("%s %s is not installed", e.Tool, e.Version)
 	if e.Context != "" {
 		msg = fmt.Sprintf("%s %s (%s) is not installed", e.Tool, e.Version, e.Context)
 	}
 	fmt.Fprintf(os.Stderr, "%s\nInstall now? [Y/n] ", msg)
 
-	reader := bufio.NewReader(os.Stdin)
-	answer, err := reader.ReadString('\n')
-	if err != nil {
+	// ReadString returns what it read alongside io.EOF when the input ends
+	// without a newline, so a piped "y" has to be honoured rather than
+	// discarded with the error. Only an empty read is a refusal, matching how
+	// confirm reads its answer.
+	answer, err := bufio.NewReader(in).ReadString('\n')
+	if err != nil && answer == "" {
 		return false
 	}
 	answer = strings.TrimSpace(strings.ToLower(answer))
