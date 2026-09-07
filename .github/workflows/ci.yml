@@ -126,11 +126,14 @@ jobs:
           go tool covdata textfmt -i="$RUNNER_TEMP/e2e-coverdata" -o e2e.cov
           cat unit.cov > coverage.txt
           tail -n +2 e2e.cov >> coverage.txt
+      # Both runners upload. Codecov merges the two reports, which is the only
+      # way the darwin-only branches — platform.OS/Arch, the macOS shell rc
+      # paths in pathsetup — are ever counted as covered.
       - name: Upload coverage to Codecov
-        if: matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           files: coverage.txt
+          flags: ${{ matrix.os }}
           use_oidc: true
 
   path-e2e-docker:
