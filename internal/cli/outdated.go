@@ -193,11 +193,18 @@ func upstreamVersions(tool string, major int, includePre bool) (latest, line, lt
 		return latest, line, lts, nil
 	}
 
-	pkg, ok := npmPackage[tool]
-	if !ok {
-		return "", "", "", fmt.Errorf("no upstream release source for %s", tool)
+	// Everything else ships a flat newest-first version list, from either the
+	// npm registry or, for bun, GitHub releases.
+	var versions []string
+	if tool == "bun" {
+		versions, err = installer.ListBunReleases()
+	} else {
+		pkg, ok := npmPackage[tool]
+		if !ok {
+			return "", "", "", fmt.Errorf("no upstream release source for %s", tool)
+		}
+		versions, err = installer.ListRemoteVersions(pkg, includePre)
 	}
-	versions, err := installer.ListRemoteVersions(pkg, includePre)
 	if err != nil {
 		return "", "", "", err
 	}

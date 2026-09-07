@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stackmade/driftr/internal/platform"
 )
 
 // nodeIndexServer serves a fake nodejs.org release index (newest-first) and
@@ -40,6 +42,21 @@ func npmRegistryServer(t *testing.T, versions []string) {
 	}))
 	t.Cleanup(srv.Close)
 	t.Setenv("DRIFTR_NPM_REGISTRY", srv.URL)
+}
+
+// bunReleasesServer serves a fake GitHub release list (newest-first) and points
+// DRIFTR_BUN_RELEASES at it. bun ships binaries there rather than on npm.
+func bunReleasesServer(t *testing.T, versions []string) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		releases := make([]map[string]any, 0, len(versions))
+		for _, v := range versions {
+			releases = append(releases, map[string]any{"tag_name": "bun-v" + v})
+		}
+		json.NewEncoder(w).Encode(releases)
+	}))
+	t.Cleanup(srv.Close)
+	t.Setenv("DRIFTR_BUN_RELEASES", srv.URL)
 }
 
 // projectWith creates a project dir pinning the given .driftr.toml tools and
@@ -172,6 +189,31 @@ func TestOutdated_NothingInstalled(t *testing.T) {
 	}
 	if !strings.Contains(out, "driftr install") {
 		t.Errorf("expected a pointer at `driftr install`, got: %q", out)
+	}
+}
+
+func TestOutdated_BunUsesGitHubReleases(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	bin, err := platform.ToolBinary("bun", "1.2.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(bin), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	projectWith(t, "[tools]\nbun = \"1.2.0\"\n")
+	bunReleasesServer(t, []string{"1.4.2", "1.2.0"})
+
+	out, err := outdatedOutput(t, "bun", false, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	row := rowFor(t, out, "bun")
+	if !strings.Contains(row, "1.4.2") {
+		t.Errorf("expected the newest GitHub release, got: %q", row)
 	}
 }
 
