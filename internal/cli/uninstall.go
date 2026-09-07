@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -58,15 +59,11 @@ func newUninstallCmd() *cobra.Command {
 				fmt.Println(ioutil.Warn(fmt.Sprintf("%s %s is the current global default. Run `driftr default %s@<version>` to set a new one.", tool, versionStr, tool)))
 			}
 
-			// Warn if this version is pinned in the project config.
-			cwd, cwdErr := os.Getwd()
-			if cwdErr == nil {
-				if proj, err := config.LoadProject(cwd); err == nil && proj != nil && proj.Tools.GetTool(tool) == versionStr {
-					fmt.Println(ioutil.Warn(fmt.Sprintf("%s@%s is pinned in .driftr.toml — uninstalling will break this project until you run 'driftr install %s@%s' or update the pin", tool, versionStr, tool, versionStr)))
-				}
-				if pkg, err := config.LoadPackageJSON(cwd); err == nil && pkg != nil && pkg.Driftr.GetTool(tool) == versionStr {
-					fmt.Println(ioutil.Warn(fmt.Sprintf("%s@%s is pinned in package.json — uninstalling will break this project until you run 'driftr install %s@%s' or update the pin", tool, versionStr, tool, versionStr)))
-				}
+			// Warn if this version is pinned anywhere in the project tree.
+			// The resolver walks up from the cwd, so a pin in a parent directory
+			// applies here too and deserves the same warning.
+			if cwd, cwdErr := os.Getwd(); cwdErr == nil {
+				warnIfPinned(cwd, tool, versionStr)
 			}
 
 			if verbose {
@@ -81,4 +78,29 @@ func newUninstallCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// warnIfPinned walks up from dir looking for a project config that pins
+// tool@versionStr, and warns once for each config file that does.
+func warnIfPinned(dir, tool, versionStr string) {
+	for {
+		if proj, err := config.LoadProject(dir); err == nil && proj != nil && proj.Tools.GetTool(tool) == versionStr {
+			printPinWarning(".driftr.toml", dir, tool, versionStr)
+		}
+		if pkg, err := config.LoadPackageJSON(dir); err == nil && pkg != nil && pkg.Driftr.GetTool(tool) == versionStr {
+			printPinWarning("package.json", dir, tool, versionStr)
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return
+		}
+		dir = parent
+	}
+}
+
+func printPinWarning(file, dir, tool, versionStr string) {
+	fmt.Println(ioutil.Warn(fmt.Sprintf(
+		"%s@%s is pinned in %s — uninstalling will break that project until you run 'driftr install %s@%s' or update the pin",
+		tool, versionStr, filepath.Join(dir, file), tool, versionStr)))
 }
