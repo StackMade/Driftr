@@ -55,7 +55,10 @@ This downloads the latest release, verifies its checksum, and configures your PA
 ## Quick Start
 
 ```bash
-# Install your toolchain
+# In a repo that already pins its tools, install what it asks for
+driftr install
+
+# Or install tools by name
 driftr install node@22
 driftr install pnpm@9
 driftr install yarn@1
@@ -78,7 +81,7 @@ pnpm -v   # resolves automatically
 
 | Command | Description |
 |---------|-------------|
-| `driftr install <tool[@version]>` | Download and install a tool version (node, pnpm, yarn); a bare tool name installs the latest; `node@lts` installs the newest LTS release |
+| `driftr install [tool[@version]]` | Download and install a tool version (node, pnpm, yarn); with no argument, installs everything the current project pins; a bare tool name installs the latest; `node@lts` installs the newest LTS release |
 | `driftr uninstall <tool@version>` | Remove an installed tool version |
 | `driftr default <tool@version>` | Set the global default version for a tool |
 | `driftr pin <tool@version>` | Pin a version to the current project (`.driftr.toml` or `package.json`) |

@@ -4,9 +4,12 @@ All commands support the `-v` / `--verbose` flag for detailed output.
 
 ## driftr install
 
-Download and install a tool version.
+Download and install a tool version, or everything the current project pins.
 
 ```bash
+# Install every tool this project pins
+driftr install
+
 # Install latest Node.js 22.x
 driftr install node@22
 
@@ -34,6 +37,29 @@ driftr install node@22 -v
 | Node.js | nodejs.org archives                    | SHA256 against SHASUMS256.txt |
 | pnpm    | npm registry tarball                   | SHA-512 SRI integrity         |
 | yarn    | npm registry tarball                   | SHA-512 SRI integrity         |
+
+**Installing what a project pins:**
+
+With no argument, `driftr install` reads the pins for the current directory and
+installs each one. It reads the same sources resolution reads, walking up
+through parent directories: `.driftr.toml`, the `driftr` key in `package.json`,
+the standard `packageManager` field (pnpm and yarn), `.nvmrc`, and
+`.node-version`. The first source that names a tool wins, and each tool is
+looked up separately, so a repo can pin Node.js in `.nvmrc` and pnpm in
+`packageManager`.
+
+The output names the source each version came from:
+
+```
+Installing node@22.14.0 (from .nvmrc)...
+✓ Installed node 22.14.0
+Installing pnpm@9.15.0 (from package.json (packageManager))...
+✓ Installed pnpm 9.15.0
+```
+
+If one tool fails, the rest still install and the failures are reported
+together at the end. If nothing is pinned, the command says so instead of
+exiting quietly.
 
 **Notes:**
 - Reinstalling an already-installed version is a no-op

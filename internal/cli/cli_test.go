@@ -276,3 +276,15 @@ func TestInstallCmd_TrailingAtErrors(t *testing.T) {
 		t.Errorf("expected version-required error for 'pnpm@', got: %v", err)
 	}
 }
+
+func TestInstallCmd_NoArgsNoPins(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	// Nothing pinned anywhere up the tree: the command must say so, offline,
+	// rather than exiting successfully having installed nothing.
+	err := runCmd(t, "install")
+	if err == nil || !strings.Contains(err.Error(), "no tool versions pinned") {
+		t.Errorf("expected a no-pins error, got: %v", err)
+	}
+}
