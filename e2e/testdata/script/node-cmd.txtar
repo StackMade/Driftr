@@ -1,0 +1,33 @@
+# The node command group, plus cache and prune. All three touch storage, so
+# these checks are mostly about what they leave alone.
+
+exec driftr setup
+exec driftr install node@22
+exec driftr default node@$NODE_VERSION
+
+exec driftr node --help
+stdout 'optimize'
+
+# clean defaults to a dry run.
+cd $WORK/app
+exec driftr node clean
+stdout 'Dry run'
+! exists $WORK/app/node_modules
+
+cd $WORK
+exec driftr cache dir
+stdout '\.driftr/cache'
+
+# The node tarball was downloaded through the cache, so there is something to
+# clear — and clearing it must not disturb the install itself.
+exec driftr cache clean
+exec node -v
+stdout 'v'$NODE_VERSION
+
+# prune keeps whatever is currently the default.
+exec driftr prune
+exec driftr list
+stdout $NODE_VERSION
+
+-- app/package.json --
+{"name": "app", "version": "1.0.0"}

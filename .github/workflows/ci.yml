@@ -69,7 +69,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Run shellcheck
-        run: shellcheck install.sh test.sh test_path_e2e.sh scripts/*.sh test/*.sh
+        run: shellcheck install.sh test_path_e2e.sh scripts/*.sh
 
   install-sh-smoke:
     name: install.sh smoke test
@@ -89,13 +89,17 @@ jobs:
           '
 
   test:
+    # Covers both the unit tests and the e2e suite in e2e/, which drives a real
+    # driftr binary against an in-process fake of nodejs.org, the npm registry
+    # and bun's releases. It needs no Docker, so it runs on macOS too — the
+    # arm64 runner is also the only place the darwin/arm64 paths get exercised.
     name: Test (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read
       id-token: write # Codecov OIDC upload
@@ -106,7 +110,7 @@ jobs:
           go-version-file: go.mod
           check-latest: true
           cache: true
-      - name: Run unit tests
+      - name: Run unit and e2e tests
         run: go test -race -coverprofile=coverage.txt ./...
       - name: Upload coverage to Codecov
         if: matrix.os == 'ubuntu-latest'
@@ -114,26 +118,6 @@ jobs:
         with:
           files: coverage.txt
           use_oidc: true
-
-  integration-test:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: [test]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
-      - name: Build test image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: .
-          file: Dockerfile.test
-          tags: driftr-test
-          load: true
-          cache-from: type=gha,scope=integration
-          cache-to: type=gha,scope=integration,mode=max
-      - name: Run integration tests
-        run: docker run --rm driftr-test
 
   path-e2e-docker:
     name: PATH e2e (${{ matrix.shell }})

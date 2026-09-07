@@ -1,0 +1,55 @@
+# pnpm and yarn: npm registry install, SRI verification, and the shim path
+# that runs them under node.
+
+exec driftr setup
+exec driftr install node@22
+exec driftr default node@$NODE_VERSION
+
+exec driftr install pnpm@9 -v
+stdout 'Verifying integrity'
+stdout '✓ Installed'
+exec driftr list pnpm
+stdout $PNPM_VERSION
+
+exec driftr default pnpm@$PNPM_VERSION
+exec driftr which pnpm
+stdout $PNPM_VERSION
+
+# pnpm and yarn are JavaScript, so the shim execs node with the tool's script
+# rather than the script file itself. The fixture node echoes the path it was
+# handed, so the assertion below shows which script was chosen.
+exec pnpm -v
+stdout 'pnpm\.cjs'
+
+exec driftr install yarn@1 -v
+stdout 'Verifying integrity'
+stdout '✓ Installed'
+exec driftr list yarn
+stdout $YARN_VERSION
+
+exec driftr default yarn@$YARN_VERSION
+exec driftr which yarn
+stdout $YARN_VERSION
+
+exec yarn -v
+stdout 'yarn\.js'
+
+# The packageManager field in package.json pins the package manager, and only
+# the package manager — node keeps resolving through the normal chain.
+cd $WORK/app
+exec driftr which pnpm
+stdout $PNPM_VERSION
+stdout 'packageManager'
+exec driftr which node
+stdout 'global default'
+
+cd $WORK
+exec driftr uninstall pnpm@$PNPM_VERSION
+exec driftr list pnpm
+stdout 'No pnpm versions installed'
+
+! exec driftr uninstall pnpm@0.0.1
+stderr 'not installed'
+
+-- app/package.json --
+{"name": "app", "packageManager": "pnpm@9.99.0"}

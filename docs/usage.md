@@ -399,16 +399,18 @@ Check your Driftr installation for common problems.
 
 ```bash
 driftr doctor         # run all checks
-driftr doctor --fix   # auto-fix PATH configuration issues
+driftr doctor --fix   # auto-fix PATH and shim problems
 ```
 
 Runs 9 checks: PATH presence, shell rc file placement, shim existence, shim binary path,
 global default set, defaults installed, conflicting managers (nvm/fnm/volta/n), installed
 version counts, and pnpm/yarn without node.
 
-The `--fix` flag automatically adds a PATH export to the correct target file (e.g. `.zshenv`
-for zsh users). Any stale export in an old rc file is reported as a warning and can be removed
-manually. Other issues require manual action per the printed suggestion.
+The `--fix` flag repairs two kinds of problem. It adds a PATH export to the correct target
+file (e.g. `.zshenv` for zsh users), and it regenerates the shims when one is missing, is not
+executable, or still points at an old driftr binary. A stale export in an old rc file is
+reported as a warning and has to be removed by hand. Everything else needs manual action,
+following the printed suggestion.
 
 ## driftr self-update
 

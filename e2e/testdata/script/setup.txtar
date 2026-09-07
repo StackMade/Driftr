@@ -1,0 +1,19 @@
+# driftr setup creates the storage layout and a shim for every supported tool.
+
+exec driftr setup
+
+exists $HOME/.driftr/bin
+exists $HOME/.driftr/tools/node
+exists $HOME/.driftr/config
+
+exists $HOME/.driftr/bin/node
+exists $HOME/.driftr/bin/npm
+exists $HOME/.driftr/bin/npx
+exists $HOME/.driftr/bin/pnpm
+exists $HOME/.driftr/bin/pnpx
+exists $HOME/.driftr/bin/yarn
+exists $HOME/.driftr/bin/bun
+
+# Re-running must not fail or duplicate anything.
+exec driftr setup
+exists $HOME/.driftr/bin/node

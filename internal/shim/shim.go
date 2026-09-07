@@ -59,7 +59,13 @@ func writeShim(binDir, tool, driftrBin string) error {
 exec "%s" shim %s "$@"
 `, driftrBin, tool)
 
-	return os.WriteFile(shimPath, []byte(content), 0o755)
+	if err := os.WriteFile(shimPath, []byte(content), 0o755); err != nil {
+		return err
+	}
+	// WriteFile only applies the mode when it creates the file. Rewriting a
+	// shim that lost its executable bit would otherwise leave it unrunnable,
+	// so set the mode explicitly on every write.
+	return os.Chmod(shimPath, 0o755)
 }
 
 // ShimDir returns the path to the shim directory for display purposes.

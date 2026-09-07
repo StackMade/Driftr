@@ -1,0 +1,38 @@
+# Project pinning, the resolver chain, and driftr run.
+
+exec driftr setup
+exec driftr install node@22
+exec driftr default node@$NODE_VERSION
+
+# Outside a project, the global default wins.
+exec driftr which node
+stdout 'global default'
+
+cd $WORK/project
+exec driftr pin node@$NODE_VERSION
+exists $WORK/project/.driftr.toml
+grep $NODE_VERSION $WORK/project/.driftr.toml
+
+exec driftr which node
+stdout 'project config'
+
+# Verbose resolution prints the chain it walked, which is how you find out why
+# a version was chosen.
+exec driftr which node -v
+stdout '\[resolve\]'
+stdout 'Step'
+
+# .nvmrc is honoured where no .driftr.toml exists.
+cd $WORK/legacy
+exec driftr which node
+stdout $NODE_VERSION
+
+# driftr run executes against an explicit version without touching any config.
+cd $WORK
+exec driftr run --node $NODE_VERSION -- node -v
+stdout 'v'$NODE_VERSION
+
+-- project/README.md --
+placeholder so the directory exists
+-- legacy/.nvmrc --
+22.99.0

@@ -186,9 +186,9 @@ source ~/.zshenv   # zsh
 # or source ~/.bash_profile for bash
 ```
 
-**Tip:** Run `driftr doctor` to verify PATH is configured correctly. Use `driftr doctor --fix`
-to automatically add a PATH export to the correct target file (stale entries in old rc files
-are flagged but not removed — safe to clean up manually).
+**Tip:** Run `driftr doctor` to verify PATH is configured correctly. `driftr doctor --fix`
+adds a PATH export to the correct target file and regenerates broken shims. Stale entries in
+old rc files are flagged but not removed, so clean those up by hand.
 
 ### Verify
 
@@ -217,11 +217,10 @@ docker run --rm driftr install node@22
 docker run --rm driftr list
 ```
 
-### Run the integration test suite
+### Run the test suite
 
 ```bash
-docker build -f Dockerfile.test -t driftr-test .
-docker run --rm driftr-test
+go test ./...
 ```
 
 ## Uninstalling

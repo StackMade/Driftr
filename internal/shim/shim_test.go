@@ -46,6 +46,32 @@ func TestWriteShim_Executable(t *testing.T) {
 	}
 }
 
+func TestWriteShim_RestoresExecutableBit(t *testing.T) {
+	dir := t.TempDir()
+	shimPath := filepath.Join(dir, "node")
+
+	if err := writeShim(dir, "node", "/usr/local/bin/driftr"); err != nil {
+		t.Fatalf("writeShim() error: %v", err)
+	}
+	if err := os.Chmod(shimPath, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// os.WriteFile applies its mode argument only when creating the file, so
+	// rewriting over a non-executable shim has to chmod it back explicitly.
+	if err := writeShim(dir, "node", "/usr/local/bin/driftr"); err != nil {
+		t.Fatalf("writeShim() error on rewrite: %v", err)
+	}
+
+	info, err := os.Stat(shimPath)
+	if err != nil {
+		t.Fatalf("stat error: %v", err)
+	}
+	if info.Mode().Perm()&0o111 == 0 {
+		t.Errorf("rewritten shim is not executable: %v", info.Mode())
+	}
+}
+
 func TestWriteShim_AllTools(t *testing.T) {
 	dir := t.TempDir()
 

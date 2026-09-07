@@ -1,0 +1,26 @@
+# Basic CLI surface: help, an empty install list, and the error paths.
+
+exec driftr --help
+stdout 'Available Commands'
+
+exec driftr list
+stdout 'No node versions installed'
+
+exec driftr list unknown
+stdout 'No unknown versions'
+
+# Every error path has to exit non-zero. A command that prints a complaint and
+# still returns 0 breaks any script wrapping driftr.
+! exec driftr install unknown@1.0
+stderr 'unknown tool'
+
+! exec driftr default node@99.99.99
+stderr 'not installed'
+
+! exec driftr uninstall pnpm
+stderr 'version required'
+
+# self-update is only checked for registration. Running it would replace the
+# binary the rest of the suite executes.
+exec driftr --help
+stdout 'self-update'

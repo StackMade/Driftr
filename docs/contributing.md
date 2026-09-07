@@ -25,17 +25,26 @@ go build -o driftr ./cmd/driftr/
 
 ### Run Tests
 
-**Integration tests (recommended -- runs in Docker, no local side effects):**
-
-```bash
-docker build -f Dockerfile.test -t driftr-test .
-docker run --rm driftr-test
-```
-
-**Unit tests:**
-
 ```bash
 go test ./...
+```
+
+That covers the unit tests and the e2e suite in `e2e/`. The e2e scripts run the real
+driftr binary, but each one gets its own `$HOME` and talks to a fake nodejs.org, npm
+registry and bun release feed started in-process. Running them locally leaves `~/.driftr`
+alone and needs no network.
+
+To run a single e2e script and see every command it executes:
+
+```bash
+go test ./e2e -run 'TestDriftr/install-node' -v
+```
+
+The PATH bootstrap suite is separate, because it needs a real login shell:
+
+```bash
+docker build -f Dockerfile.path-e2e -t driftr-path-e2e .
+docker run --rm driftr-path-e2e
 ```
 
 ## Project Structure
@@ -52,10 +61,12 @@ internal/
   platform/          OS/architecture abstraction, tool binary map
   version/           semver parsing with tool@ prefix support
   updater/           self-update mechanism
+e2e/                 testscript e2e suite (testdata/script/*.txtar)
+test/fixture/        fake nodejs.org, npm registry and bun releases
 docs/                documentation
-test.sh              integration test script
+test_path_e2e.sh     per-shell PATH bootstrap suite
 Dockerfile           production image
-Dockerfile.test      test runner image
+Dockerfile.path-e2e  per-shell test runner image
 ```
 
 See [architecture.md](architecture.md) for a detailed explanation of how the modules interact.
@@ -79,13 +90,17 @@ Use descriptive branch names:
 - Follow the existing code style
 - Add or update tests for your changes
 
-### 3. Test in Docker
-
-Always test in Docker before submitting. This ensures your changes work in a clean environment without relying on your local setup.
+### 3. Test
 
 ```bash
-docker build -f Dockerfile.test -t driftr-test .
-docker run --rm driftr-test
+go test -race ./...
+```
+
+If you touched anything about PATH setup or shell rc files, run the per-shell suite too:
+
+```bash
+docker build -f Dockerfile.path-e2e -t driftr-path-e2e .
+docker run --rm driftr-path-e2e
 ```
 
 ### 4. Commit
@@ -138,7 +153,7 @@ hash before extraction. Delete cached archive on mismatch.
 1. Create `internal/cli/yourcommand.go`
 2. Implement the command using cobra
 3. Register it in `internal/cli/root.go` via `root.AddCommand(newYourCmd())`
-4. Add integration tests in `test.sh`
+4. Add e2e coverage in `e2e/testdata/script/`
 5. Document it in `docs/usage.md`
 
 Example skeleton:
@@ -164,19 +179,41 @@ func newYourCmd() *cobra.Command {
 }
 ```
 
-## Adding Integration Tests
+## Adding E2E Tests
 
-Tests live in `test.sh` and run inside Docker. Use the existing helper functions:
+E2E tests are [testscript](https://pkg.go.dev/github.com/rogpeppe/go-internal/testscript)
+files under `e2e/testdata/script/`. Each one is a script followed by any files it needs,
+in txtar format:
 
-```bash
-# Check that a command exits successfully
-check "description" some-command --args
+```
+# What this script covers.
+exec driftr setup
+exec driftr install node@22 -v
+stdout 'Checksum verified OK'
 
-# Check that command output contains expected text
-check_output "description" "expected text" some-command --args
+# A leading ! requires the command to fail.
+! exec driftr install unknown@1.0
+stderr 'unknown tool'
+
+exec node -v
+stdout 'v'$NODE_VERSION
+
+-- project/.driftr.toml --
+[tools]
+node = "22.99.0"
 ```
 
-Group tests under numbered section headers to keep them organized.
+Every script gets a fresh `$HOME` with `$HOME/.driftr/bin` first on `PATH`, plus
+`$NODE_VERSION`, `$PNPM_VERSION`, `$YARN_VERSION` and `$BUN_VERSION` holding the versions
+the fixture serves. Assert on those variables instead of writing the numbers out.
+
+Two things catch people out:
+
+- `stdout` and `stderr` take a regular expression, so escape dots: `stdout '1\.2\.99'`.
+- An error path needs `!` in front of the command. Without it, a command that prints a
+  complaint and still exits 0 will pass.
+
+Adding a version or a package to the fixture means editing `test/fixture/fixture.go`.
 
 ## Areas for Contribution
 

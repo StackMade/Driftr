@@ -1,0 +1,34 @@
+# doctor reports on the install, and --fix repairs what it can.
+
+exec driftr setup
+exec driftr install node@22
+exec driftr default node@$NODE_VERSION
+
+exec driftr doctor
+stdout 'PATH'
+
+exec driftr doctor --fix
+
+# Without --fix, a broken shim is reported and left alone.
+rm $HOME/.driftr/bin/node
+exec driftr doctor
+stdout 'Shim broken or missing: node'
+! exists $HOME/.driftr/bin/node
+
+# --fix regenerates the whole set, and the repaired shim resolves as before.
+exec driftr doctor --fix
+stdout 'regenerated'
+exists $HOME/.driftr/bin/node
+exec node -v
+stdout 'v'$NODE_VERSION
+
+# A shim that lost its executable bit counts as broken too.
+chmod 0644 $HOME/.driftr/bin/npm
+exec driftr doctor --fix
+stdout 'regenerated'
+exec npm -v
+stdout '10\.99\.0'
+
+# With everything in place, --fix reports no shim work left to do.
+exec driftr doctor --fix
+stdout 'All 7 shims installed'

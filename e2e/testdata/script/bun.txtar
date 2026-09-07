@@ -1,0 +1,24 @@
+# bun ships as a native binary in a zip on GitHub Releases, so it covers the
+# standalone exec path, where the shim runs the binary without node.
+
+exec driftr setup
+
+exec driftr install bun@1 -v
+stdout 'Checksum verified OK'
+stdout '✓ Installed'
+exists $HOME/.driftr/tools/bun/$BUN_VERSION/bin/bun
+
+exec driftr list bun
+stdout $BUN_VERSION
+
+exec driftr default bun@$BUN_VERSION
+exec driftr which bun
+stdout $BUN_VERSION
+
+# The shim execs the binary directly, so its own output comes back unchanged.
+exec bun --version
+stdout $BUN_VERSION
+
+exec driftr uninstall bun@$BUN_VERSION
+exec driftr list bun
+stdout 'No bun versions installed'

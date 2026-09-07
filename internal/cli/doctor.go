@@ -52,8 +52,8 @@ func newDoctorCmd() *cobra.Command {
 			issues += checkPath(binDir)
 			issues += checkShimShadowing(binDir, fix)
 			issues += checkShellRCPlacement(binDir, fix)
-			issues += checkShims(binDir)
-			issues += checkShimBinaryPath(binDir)
+			issues += checkShims(binDir, fix)
+			issues += checkShimBinaryPath(binDir, fix)
 			issues += checkGlobalDefault(cfg, cfgErr)
 			issues += checkDefaultsInstalled(cfg)
 			issues += checkConflictingManagers(binDir)
@@ -69,7 +69,7 @@ func newDoctorCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&fix, "fix", false, "automatically fix detected PATH configuration issues")
+	cmd.Flags().BoolVar(&fix, "fix", false, "automatically fix detected PATH and shim problems")
 	return cmd
 }
 
@@ -215,29 +215,50 @@ func checkShellRCPlacement(binDir string, fix bool) int {
 	return 1
 }
 
-func checkShims(binDir string) int {
-	missing := 0
+// brokenShims returns the tools whose shim is missing or not executable.
+func brokenShims(binDir string) []string {
+	var broken []string
 	for _, tool := range shim.ShimTools() {
-		shimPath := filepath.Join(binDir, tool)
-		info, err := os.Stat(shimPath)
-		if err != nil {
-			warn(fmt.Sprintf("Shim missing: %s — run `driftr setup`", tool))
-			missing++
-			continue
-		}
-		if info.Mode()&0o111 == 0 {
-			warn(fmt.Sprintf("Shim not executable: %s — run `driftr setup`", tool))
-			missing++
+		info, err := os.Stat(filepath.Join(binDir, tool))
+		if err != nil || info.Mode()&0o111 == 0 {
+			broken = append(broken, tool)
 		}
 	}
-
-	if missing == 0 {
-		pass(fmt.Sprintf("All %d shims installed", len(shim.ShimTools())))
-	}
-	return missing
+	return broken
 }
 
-func checkShimBinaryPath(binDir string) int {
+func checkShims(binDir string, fix bool) int {
+	broken := brokenShims(binDir)
+	if len(broken) == 0 {
+		pass(fmt.Sprintf("All %d shims installed", len(shim.ShimTools())))
+		return 0
+	}
+
+	for _, tool := range broken {
+		warn(fmt.Sprintf("Shim broken or missing: %s", tool))
+	}
+
+	if !fix {
+		warn("  run `driftr doctor --fix` to regenerate the shims")
+		return len(broken)
+	}
+
+	// GenerateShims rewrites every shim, so one call repairs the whole set.
+	if err := shim.GenerateShims(); err != nil {
+		warn("  fix failed: " + err.Error())
+		return len(broken)
+	}
+
+	if still := brokenShims(binDir); len(still) > 0 {
+		warn(fmt.Sprintf("  fix incomplete: %s still broken", strings.Join(still, ", ")))
+		return len(still)
+	}
+
+	pass(fmt.Sprintf("  fixed: regenerated %d shim(s)", len(broken)))
+	return 0
+}
+
+func checkShimBinaryPath(binDir string, fix bool) int {
 	currentBin, err := os.Executable()
 	if err != nil {
 		return 0
@@ -264,8 +285,17 @@ func checkShimBinaryPath(binDir string) int {
 				resolved = shimBin
 			}
 			if resolved != currentBin {
-				warn(fmt.Sprintf("Shims point to %s but driftr is at %s — run `driftr setup`", shimBin, currentBin))
-				return 1
+				warn(fmt.Sprintf("Shims point to %s but driftr is at %s", shimBin, currentBin))
+				if !fix {
+					warn("  run `driftr doctor --fix` to point them at the current binary")
+					return 1
+				}
+				if err := shim.GenerateShims(); err != nil {
+					warn("  fix failed: " + err.Error())
+					return 1
+				}
+				pass("  fixed: shims now point to " + currentBin)
+				return 0
 			}
 			pass("Shims point to current driftr binary")
 			return 0

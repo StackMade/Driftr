@@ -1,0 +1,47 @@
+# Installing node: download, checksum verification, and the global default.
+
+exec driftr setup
+
+exec driftr install node@22 -v
+stdout 'Checksum verified OK'
+exists $HOME/.driftr/tools/node/$NODE_VERSION/bin/node
+
+exec driftr list
+stdout $NODE_VERSION
+
+exec driftr default node@$NODE_VERSION
+exec driftr list
+stdout '\*'
+
+exec driftr which node
+stdout $NODE_VERSION
+stdout 'global default'
+
+# A partial spec resolves against what is already installed.
+exec driftr default node@22
+exec driftr which node
+stdout $NODE_VERSION
+
+# Reinstalling the same version is a no-op, not an error.
+exec driftr install node@$NODE_VERSION
+exec driftr list
+stdout $NODE_VERSION
+
+# The shim execs the real binary. The fixture node prints its own version.
+exec node -v
+stdout 'v'$NODE_VERSION
+
+exec npm -v
+stdout '10\.99\.0'
+
+# lts resolves through the release index, which marks the fixture as LTS.
+exec driftr install node@lts -v
+stdout 'Installed|already installed'
+
+# No other tool has an LTS concept.
+! exec driftr install pnpm@lts
+stderr 'lts is only supported for node'
+! exec driftr install yarn@lts
+stderr 'lts is only supported for node'
+! exec driftr install bun@lts
+stderr 'lts is only supported for node'
