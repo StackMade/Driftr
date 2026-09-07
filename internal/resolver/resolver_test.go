@@ -591,3 +591,113 @@ func TestResolveFromProject_NvmrcIgnoredForNonNode(t *testing.T) {
 		t.Fatal("expected error for pnpm with only .nvmrc, got nil")
 	}
 }
+
+func TestResolveFromProject_LTSAlias(t *testing.T) {
+	tests := []struct {
+		name      string
+		file      string
+		content   string
+		installed []string
+		want      string
+	}{
+		{"lts star picks newest even major", ".nvmrc", "lts/*\n", []string{"21.0.0", "20.11.0", "22.14.0"}, "22.14.0"},
+		{"bare lts picks newest even major", ".nvmrc", "lts\n", []string{"20.11.0", "22.14.0"}, "22.14.0"},
+		{"lts star ignores odd majors", ".nvmrc", "lts/*\n", []string{"20.11.0", "23.5.0"}, "20.11.0"},
+		{"codename picks its major", ".nvmrc", "lts/iron\n", []string{"20.11.0", "22.14.0"}, "20.11.0"},
+		{"codename picks newest in major", ".node-version", "lts/jod\n", []string{"22.1.0", "22.14.0", "20.11.0"}, "22.14.0"},
+		{"codename is case-insensitive", ".node-version", "LTS/Jod\n", []string{"20.11.0", "22.14.0"}, "22.14.0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			for _, v := range tt.installed {
+				setupFakeInstall(t, home, "node", v)
+			}
+
+			projectDir := t.TempDir()
+			os.WriteFile(filepath.Join(projectDir, tt.file), []byte(tt.content), 0o644)
+
+			origDir, _ := os.Getwd()
+			defer os.Chdir(origDir)
+			os.Chdir(projectDir)
+
+			res, err := ResolveTool("node", "", false)
+			if err != nil {
+				t.Fatalf("ResolveTool() error: %v", err)
+			}
+			if res.Version != tt.want {
+				t.Errorf("version = %q, want %q", res.Version, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveFromProject_LTSAliasNotInstalled(t *testing.T) {
+	tests := []struct {
+		name        string
+		content     string
+		installed   []string
+		wantVersion string
+	}{
+		{"no even major installed", "lts/*\n", []string{"23.5.0"}, "lts"},
+		{"codename major missing", "lts/iron\n", []string{"22.14.0"}, "lts/iron"},
+		{"nothing installed", "lts/jod\n", nil, "lts/jod"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			for _, v := range tt.installed {
+				setupFakeInstall(t, home, "node", v)
+			}
+
+			projectDir := t.TempDir()
+			os.WriteFile(filepath.Join(projectDir, ".nvmrc"), []byte(tt.content), 0o644)
+
+			origDir, _ := os.Getwd()
+			defer os.Chdir(origDir)
+			os.Chdir(projectDir)
+
+			_, err := ResolveTool("node", "", false)
+			var notInstalled *NotInstalledError
+			if !errors.As(err, &notInstalled) {
+				t.Fatalf("expected NotInstalledError, got %T: %v", err, err)
+			}
+			if notInstalled.Version != tt.wantVersion {
+				t.Errorf("version = %q, want %q", notInstalled.Version, tt.wantVersion)
+			}
+			if !strings.Contains(notInstalled.Error(), "driftr install node@"+tt.wantVersion) {
+				t.Errorf("error %q does not carry an actionable install command", notInstalled.Error())
+			}
+			if !strings.Contains(notInstalled.Context, "pinned in") {
+				t.Errorf("context = %q, want it to name the pinning directory", notInstalled.Context)
+			}
+		})
+	}
+}
+
+func TestResolveFromProject_UnknownLTSCodenameFallsThrough(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	setupFakeInstall(t, home, "node", "22.14.0")
+
+	// Unknown codename in .nvmrc: warn and fall through to .node-version.
+	projectDir := t.TempDir()
+	os.WriteFile(filepath.Join(projectDir, ".nvmrc"), []byte("lts/mithril\n"), 0o644)
+	os.WriteFile(filepath.Join(projectDir, ".node-version"), []byte("22.14.0\n"), 0o644)
+
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+	os.Chdir(projectDir)
+
+	res, err := ResolveTool("node", "", false)
+	if err != nil {
+		t.Fatalf("ResolveTool() error: %v", err)
+	}
+	if res.Version != "22.14.0" || res.Source != SourceNodeVersion {
+		t.Errorf("got %q from %v, want 22.14.0 from .node-version", res.Version, res.Source)
+	}
+}

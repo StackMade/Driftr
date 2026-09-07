@@ -18,9 +18,10 @@ func TestLoadNvmrc(t *testing.T) {
 		{"partial major minor", "22.14\n", "22.14"},
 		{"with whitespace", "  22.14.0  \n", "22.14.0"},
 		{"comment then version", "# my project\n22.14.0\n", "22.14.0"},
-		{"lts star", "lts/*\n", ""},
-		{"lts name", "lts/hydrogen\n", ""},
-		{"LTS uppercase", "LTS/iron\n", ""},
+		{"lts star", "lts/*\n", "lts/*"},
+		{"lts name", "lts/hydrogen\n", "lts/hydrogen"},
+		{"LTS uppercase", "LTS/iron\n", "LTS/iron"},
+		{"bare lts", "lts\n", "lts"},
 		{"empty file", "", ""},
 		{"only comments", "# nothing\n", ""},
 	}

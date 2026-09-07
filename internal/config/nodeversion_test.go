@@ -20,8 +20,8 @@ func TestLoadNodeVersion(t *testing.T) {
 		{"multi-line", "22.14.0\n18.0.0\n", "22.14.0"},
 		{"comment then version", "# pinned node\n22.14.0\n", "22.14.0"},
 		{"only comment", "# nothing\n", ""},
-		{"lts star", "lts/*\n", ""},
-		{"lts named", "lts/hydrogen\n", ""},
+		{"lts star", "lts/*\n", "lts/*"},
+		{"lts named", "lts/hydrogen\n", "lts/hydrogen"},
 		{"CRLF", "22.14.0\r\n", "22.14.0"},
 	}
 

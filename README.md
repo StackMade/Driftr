@@ -30,6 +30,7 @@ Driftr is a new project. It doesn't have Volta's years of polish or fnm's commun
 - **Fast** -- near-zero overhead via `syscall.Exec` process replacement
 - **Minimal** -- 2 external dependencies (cobra + toml), everything else is Go stdlib
 - **Deterministic** -- explicit resolution chain: project config > `package.json` (`driftr` key, then `packageManager` field for pnpm/yarn) > `.nvmrc` / `.node-version` (node) > global default
+- **nvm-compatible pins** -- `.nvmrc` and `.node-version` are read as they are, including the `lts`, `lts/*` and `lts/<codename>` aliases
 - **Secure** -- SHA256 and SHA-512 SRI checksum verification on every download
 - **Simple** -- a handful of commands cover the entire workflow
 
@@ -81,7 +82,7 @@ pnpm -v   # resolves automatically
 
 | Command | Description |
 |---------|-------------|
-| `driftr install [tool[@version]]` | Download and install a tool version (node, pnpm, yarn); with no argument, installs everything the current project pins; a bare tool name installs the latest; `node@lts` installs the newest LTS release |
+| `driftr install [tool[@version]]` | Download and install a tool version (node, pnpm, yarn); with no argument, installs everything the current project pins; a bare tool name installs the latest; `node@lts` installs the newest LTS release, `node@lts/jod` a named LTS line |
 | `driftr uninstall <tool@version>` | Remove an installed tool version |
 | `driftr default <tool@version>` | Set the global default version for a tool |
 | `driftr pin <tool@version>` | Pin a version to the current project (`.driftr.toml` or `package.json`) |

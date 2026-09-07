@@ -82,6 +82,12 @@ func (r NodeRelease) IsLTS() bool {
 	}
 }
 
+// LTSName returns the release's LTS codename, or "" when it is not an LTS release.
+func (r NodeRelease) LTSName() string {
+	name, _ := r.LTS.(string)
+	return name
+}
+
 // Install downloads and installs a Node.js version.
 func Install(versionStr string, verbose bool) (string, error) {
 	if err := platform.EnsureDirs(); err != nil {
@@ -169,8 +175,15 @@ func resolveLatestVersion(v version.Version) (string, error) {
 	}
 
 	for _, rel := range releases {
-		if v.LTS && !rel.IsLTS() {
-			continue
+		if v.LTS {
+			if !rel.IsLTS() {
+				continue
+			}
+			// "lts/<codename>" matches the release's own codename, so no
+			// codename table is needed on the network path.
+			if v.LTSCodename != "" && !strings.EqualFold(rel.LTSName(), v.LTSCodename) {
+				continue
+			}
 		}
 		rv, err := version.Parse(rel.Version)
 		if err != nil {
@@ -183,6 +196,9 @@ func resolveLatestVersion(v version.Version) (string, error) {
 
 	if v.Latest {
 		return "", fmt.Errorf("no Node.js releases found")
+	}
+	if v.LTSCodename != "" {
+		return "", fmt.Errorf("no Node.js LTS release found with codename %q. Run `driftr install node@lts` for the latest LTS", v.LTSCodename)
 	}
 	if v.LTS {
 		return "", fmt.Errorf("no Node.js LTS release found")

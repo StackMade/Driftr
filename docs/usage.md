@@ -26,6 +26,9 @@ driftr install node@latest
 # Install the newest active LTS release (node only — pnpm/yarn have no LTS concept)
 driftr install node@lts
 
+# Install a named LTS line by codename (matched against the release index)
+driftr install node@lts/jod
+
 # Verbose output (shows download URL, checksum verification)
 driftr install node@22 -v
 ```
@@ -319,8 +322,8 @@ When you run a tool (`node`, `npm`, `npx`, `pnpm`, `pnpx`, or `yarn`), Driftr re
 | 2 | Project `.driftr.toml` | Found in current or parent directory |
 | 3 | `package.json` driftr key | Found in current or parent directory |
 | 4 | `package.json` `packageManager` field (pnpm/yarn only) | Found in current or parent directory |
-| 5 | `.nvmrc` (node only) | Found in current or parent directory |
-| 6 | `.node-version` (node only) | Found in current or parent directory |
+| 5 | `.nvmrc` (node only) | Found in current or parent directory; `lts`, `lts/*` and `lts/<codename>` resolve against installed versions |
+| 6 | `.node-version` (node only) | Found in current or parent directory; same LTS aliases as `.nvmrc` |
 | 7 | Global default | Set via `driftr default` |
 
 If no version is configured at any level, Driftr prints an actionable error.

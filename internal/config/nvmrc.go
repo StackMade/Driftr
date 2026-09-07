@@ -25,7 +25,8 @@ func LoadNvmrc(dir string) (string, error) {
 }
 
 // parseVersionFile extracts a version string from a single-line version file.
-// Returns ("", nil) for unsupported formats like "lts/*" or "lts/hydrogen".
+// LTS aliases ("lts", "lts/*", "lts/hydrogen") are returned verbatim for the
+// resolver to interpret.
 func parseVersionFile(content string) (string, error) {
 	// Take the first non-empty, non-comment line.
 	for _, line := range strings.Split(content, "\n") {
@@ -34,9 +35,9 @@ func parseVersionFile(content string) (string, error) {
 			continue
 		}
 
-		// Skip unsupported LTS aliases.
+		// LTS aliases pass through untouched — no "v" prefix to strip.
 		if strings.HasPrefix(strings.ToLower(line), "lts") {
-			return "", nil
+			return line, nil
 		}
 
 		// Strip optional "v" prefix.

@@ -41,9 +41,30 @@ func RequireToolInstalled(tool, versionSpec string) (string, string, error) {
 
 // resolveInstalledPartial finds the latest installed version matching a partial spec.
 func resolveInstalledPartial(tool string, v version.Version) (string, string, error) {
-	installed, err := ListToolVersions(tool)
+	best, err := newestInstalled(tool, v.Matches)
 	if err != nil {
 		return "", "", err
+	}
+	if best == "" {
+		if v.Latest {
+			return "", "", fmt.Errorf("no %s versions installed. Run `driftr install %s@<version>`", tool, tool)
+		}
+		return "", "", fmt.Errorf("no installed %s version matches %s. Run `driftr install %s@%s`", tool, v.Raw, tool, v.Raw)
+	}
+
+	binPath, err := requireToolBinaryExists(tool, best, "")
+	if err != nil {
+		return "", "", err
+	}
+	return best, binPath, nil
+}
+
+// newestInstalled returns the highest installed version of tool accepted by
+// match, or "" when nothing matches.
+func newestInstalled(tool string, match func(version.Version) bool) (string, error) {
+	installed, err := ListToolVersions(tool)
+	if err != nil {
+		return "", err
 	}
 
 	var matches []version.Version
@@ -52,16 +73,13 @@ func resolveInstalledPartial(tool string, v version.Version) (string, string, er
 		if err != nil {
 			continue
 		}
-		if v.Matches(iv) {
+		if match(iv) {
 			matches = append(matches, iv)
 		}
 	}
 
 	if len(matches) == 0 {
-		if v.Latest {
-			return "", "", fmt.Errorf("no %s versions installed. Run `driftr install %s@<version>`", tool, tool)
-		}
-		return "", "", fmt.Errorf("no installed %s version matches %s. Run `driftr install %s@%s`", tool, v.Raw, tool, v.Raw)
+		return "", nil
 	}
 
 	// Sort descending to pick the latest.
@@ -75,12 +93,7 @@ func resolveInstalledPartial(tool string, v version.Version) (string, string, er
 		return cmp.Compare(b.Patch, a.Patch)
 	})
 
-	best := matches[0].String()
-	binPath, err := requireToolBinaryExists(tool, best, "")
-	if err != nil {
-		return "", "", err
-	}
-	return best, binPath, nil
+	return matches[0].String(), nil
 }
 
 // ListToolVersions returns all installed version strings for a tool.
@@ -307,12 +320,14 @@ func resolveFromProject(tool, dir string, verbose bool) (*Resolution, error) {
 			if err != nil {
 				return nil, err
 			}
-			if ver == "" {
-				if _, statErr := os.Stat(nvmrcPath); statErr == nil {
-					fmt.Fprintf(os.Stderr, "warning: .nvmrc in %s contains an unsupported format (e.g. LTS aliases); ignoring\n", current)
+			if ver != "" {
+				res, err := resolveVersionFilePin(tool, ver, current, SourceNvmrc)
+				if err != nil {
+					return nil, err
 				}
-			} else {
-				return resolveProjectVersion(tool, ver, current, SourceNvmrc)
+				if res != nil {
+					return res, nil
+				}
 			}
 
 			nodeVersionPath := filepath.Join(current, ".node-version")
@@ -323,12 +338,14 @@ func resolveFromProject(tool, dir string, verbose bool) (*Resolution, error) {
 			if err != nil {
 				return nil, err
 			}
-			if ver == "" {
-				if _, statErr := os.Stat(nodeVersionPath); statErr == nil {
-					fmt.Fprintf(os.Stderr, "warning: .node-version in %s contains an unsupported format (e.g. LTS aliases); ignoring\n", current)
+			if ver != "" {
+				res, err := resolveVersionFilePin(tool, ver, current, SourceNodeVersion)
+				if err != nil {
+					return nil, err
 				}
-			} else {
-				return resolveProjectVersion(tool, ver, current, SourceNodeVersion)
+				if res != nil {
+					return res, nil
+				}
 			}
 		}
 
@@ -341,6 +358,44 @@ func resolveFromProject(tool, dir string, verbose bool) (*Resolution, error) {
 	}
 
 	return nil, nil
+}
+
+// resolveVersionFilePin resolves a value read from .nvmrc or .node-version,
+// which may be an LTS alias ("lts", "lts/*", "lts/iron") rather than a version
+// number. Returns (nil, nil) when the alias cannot be resolved at all, so the
+// caller keeps walking the config chain.
+func resolveVersionFilePin(tool, ver, dir string, source Source) (*Resolution, error) {
+	v, err := version.Parse(ver)
+	if err != nil || !v.LTS {
+		return resolveProjectVersion(tool, ver, dir, source)
+	}
+
+	// LTS aliases resolve against installed versions only — the shim hot path
+	// must never hit the network.
+	match := func(iv version.Version) bool {
+		// Node.js LTS lines are the even majors from v4 onwards.
+		return iv.Major >= 4 && iv.Major%2 == 0
+	}
+	alias := "lts"
+	if v.LTSCodename != "" {
+		major, ok := version.LTSCodenameMajor(v.LTSCodename)
+		if !ok {
+			fmt.Fprintf(os.Stderr, "warning: %s in %s pins unknown LTS alias %q; ignoring\n", source, dir, ver)
+			return nil, nil
+		}
+		alias = "lts/" + v.LTSCodename
+		match = func(iv version.Version) bool { return iv.Major == major }
+	}
+
+	best, err := newestInstalled(tool, match)
+	if err != nil {
+		return nil, err
+	}
+	if best == "" {
+		return nil, &NotInstalledError{Tool: tool, Version: alias, Context: "pinned in " + dir}
+	}
+
+	return resolveProjectVersion(tool, best, dir, source)
 }
 
 func resolveProjectVersion(tool, ver, dir string, source Source) (*Resolution, error) {

@@ -113,7 +113,7 @@ When resolving a version, Driftr walks up from the current directory to the file
 
 If multiple config files exist in the same directory, the priority order above applies. `.nvmrc` and `.node-version` are only used for Node.js version resolution. The `packageManager` field is read for pnpm and yarn only (not node, since npm/npx always follow node's own version and node has no equivalent standard field); it must name an exact installed version, same as the `driftr` key — it's read-only, Driftr never writes it.
 
-**Note:** LTS aliases (`lts/*`, `lts/hydrogen`) in `.nvmrc` are not supported and will be skipped.
+**LTS aliases.** `.nvmrc` and `.node-version` may hold `lts`, `lts/*`, or a codename such as `lts/jod`. Driftr resolves those against the versions you already have installed, never over the network, since the shim runs on every `node` call. `lts` and `lts/*` take the newest installed even-numbered major, because Node's LTS lines have been the even majors since v4. `lts/<codename>` takes the newest installed release of that codename's major, so `lts/iron` means 20 and `lts/jod` means 22. When nothing installed fits, you get the usual not-installed error with the command to run, which is also what lets auto-install step in. An unknown codename prints a warning and resolution moves on to the next source.
 
 This means:
 

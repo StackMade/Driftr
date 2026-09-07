@@ -102,6 +102,61 @@ func TestParse_LTS(t *testing.T) {
 	}
 }
 
+func TestParse_LTSAliases(t *testing.T) {
+	tests := []struct {
+		input    string
+		codename string
+	}{
+		{"lts", ""},
+		{"node@lts", ""},
+		{"lts/*", ""},
+		{"node@lts/*", ""},
+		{"lts/jod", "jod"},
+		{"lts/JOD", "jod"},
+		{"LTS/Iron", "iron"},
+		{"lts/unknownname", "unknownname"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			v, err := Parse(tt.input)
+			if err != nil {
+				t.Fatalf("Parse(%q) unexpected error: %v", tt.input, err)
+			}
+			if !v.LTS {
+				t.Errorf("Parse(%q).LTS = false, want true", tt.input)
+			}
+			if v.LTSCodename != tt.codename {
+				t.Errorf("Parse(%q).LTSCodename = %q, want %q", tt.input, v.LTSCodename, tt.codename)
+			}
+		})
+	}
+}
+
+func TestLTSCodenameMajor(t *testing.T) {
+	tests := []struct {
+		name  string
+		major int
+		ok    bool
+	}{
+		{"jod", 22, true},
+		{"Iron", 20, true},
+		{"argon", 4, true},
+		{"krypton", 24, true},
+		{"unknownname", 0, false},
+		{"", 0, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			major, ok := LTSCodenameMajor(tt.name)
+			if major != tt.major || ok != tt.ok {
+				t.Errorf("LTSCodenameMajor(%q) = (%d, %v), want (%d, %v)", tt.name, major, ok, tt.major, tt.ok)
+			}
+		})
+	}
+}
+
 func TestMatches(t *testing.T) {
 	tests := []struct {
 		pattern string

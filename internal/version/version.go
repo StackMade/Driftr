@@ -13,7 +13,37 @@ type Version struct {
 	Patch  int
 	Raw    string
 	Latest bool // true when input was "latest" or "node@latest"
-	LTS    bool // true when input was "lts" or "node@lts"
+	LTS    bool // true when input was "lts", "lts/*" or "lts/<codename>"
+
+	// LTSCodename holds the codename from an "lts/<codename>" alias,
+	// lowercased. Empty for plain "lts" and "lts/*".
+	LTSCodename string
+}
+
+// ltsCodenameMajor maps Node.js LTS codenames to their major version.
+// The network install path resolves codenames from the release index, so this
+// table only serves offline resolution (the shim hot path must never hit the
+// network) and a missing entry degrades gracefully: the alias is simply not
+// resolvable offline.
+var ltsCodenameMajor = map[string]int{
+	"argon":    4,
+	"boron":    6,
+	"carbon":   8,
+	"dubnium":  10,
+	"erbium":   12,
+	"fermium":  14,
+	"gallium":  16,
+	"hydrogen": 18,
+	"iron":     20,
+	"jod":      22,
+	"krypton":  24,
+}
+
+// LTSCodenameMajor returns the major version for a Node.js LTS codename.
+// The lookup is case-insensitive; ok is false for unknown codenames.
+func LTSCodenameMajor(name string) (int, bool) {
+	major, ok := ltsCodenameMajor[strings.ToLower(name)]
+	return major, ok
 }
 
 // stripToolPrefix removes an optional "tool@" prefix (e.g. "node@24" → "24").
@@ -40,8 +70,11 @@ func Parse(s string) (Version, error) {
 		return Version{Raw: raw, Latest: true}, nil
 	}
 
-	if s == "lts" {
+	// LTS aliases: "lts", "lts/*" (newest LTS) and "lts/<codename>".
+	if lower := strings.ToLower(s); lower == "lts" || lower == "lts/*" {
 		return Version{Raw: raw, LTS: true}, nil
+	} else if name, ok := strings.CutPrefix(lower, "lts/"); ok && name != "" {
+		return Version{Raw: raw, LTS: true, LTSCodename: name}, nil
 	}
 
 	parts := strings.SplitN(s, ".", 3)
