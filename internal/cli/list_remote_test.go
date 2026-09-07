@@ -35,7 +35,7 @@ func TestListRemote_NodeMarksInstalledAndLTS(t *testing.T) {
 		t.Errorf("LTS codename not shown: %q", out)
 	}
 	if strings.Contains(out, "24.0.0 (LTS") {
-		t.Errorf("non-LTS release was labelled LTS: %q", out)
+		t.Errorf("non-LTS release was labeled LTS: %q", out)
 	}
 	// The installed version carries the ● marker; the others do not.
 	for _, line := range strings.Split(out, "\n") {

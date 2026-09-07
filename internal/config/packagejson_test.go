@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func writePackageJSON(t *testing.T, dir, content string) {
@@ -570,13 +571,19 @@ func FuzzPatchTopLevelKey(f *testing.F) {
 		strings.Repeat(`{"a":`, 100) + "1" + strings.Repeat("}", 100),
 	}
 	for _, s := range seeds {
-		f.Add([]byte(s))
+		f.Add([]byte(s), "driftr")
 	}
+	// The production caller only ever patches "driftr", but the rewriter takes
+	// the key as a parameter, so fuzz that too.
+	f.Add([]byte(`{"name": "myapp"}`), "packageManager")
+	f.Add([]byte(`{"a": 1}`), "")
+	f.Add([]byte(`{"a": 1}`), `a"b`)
+	f.Add([]byte(`{"a": 1}`), "a\u0000b")
 
 	value := json.RawMessage(`{"node":"22.14.0"}`)
 
-	f.Fuzz(func(t *testing.T, data []byte) {
-		out, err := patchTopLevelKey(data, "driftr", value)
+	f.Fuzz(func(t *testing.T, data []byte, key string) {
+		out, err := patchTopLevelKey(data, key, value)
 		if err != nil {
 			return
 		}
@@ -584,22 +591,29 @@ func FuzzPatchTopLevelKey(f *testing.F) {
 		if err := json.Unmarshal(out, &got); err != nil {
 			t.Fatalf("patchTopLevelKey(%q) produced invalid JSON %q: %v", data, out, err)
 		}
-		if !bytes.Equal(got["driftr"], value) {
-			t.Errorf("patchTopLevelKey(%q) = %q, driftr key is %q, want %q",
-				data, out, got["driftr"], value)
+		// json.Marshal replaces invalid UTF-8 in a string with U+FFFD, so a key
+		// that is not valid UTF-8 comes back out under a different name. The
+		// output is still valid JSON, which is what this target is about; only
+		// the round-trip stops holding. No caller passes such a key.
+		if !utf8.ValidString(key) {
+			return
+		}
+		if !bytes.Equal(got[key], value) {
+			t.Errorf("patchTopLevelKey(%q, %q) = %q, key holds %q, want %q",
+				data, key, out, got[key], value)
 		}
 
 		// Removing the key again must leave it gone.
-		removed, err := patchTopLevelKey(out, "driftr", nil)
+		removed, err := patchTopLevelKey(out, key, nil)
 		if err != nil {
-			t.Fatalf("patchTopLevelKey(%q, nil) failed on its own output: %v", out, err)
+			t.Fatalf("patchTopLevelKey(%q, %q, nil) failed on its own output: %v", out, key, err)
 		}
 		var afterRemove map[string]json.RawMessage
 		if err := json.Unmarshal(removed, &afterRemove); err != nil {
-			t.Fatalf("patchTopLevelKey(%q, nil) produced invalid JSON %q: %v", out, removed, err)
+			t.Fatalf("patchTopLevelKey(%q, %q, nil) produced invalid JSON %q: %v", out, key, removed, err)
 		}
-		if _, ok := afterRemove["driftr"]; ok {
-			t.Errorf("patchTopLevelKey(%q, nil) = %q, driftr key still present", out, removed)
+		if _, ok := afterRemove[key]; ok {
+			t.Errorf("patchTopLevelKey(%q, %q, nil) = %q, key still present", out, key, removed)
 		}
 	})
 }
