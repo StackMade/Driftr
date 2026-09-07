@@ -90,6 +90,7 @@ pnpm -v   # resolves automatically
 | `driftr use <tool@version>` | Print a shell snippet pinning a version for the current shell: `eval "$(driftr use node@24)"` |
 | `driftr list [tool]` | List installed versions (defaults to node) |
 | `driftr list --remote [tool]` | Browse available remote versions from nodejs.org / npm registry |
+| `driftr outdated` | Compare the versions in use against the newest releases upstream |
 | `driftr which <tool>` | Show which binary would be executed and why |
 | `driftr run --node <ver> -- <cmd>` | Run a command under a specific Node.js version |
 | `driftr setup` | Initialize Driftr, generate shims, and configure your shell PATH |
@@ -135,6 +136,20 @@ driftr list --remote --pre pnpm      # Include pre-release versions (npm package
 ```
 
 Installed versions are marked with `●`, the active version with `>`, and the global default with `*`. Node.js LTS releases show their codename (e.g. `LTS: Jod`).
+
+### Checking for updates (`driftr outdated`)
+
+```bash
+driftr outdated                # every managed tool
+driftr outdated --tool node    # just one
+driftr outdated --pre          # include npm pre-releases
+driftr outdated --exit-code    # exit 1 when something is behind (CI)
+```
+
+The report shows the version each tool resolves to, the newest release on that
+major line, the newest release overall, and for node the newest LTS. A tool
+whose release source cannot be reached is reported as `unknown` and does not
+stop the rest of the report.
 
 ## Shell Completions
 

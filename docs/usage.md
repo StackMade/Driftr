@@ -254,6 +254,41 @@ Installed node versions:
 
 **Alias:** `driftr ls`
 
+## driftr outdated
+
+Compare the versions the current project uses against the newest releases on
+nodejs.org and the npm registry.
+
+```bash
+driftr outdated                # every managed tool
+driftr outdated --tool node    # just one
+driftr outdated --pre          # include npm pre-releases
+driftr outdated --exit-code    # exit 1 when something is behind (CI)
+```
+
+Output example:
+
+```
+TOOL  CURRENT  SOURCE                          LINE LATEST  LATEST   LTS      STATUS
+node  22.14.0  project config                  22.21.0      24.11.0  22.21.0  behind: 22.21.0 in 22.x, latest 24.11.0
+pnpm  9.0.0    project config (not installed)  9.15.9       10.4.0   -        newest in 9.x, newer major: 10.4.0
+```
+
+`LINE LATEST` is the newest release on the major version you are already on,
+which is usually the upgrade you can take today. `LATEST` is the newest release
+of any major. For node the `LTS` column shows the newest long-term support
+release.
+
+**Where `CURRENT` comes from:** the same resolution `driftr which` uses, so a
+project pin wins over the global default. A pin that is not installed yet still
+shows up, marked `(not installed)`. Tools with no pin and nothing installed are
+left out.
+
+**Behavior:**
+- A pin like `node = "22"` or `lts/*` floats, so it is only reported as behind when a newer major line exists
+- If one tool's release source cannot be reached, its row says `unknown` and the rest of the report still runs
+- The command exits 0 unless every source failed, or `--exit-code` was given and something is behind
+
 ## driftr which
 
 Show which binary Driftr would execute, and why.
