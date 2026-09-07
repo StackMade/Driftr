@@ -99,7 +99,7 @@ func promptInstall(in io.Reader, e *resolver.NotInstalledError) bool {
 	fmt.Fprintf(os.Stderr, "%s\nInstall now? [Y/n] ", msg)
 
 	// ReadString returns what it read alongside io.EOF when the input ends
-	// without a newline, so a piped "y" has to be honoured rather than
+	// without a newline, so a piped "y" has to be honored rather than
 	// discarded with the error. Only an empty read is a refusal, matching how
 	// confirm reads its answer.
 	answer, err := bufio.NewReader(in).ReadString('\n')

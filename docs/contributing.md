@@ -66,6 +66,19 @@ changes and no directories are left behind. Two paths stay invisible either way:
 ends in `os.Exit` never flushes its counters, and neither does the shim, which hands the
 process over with `syscall.Exec`.
 
+### Linting
+
+`golangci-lint` runs in CI with the config in `.golangci.yml`. Two of its checks catch
+things `go vet` does not and are easy to trip over:
+
+- `misspell` enforces US spelling in Go source, comments included. Write "behavior", not
+  "behaviour"; "recognized", not "recognised".
+- `errcheck` wants every returned error handled. For a write to a `bytes.Buffer`, which
+  cannot fail, discard it explicitly with `_ =` and say why in a comment.
+
+The pinned version is a minor (`v2.11`), so a patch release can start reporting something
+that passed yesterday. If `Lint` fails on code you did not touch, that is usually why.
+
 ### Fuzzing
 
 The hand-written parsers have `go test -fuzz` targets: `FuzzParse` and `FuzzParseRange` in
