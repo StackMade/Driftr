@@ -17,7 +17,12 @@ func Exec(binary string, args []string) error {
 
 	// Use syscall.Exec to replace the current process.
 	// This preserves stdin/stdout/stderr and exit codes.
-	return syscall.Exec(binary, argv, os.Environ())
+	// On success this never returns; on failure the raw errno says nothing
+	// about which binary was missing, so name it.
+	if err := syscall.Exec(binary, argv, os.Environ()); err != nil {
+		return fmt.Errorf("failed to execute %s: %w", binary, err)
+	}
+	return nil
 }
 
 // Run executes a binary as a child process and returns the exit code.
