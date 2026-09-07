@@ -60,7 +60,7 @@ func extractToRoot(root *os.Root, relPath string, hdr *tar.Header, tr *tar.Reade
 // Extract unpacks the downloaded archive into the tools directory.
 // The Node.js archive contains a top-level directory like "node-v24.0.0-darwin-arm64/".
 // We extract its contents into ~/.driftr/tools/node/<version>/.
-func Extract(archivePath, version string, verbose bool) error {
+func Extract(archivePath, version string, verbose bool, cleanup *installCleanup) error {
 	destDir, err := platform.NodeVersionDir(version)
 	if err != nil {
 		return err
@@ -87,6 +87,10 @@ func Extract(archivePath, version string, verbose bool) error {
 	if err != nil {
 		return fmt.Errorf("failed to create version dir: %w", err)
 	}
+	// A signal can arrive at any point below, and the name is random, so the
+	// interrupt handler has to be told where the work dir is.
+	cleanup.setTmpDir(tmpDir)
+	defer cleanup.clearTmpDir()
 	if err := os.Chmod(tmpDir, 0o755); err != nil {
 		os.RemoveAll(tmpDir)
 		return fmt.Errorf("failed to set version dir permissions: %w", err)

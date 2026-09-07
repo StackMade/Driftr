@@ -40,10 +40,10 @@ func parseVersionFile(content string) (string, error) {
 			return line, nil
 		}
 
-		// Strip optional "v" prefix.
-		line = strings.TrimPrefix(line, "v")
-
-		return line, nil
+		// Strip optional "v" prefix. Trim again afterwards: "v 22.14.0" would
+		// otherwise carry the space through, since the earlier TrimSpace ran
+		// before the prefix came off.
+		return strings.TrimSpace(strings.TrimPrefix(line, "v")), nil
 	}
 
 	return "", nil

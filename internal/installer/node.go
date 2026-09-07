@@ -19,6 +19,7 @@ import (
 type installCleanup struct {
 	mu      sync.Mutex
 	tmpFile string // temp download file (driftr-download-*)
+	tmpDir  string // extraction work dir, as created by os.MkdirTemp
 	version string // version being installed (partial extraction dir)
 	verbose bool
 }
@@ -33,6 +34,27 @@ func (c *installCleanup) clearTmpFile() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.tmpFile = ""
+}
+
+// setTmpDir records the extraction work dir. The name comes from
+// os.MkdirTemp, so it cannot be reconstructed later — an interrupted install
+// can only remove the directory it was told about.
+func (c *installCleanup) setTmpDir(path string) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.tmpDir = path
+}
+
+func (c *installCleanup) clearTmpDir() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.tmpDir = ""
 }
 
 func (c *installCleanup) setVersion(v string) {
@@ -50,14 +72,16 @@ func (c *installCleanup) run() {
 		os.Remove(c.tmpFile)
 		c.tmpFile = ""
 	}
+	if c.tmpDir != "" {
+		os.RemoveAll(c.tmpDir)
+		c.tmpDir = ""
+	}
 	if c.version != "" {
 		dir, err := platform.NodeVersionDir(c.version)
 		if err == nil {
-			tmpDir := fmt.Sprintf("%s.tmp-%d", dir, os.Getpid())
 			if c.verbose {
 				fmt.Fprintf(os.Stderr, "  Cleaning up partial install: %s\n", dir)
 			}
-			os.RemoveAll(tmpDir)
 			os.RemoveAll(dir)
 		}
 		c.version = ""
@@ -155,7 +179,7 @@ func Install(versionStr string, verbose bool) (string, error) {
 		return "", err
 	}
 
-	if err := Extract(archivePath, resolvedVersion, verbose); err != nil {
+	if err := Extract(archivePath, resolvedVersion, verbose, cleanup); err != nil {
 		cleanup.run()
 		return "", err
 	}

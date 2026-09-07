@@ -79,7 +79,7 @@ func TestExtract_Success(t *testing.T) {
 		{Name: "unrelated/stray.txt", Data: []byte("skipped"), Typeflag: tar.TypeReg},
 	})
 
-	if err := Extract(archive, ver, false); err != nil {
+	if err := Extract(archive, ver, false, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -114,7 +114,7 @@ func TestExtract_MissingNodeBinary(t *testing.T) {
 		{Name: prefix + "README.md", Data: []byte("readme"), Typeflag: tar.TypeReg},
 	})
 
-	err := Extract(archive, ver, false)
+	err := Extract(archive, ver, false, nil)
 	if err == nil || !strings.Contains(err.Error(), "node binary not found") {
 		t.Fatalf("expected node-binary-not-found error, got: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestExtract_PathTraversalBlocked(t *testing.T) {
 
 	// Whether Extract errors or skips the entry, nothing may be written
 	// outside the version directory.
-	_ = Extract(archive, ver, false)
+	_ = Extract(archive, ver, false, nil)
 
 	// filepath.Glob has no recursive **, so walk the whole tree.
 	err := filepath.WalkDir(home, func(path string, d os.DirEntry, err error) error {
@@ -181,7 +181,7 @@ func TestExtract_AlreadyExtracted(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := Extract(archive, ver, false); err != nil {
+	if err := Extract(archive, ver, false, nil); err != nil {
 		t.Errorf("expected skip for already-extracted version, got: %v", err)
 	}
 }
@@ -300,7 +300,7 @@ func TestExtract_WrongArchiveLayout(t *testing.T) {
 		{Name: "something-else/bin/node", Data: []byte("node"), Typeflag: tar.TypeReg},
 	})
 
-	err := Extract(archive, ver, false)
+	err := Extract(archive, ver, false, nil)
 	if err == nil || !strings.Contains(err.Error(), "unexpected layout") {
 		t.Fatalf("expected unexpected-layout error, got: %v", err)
 	}
