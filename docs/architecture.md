@@ -105,7 +105,7 @@ The hidden `driftr shim` command sets `DisableFlagParsing: true` in cobra. This 
 The resolver follows a strict priority order:
 
 1. **Explicit** -- `--node` flag on `driftr run`
-2. **Environment** -- `DRIFTR_NODE`, `DRIFTR_PNPM` or `DRIFTR_YARN`, set for one shell by `driftr use`
+2. **Environment** -- `DRIFTR_NODE`, `DRIFTR_PNPM`, `DRIFTR_YARN` or `DRIFTR_BUN`, set for one shell by `driftr use`
 3. **Project** -- `.driftr.toml` found by walking up from `cwd`
 4. **package.json** -- `driftr` key in `package.json`, same walk-up
 5. **`.nvmrc`** -- node only, found by walking up from `cwd`

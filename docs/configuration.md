@@ -170,7 +170,7 @@ git commit -m "Pin Node.js version with Driftr"
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `DRIFTR_NODE`, `DRIFTR_PNPM`, `DRIFTR_YARN` | unset | Version for that tool in the current shell. Read before any project config, so it overrides `.driftr.toml`, `package.json`, `.nvmrc` and `.node-version`. Takes a full version, a partial one (`24`), or `latest`/`lts`, and must name a version you already have installed. `driftr use` prints the line that sets it. |
+| `DRIFTR_NODE`, `DRIFTR_PNPM`, `DRIFTR_YARN`, `DRIFTR_BUN` | unset | Version for that tool in the current shell. Read before any project config, so it overrides `.driftr.toml`, `package.json`, `.nvmrc` and `.node-version`. Takes a full version, a partial one (`24`), or `latest`/`lts`, and must name a version you already have installed. `driftr use` prints the line that sets it. |
 | `DRIFTR_NODE_MIRROR` | `https://nodejs.org/dist` | Alternative Node.js distribution mirror (corporate mirrors, air-gapped setups, hermetic tests). Must serve the same layout: `index.json`, `v<version>/SHASUMS256.txt`, and version tarballs. |
 | `DRIFTR_NPM_REGISTRY` | `https://registry.npmjs.org` | Alternative npm registry for pnpm/yarn installs. Tarball URLs in registry metadata must point back at the same host. |
 | `DRIFTR_BUN_RELEASES` | `https://api.github.com/repos/oven-sh/bun/releases` | Alternative source for the bun release list. Must answer with the same JSON shape: an array of objects carrying `tag_name`, `draft` and `prerelease`. |

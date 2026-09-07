@@ -214,7 +214,7 @@ $ driftr use node@24
 export DRIFTR_NODE=24.1.0
 ```
 
-The snippet sets `DRIFTR_NODE` (or `DRIFTR_PNPM`, `DRIFTR_YARN`), which the resolver reads
+The snippet sets `DRIFTR_NODE` (or `DRIFTR_PNPM`, `DRIFTR_YARN`, `DRIFTR_BUN`), which the resolver reads
 before any project config. The override lives in the shell you ran it in and disappears when
 you close it. Other shells and other terminal tabs keep resolving normally.
 
