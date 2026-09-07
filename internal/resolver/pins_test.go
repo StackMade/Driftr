@@ -34,6 +34,11 @@ func TestProjectPins(t *testing.T) {
 			want:  []Pin{{Tool: "node", Version: "20.11.0", Source: SourceNvmrc}},
 		},
 		{
+			name:  "LTS alias from .nvmrc is passed through verbatim",
+			files: map[string]string{"sub/.nvmrc": "lts/iron\n"},
+			want:  []Pin{{Tool: "node", Version: "lts/iron", Source: SourceNvmrc}},
+		},
+		{
 			name:  "no pins",
 			files: map[string]string{"sub/README.md": "nothing here"},
 			want:  nil,

@@ -95,8 +95,9 @@ func pinAt(tool, dir string, cfg *config.ProjectConfig, pkg *config.PackageJSON)
 	}
 
 	if tool == "node" {
-		// Unsupported formats (LTS aliases) come back empty and are skipped;
-		// resolution warns about them, installing quietly moves on.
+		// LTS aliases come back verbatim (e.g. "lts/*", "lts/iron"); the
+		// installer resolves them against the release index. An unreadable or
+		// empty file yields "" and is skipped.
 		ver, err := config.LoadNvmrc(dir)
 		if err != nil {
 			return "", 0, false, err
