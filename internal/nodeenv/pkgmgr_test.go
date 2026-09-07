@@ -62,6 +62,16 @@ func TestDetectPackageManager(t *testing.T) {
 			files: map[string]string{"package.json": `{not json`, "package-lock.json": ""},
 			want:  NpmManager,
 		},
+		{
+			name:  "unknown packageManager name falls through to lockfile",
+			files: map[string]string{"package.json": `{"packageManager":"bun@1.1.0"}`, "yarn.lock": ""},
+			want:  YarnManager,
+		},
+		{
+			name:  "packageManager without version suffix",
+			files: map[string]string{"package.json": `{"packageManager":"pnpm"}`},
+			want:  PnpmManager,
+		},
 	}
 
 	for _, tt := range tests {
@@ -76,5 +86,30 @@ func TestDetectPackageManager(t *testing.T) {
 				t.Errorf("DetectPackageManager = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// A directory named like a lockfile is not a lockfile.
+func TestDetectPackageManager_LockfileDirIsNotALockfile(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "pnpm-lock.yaml"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := DetectPackageManager(dir); got != NoManager {
+		t.Errorf("DetectPackageManager = %q, want %q", got, NoManager)
+	}
+}
+
+// A directory in place of package.json must not abort detection.
+func TestDetectPackageManager_PackageJSONDirFallsThrough(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "package.json"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "yarn.lock"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := DetectPackageManager(dir); got != YarnManager {
+		t.Errorf("DetectPackageManager = %q, want %q", got, YarnManager)
 	}
 }

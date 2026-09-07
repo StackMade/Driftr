@@ -52,6 +52,84 @@ func TestPnpm_Installed(t *testing.T) {
 	}
 }
 
+func TestPnpm_CorepackAvailable(t *testing.T) {
+	f := newFakeRunner()
+	if !NewPnpm(f).CorepackAvailable() {
+		t.Error("expected CorepackAvailable=true when corepack on PATH")
+	}
+	f.missing["corepack"] = true
+	if NewPnpm(f).CorepackAvailable() {
+		t.Error("expected CorepackAvailable=false when corepack missing")
+	}
+	// pnpm missing must not affect the corepack answer, and vice versa.
+	f2 := newFakeRunner()
+	f2.missing["pnpm"] = true
+	if !NewPnpm(f2).CorepackAvailable() {
+		t.Error("CorepackAvailable must not depend on pnpm being present")
+	}
+}
+
+func TestPnpm_Version(t *testing.T) {
+	tests := []struct {
+		name    string
+		output  string
+		err     error
+		want    string
+		wantErr bool
+	}{
+		{name: "reports version", output: "9.1.0", want: "9.1.0"},
+		{name: "empty output returned verbatim", output: "", want: ""},
+		{name: "error propagates", err: errors.New("pnpm exploded"), wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFakeRunner()
+			f.outputs["pnpm --version"] = tt.output
+			if tt.err != nil {
+				f.errs["pnpm --version"] = tt.err
+			}
+			got, err := NewPnpm(f).Version()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Version() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if got != tt.want {
+				t.Errorf("Version() = %q, want %q", got, tt.want)
+			}
+			if !f.called("pnpm --version") {
+				t.Errorf("expected call %q, got %v", "pnpm --version", f.calls)
+			}
+		})
+	}
+}
+
+func TestPnpm_InstallCommand(t *testing.T) {
+	f := newFakeRunner()
+	f.outputs["pnpm install"] = "Done in 1.2s"
+	got, err := NewPnpm(f).Install()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "Done in 1.2s" {
+		t.Errorf("Install() = %q, want %q", got, "Done in 1.2s")
+	}
+	if len(f.calls) != 1 || f.calls[0] != "pnpm install" {
+		t.Errorf("expected exactly one call %q, got %v", "pnpm install", f.calls)
+	}
+}
+
+func TestPnpm_InstallErrorPropagates(t *testing.T) {
+	f := newFakeRunner()
+	f.errs["pnpm install"] = errors.New("ERR_PNPM_NO_LOCKFILE")
+	out, err := NewPnpm(f).Install()
+	if err == nil {
+		t.Fatal("expected error to propagate")
+	}
+	if out != "" {
+		t.Errorf("Install() output on error = %q, want empty", out)
+	}
+}
+
 func TestPnpm_ConfigSetCommand(t *testing.T) {
 	f := newFakeRunner()
 	if err := NewPnpm(f).ConfigSet(StoreDirKey, "/store"); err != nil {

@@ -1,0 +1,49 @@
+# auto_install: a shim that resolves to a version nobody installed fetches it
+# instead of failing.
+#
+# This is the only path where driftr installs something the user did not ask
+# for by name, so it is worth pinning end to end rather than by unit test.
+
+exec driftr setup
+
+# Without auto_install, a pin nobody installed is an error. stdin is not a
+# terminal here, so driftr must not prompt — it has to fail outright.
+cd $WORK/project
+! exec node -v
+stderr 'is not installed'
+stderr 'driftr install node@'$NODE_VERSION
+! exists $HOME/.driftr/tools/node/$NODE_VERSION/bin/node
+
+# Turn it on and the same command installs and then runs.
+cd $WORK
+exec driftr setup
+cp autoinstall.toml $HOME/.driftr/config/config.toml
+
+cd $WORK/project
+exec node -v
+stderr 'Installing node@'$NODE_VERSION
+stderr 'Installed node '$NODE_VERSION
+stdout 'v'$NODE_VERSION
+exists $HOME/.driftr/tools/node/$NODE_VERSION/bin/node
+
+# Second run finds it installed and says nothing about installing.
+exec node -v
+stdout 'v'$NODE_VERSION
+! stderr 'Installing'
+
+# A version that does not exist upstream fails with the install error rather
+# than looping or reporting success.
+cd $WORK/missing
+! exec node -v
+stderr 'auto-install failed|not installed'
+
+-- project/.driftr.toml --
+[tools]
+node = "22.99.0"
+
+-- missing/.driftr.toml --
+[tools]
+node = "1.2.3"
+
+-- autoinstall.toml --
+auto_install = true

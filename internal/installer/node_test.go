@@ -113,3 +113,80 @@ func (t *hostRewriteTransport) RoundTrip(req *http.Request) (*http.Response, err
 	cloned.Header = req.Header
 	return http.DefaultTransport.RoundTrip(cloned)
 }
+
+func TestNodeRelease_LTSName(t *testing.T) {
+	tests := []struct {
+		name string
+		lts  any
+		want string
+	}{
+		{"codename string", "Jod", "Jod"},
+		{"not an LTS release", false, ""},
+		{"LTS flagged as bool", true, ""},
+		{"empty codename", "", ""},
+		{"absent from the index", nil, ""},
+		{"wrong type in the index", 42, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := NodeRelease{Version: "22.14.0", LTS: tt.lts}.LTSName()
+			if got != tt.want {
+				t.Errorf("LTSName() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// lts/<codename> picks the newest release carrying that codename, not simply
+// the newest LTS. The comparison is case-insensitive, because a user writes
+// "lts/jod" while the index says "Jod".
+func TestResolveLatestVersion_LTSCodename(t *testing.T) {
+	payload := []map[string]any{
+		{"version": "v24.1.0", "lts": false},
+		{"version": "v22.14.0", "lts": "Jod"},
+		{"version": "v20.19.2", "lts": "Iron"},
+		{"version": "v20.11.0", "lts": "Iron"},
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(payload)
+	}))
+	defer srv.Close()
+
+	orig := httpClient
+	httpClient = &http.Client{Transport: &hostRewriteTransport{target: srv.URL}}
+	defer func() { httpClient = orig }()
+
+	tests := []struct {
+		spec    string
+		want    string
+		wantErr bool
+	}{
+		{spec: "lts/iron", want: "20.19.2"},
+		{spec: "lts/Iron", want: "20.19.2"},
+		{spec: "lts/jod", want: "22.14.0"},
+		{spec: "lts/argon", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.spec, func(t *testing.T) {
+			v, err := version.Parse(tt.spec)
+			if err != nil {
+				t.Fatalf("version.Parse(%q) error: %v", tt.spec, err)
+			}
+			resolved, err := resolveLatestVersion(v)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("resolveLatestVersion(%q) = %q, want an error", tt.spec, resolved)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolveLatestVersion(%q) error: %v", tt.spec, err)
+			}
+			if resolved != tt.want {
+				t.Errorf("resolveLatestVersion(%q) = %q, want %q", tt.spec, resolved, tt.want)
+			}
+		})
+	}
+}

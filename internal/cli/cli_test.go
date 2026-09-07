@@ -288,3 +288,23 @@ func TestInstallCmd_NoArgsNoPins(t *testing.T) {
 		t.Errorf("expected a no-pins error, got: %v", err)
 	}
 }
+
+func TestDefaultCmd_MalformedGlobalConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	fakeNodeInstall(t, "22.14.0")
+
+	cfgPath := filepath.Join(home, ".driftr", "config", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfgPath, []byte("this is not = = toml\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// A broken config must surface as an error, not be silently overwritten:
+	// the user's other settings would be lost.
+	if err := runCmd(t, "default", "node@22.14.0"); err == nil {
+		t.Error("expected an error when the global config cannot be parsed")
+	}
+}

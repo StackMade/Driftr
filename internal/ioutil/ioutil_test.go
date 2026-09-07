@@ -3,7 +3,9 @@ package ioutil
 import (
 	"bytes"
 	"errors"
+	"io"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -74,5 +76,55 @@ func TestIsTerminal_Pipe(t *testing.T) {
 	}
 	if IsTerminal(w) {
 		t.Error("IsTerminal(pipe writer) = true, want false")
+	}
+}
+
+// captureStderr runs fn and returns everything it wrote to os.Stderr.
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	orig := os.Stderr
+	os.Stderr = w
+	fn()
+	os.Stderr = orig
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(out)
+}
+
+func TestProgressWriter_Finish(t *testing.T) {
+	tests := []struct {
+		name  string
+		total int64
+		want  string
+	}{
+		// Content-Length known: both halves of the ratio are printed.
+		{"known total", 4 * 1024 * 1024, "\r  Downloading: 2.0 MB / 4.0 MB\n"},
+		// Unknown length (-1) or a zero total: only what was downloaded.
+		{"unknown total", -1, "\r  Downloading: 2.0 MB\n"},
+		{"zero total", 0, "\r  Downloading: 2.0 MB\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pw := &ProgressWriter{Dest: io.Discard, Total: tt.total}
+			if _, err := pw.Write(make([]byte, 2*1024*1024)); err != nil {
+				t.Fatal(err)
+			}
+			got := captureStderr(t, pw.Finish)
+			// Write may have printed a progress line of its own; Finish's
+			// output is the last one, and it is the one that ends in a newline.
+			if !strings.HasSuffix(got, tt.want) {
+				t.Errorf("Finish() wrote %q, want it to end with %q", got, tt.want)
+			}
+		})
 	}
 }

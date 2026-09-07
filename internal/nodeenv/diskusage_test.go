@@ -1,8 +1,11 @@
 package nodeenv
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -38,6 +41,44 @@ func TestDirSize_EmptyDir(t *testing.T) {
 	}
 	if got != 0 {
 		t.Errorf("DirSize of empty dir = %d, want 0", got)
+	}
+}
+
+func TestDirSize_SingleFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "archive.tar.gz")
+	writeFile(t, path, 123)
+
+	got, err := DirSize(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != 123 {
+		t.Errorf("DirSize of a file = %d, want 123", got)
+	}
+}
+
+// An unreadable subdirectory is a real error, unlike a missing path.
+func TestDirSize_UnreadableDirIsError(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("needs POSIX permissions and a non-root user")
+	}
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "sub", "a.txt"), 10)
+	sub := filepath.Join(dir, "sub")
+	if err := os.Chmod(sub, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(sub, 0o755) })
+
+	got, err := DirSize(dir)
+	if err == nil {
+		t.Fatalf("DirSize = %d, want a permission error", got)
+	}
+	if !errors.Is(err, fs.ErrPermission) {
+		t.Errorf("DirSize error = %v, want a permission error", err)
+	}
+	if got != 0 {
+		t.Errorf("DirSize on error = %d, want 0", got)
 	}
 }
 
