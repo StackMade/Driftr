@@ -107,9 +107,12 @@ The resolver follows a strict priority order:
 3. **package.json** -- `driftr` key in `package.json`, same walk-up
 4. **`.nvmrc`** -- node only, found by walking up from `cwd`
 5. **`.node-version`** -- node only, found by walking up from `cwd`
-6. **Global** -- `~/.driftr/config/config.toml`
+6. **`engines.node`** -- node only, the standard `engines` object in `package.json`, same walk-up
+7. **Global** -- `~/.driftr/config/config.toml`
 
-In each directory, `.driftr.toml` is checked before `package.json`, then `.nvmrc`, then `.node-version` (node only). The closest config to the working directory wins, regardless of format.
+In each directory, `.driftr.toml` is checked before `package.json`, then `.nvmrc`, then `.node-version`, then `engines.node` (the last three node only). The closest config to the working directory wins, regardless of format.
+
+`engines.node` holds a semver range rather than one version. Driftr matches it against the versions already installed and takes the newest one that fits. It makes no network call to do so, which keeps the shim path offline. See [Configuration](configuration.md#enginesnode) for the supported syntax.
 
 An `.nvmrc` or `.node-version` holding an LTS alias (`lts`, `lts/*`, `lts/jod`) resolves against installed versions only. The shim path never reaches the network. `lts` and `lts/*` take the newest installed even major. A codename maps to its major through a small static table in `internal/version`; the install path reads codenames off the release index instead, so that table exists only for offline resolution.
 

@@ -453,3 +453,50 @@ func TestSavePackageJSONTool_MalformedDriftrKey(t *testing.T) {
 		t.Errorf("package.json was modified despite parse error:\ngot:  %s\nwant: %s", data, original)
 	}
 }
+
+func TestLoadPackageJSON_EnginesNode(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    string
+		wantNil bool
+	}{
+		{"range only", `{"name":"app","engines":{"node":">=18"}}`, ">=18", false},
+		{"trimmed", `{"engines":{"node":"  ^20.9.0  "}}`, "^20.9.0", false},
+		{"alongside driftr key", `{"driftr":{"node":"20.11.0"},"engines":{"node":">=18"}}`, ">=18", false},
+		{"other engines only", `{"engines":{"npm":">=9"}}`, "", true},
+		{"empty node", `{"engines":{"node":""}}`, "", true},
+		{"no engines", `{"name":"app"}`, "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writePackageJSON(t, dir, tt.content)
+
+			pkg, err := LoadPackageJSON(dir)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantNil {
+				if pkg != nil {
+					t.Fatalf("expected nil result, got %+v", pkg)
+				}
+				return
+			}
+			if pkg == nil {
+				t.Fatal("expected non-nil result")
+			}
+			if got := pkg.EnginesNode(); got != tt.want {
+				t.Errorf("EnginesNode() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEnginesNode_NilReceiver(t *testing.T) {
+	var pkg *PackageJSON
+	if got := pkg.EnginesNode(); got != "" {
+		t.Errorf("EnginesNode() = %q, want empty", got)
+	}
+}

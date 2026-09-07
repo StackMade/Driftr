@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 
 	"github.com/stackmade/driftr/internal/config"
 	"github.com/stackmade/driftr/internal/platform"
@@ -41,30 +42,30 @@ func RequireToolInstalled(tool, versionSpec string) (string, string, error) {
 
 // resolveInstalledPartial finds the latest installed version matching a partial spec.
 func resolveInstalledPartial(tool string, v version.Version) (string, string, error) {
-	best, err := newestInstalled(tool, v.Matches)
+	best, ok, err := newestInstalledMatching(tool, v.Matches)
 	if err != nil {
 		return "", "", err
 	}
-	if best == "" {
+	if !ok {
 		if v.Latest {
 			return "", "", fmt.Errorf("no %s versions installed. Run `driftr install %s@<version>`", tool, tool)
 		}
 		return "", "", fmt.Errorf("no installed %s version matches %s. Run `driftr install %s@%s`", tool, v.Raw, tool, v.Raw)
 	}
 
-	binPath, err := requireToolBinaryExists(tool, best, "")
+	binPath, err := requireToolBinaryExists(tool, best.String(), "")
 	if err != nil {
 		return "", "", err
 	}
-	return best, binPath, nil
+	return best.String(), binPath, nil
 }
 
-// newestInstalled returns the highest installed version of tool accepted by
-// match, or "" when nothing matches.
-func newestInstalled(tool string, match func(version.Version) bool) (string, error) {
+// newestInstalledMatching returns the highest installed version of a tool that
+// satisfies match. Purely local — it never touches the network.
+func newestInstalledMatching(tool string, match func(version.Version) bool) (version.Version, bool, error) {
 	installed, err := ListToolVersions(tool)
 	if err != nil {
-		return "", err
+		return version.Version{}, false, err
 	}
 
 	var matches []version.Version
@@ -77,9 +78,8 @@ func newestInstalled(tool string, match func(version.Version) bool) (string, err
 			matches = append(matches, iv)
 		}
 	}
-
 	if len(matches) == 0 {
-		return "", nil
+		return version.Version{}, false, nil
 	}
 
 	// Sort descending to pick the latest.
@@ -92,8 +92,7 @@ func newestInstalled(tool string, match func(version.Version) bool) (string, err
 		}
 		return cmp.Compare(b.Patch, a.Patch)
 	})
-
-	return matches[0].String(), nil
+	return matches[0], true, nil
 }
 
 // ListToolVersions returns all installed version strings for a tool.
@@ -140,6 +139,7 @@ const (
 	SourceNvmrc                 // .nvmrc
 	SourceNodeVersion           // .node-version
 	SourcePackageManager        // package.json "packageManager" field
+	SourceEnginesNode           // package.json "engines".node semver range
 	SourceGlobal
 )
 
@@ -157,6 +157,8 @@ func (s Source) String() string {
 		return ".node-version"
 	case SourcePackageManager:
 		return "package.json (packageManager)"
+	case SourceEnginesNode:
+		return "package.json (engines.node)"
 	case SourceGlobal:
 		return "global default"
 	default:
@@ -347,6 +349,17 @@ func resolveFromProject(tool, dir string, verbose bool) (*Resolution, error) {
 					return res, nil
 				}
 			}
+
+			// Last project source: the standard "engines".node range, matched
+			// against installed versions only.
+			if pkg != nil {
+				if rangeText := pkg.EnginesNode(); rangeText != "" {
+					if verbose {
+						fmt.Printf("  [resolve]   Checking: %s (engines.node = %s)\n", pkgPath, rangeText)
+					}
+					return resolveEnginesNode(rangeText, current)
+				}
+			}
 		}
 
 		depth++
@@ -387,15 +400,43 @@ func resolveVersionFilePin(tool, ver, dir string, source Source) (*Resolution, e
 		match = func(iv version.Version) bool { return iv.Major == major }
 	}
 
-	best, err := newestInstalled(tool, match)
+	best, ok, err := newestInstalledMatching(tool, match)
 	if err != nil {
 		return nil, err
 	}
-	if best == "" {
+	if !ok {
 		return nil, &NotInstalledError{Tool: tool, Version: alias, Context: "pinned in " + dir}
 	}
 
-	return resolveProjectVersion(tool, best, dir, source)
+	return resolveProjectVersion(tool, best.String(), dir, source)
+}
+
+// resolveEnginesNode picks the newest installed Node.js version satisfying the
+// "engines".node range from the package.json in dir.
+func resolveEnginesNode(rangeText, dir string) (*Resolution, error) {
+	rng, err := version.ParseRange(rangeText)
+	if err != nil {
+		return nil, fmt.Errorf("cannot use engines.node from %s: %w", filepath.Join(dir, "package.json"), err)
+	}
+
+	best, ok, err := newestInstalledMatching("node", rng.Matches)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		// Name something installable rather than echoing the range back.
+		hint := "lts"
+		if major, hasBound := rng.LowerBoundMajor(); hasBound {
+			hint = strconv.Itoa(major)
+		}
+		return nil, &NotInstalledError{
+			Tool:    "node",
+			Version: hint,
+			Context: fmt.Sprintf("no installed version satisfies engines.node %q in %s", rangeText, dir),
+		}
+	}
+
+	return resolveProjectVersion("node", best.String(), dir, SourceEnginesNode)
 }
 
 func resolveProjectVersion(tool, ver, dir string, source Source) (*Resolution, error) {

@@ -1,9 +1,12 @@
 package resolver
 
 import (
+	"fmt"
 	"path/filepath"
+	"strconv"
 
 	"github.com/stackmade/driftr/internal/config"
+	"github.com/stackmade/driftr/internal/version"
 )
 
 // Pin is a tool version pinned by project configuration.
@@ -111,6 +114,22 @@ func pinAt(tool, dir string, cfg *config.ProjectConfig, pkg *config.PackageJSON)
 		}
 		if ver != "" {
 			return ver, SourceNodeVersion, true, nil
+		}
+
+		// engines.node holds a range, not a version. Install the lower-bound
+		// major, the oldest release the project accepts. Anything newer that
+		// is already installed still satisfies the range.
+		if pkg != nil {
+			if rangeText := pkg.EnginesNode(); rangeText != "" {
+				rng, err := version.ParseRange(rangeText)
+				if err != nil {
+					return "", 0, false, fmt.Errorf("cannot use engines.node from %s: %w", filepath.Join(dir, "package.json"), err)
+				}
+				if major, ok := rng.LowerBoundMajor(); ok {
+					return strconv.Itoa(major), SourceEnginesNode, true, nil
+				}
+				return "lts", SourceEnginesNode, true, nil
+			}
 		}
 	}
 

@@ -433,6 +433,8 @@ func TestSourceString(t *testing.T) {
 		{SourcePackageJSON, "package.json (driftr)"},
 		{SourceNvmrc, ".nvmrc"},
 		{SourceNodeVersion, ".node-version"},
+		{SourcePackageManager, "package.json (packageManager)"},
+		{SourceEnginesNode, "package.json (engines.node)"},
 		{SourceGlobal, "global default"},
 		{Source(99), "unknown"},
 	}
@@ -699,5 +701,175 @@ func TestResolveFromProject_UnknownLTSCodenameFallsThrough(t *testing.T) {
 	}
 	if res.Version != "22.14.0" || res.Source != SourceNodeVersion {
 		t.Errorf("got %q from %v, want 22.14.0 from .node-version", res.Version, res.Source)
+	}
+}
+
+func enginesProject(t *testing.T, rangeText string) {
+	t.Helper()
+	projectDir := t.TempDir()
+	body := fmt.Sprintf(`{"name":"app","engines":{"node":%q}}`, rangeText)
+	if err := os.WriteFile(filepath.Join(projectDir, "package.json"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	origDir, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(origDir) })
+	if err := os.Chdir(projectDir); err != nil {
+		t.Fatal(err)
+	}
+}
+func TestResolveFromProject_EnginesNode(t *testing.T) {
+	tests := []struct {
+		name      string
+		rangeText string
+		installed []string
+		want      string
+	}{
+		{"greater or equal picks newest", ">=18", []string{"18.20.4", "20.11.1", "22.14.0"}, "22.14.0"},
+		{"caret stays inside the major", "^20.9.0", []string{"20.9.0", "20.18.2", "22.14.0"}, "20.18.2"},
+		{"or picks the newest alternative", "18 || 20", []string{"18.20.4", "20.11.1", "22.14.0"}, "20.11.1"},
+		{"and is bounded on both sides", ">=16 <21", []string{"14.0.0", "20.11.1", "22.14.0"}, "20.11.1"},
+		{"wildcard", "18.x", []string{"18.1.0", "18.20.4", "20.0.0"}, "18.20.4"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			for _, v := range tt.installed {
+				setupFakeInstall(t, home, "node", v)
+			}
+			enginesProject(t, tt.rangeText)
+
+			res, err := ResolveTool("node", "", false)
+			if err != nil {
+				t.Fatalf("ResolveTool() error: %v", err)
+			}
+			if res.Version != tt.want {
+				t.Errorf("version = %q, want %q", res.Version, tt.want)
+			}
+			if res.Source != SourceEnginesNode {
+				t.Errorf("source = %v, want %v", res.Source, SourceEnginesNode)
+			}
+		})
+	}
+}
+func TestResolveFromProject_EnginesNodeLosesToDriftrKey(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	setupFakeInstall(t, home, "node", "18.20.4")
+	setupFakeInstall(t, home, "node", "22.14.0")
+
+	projectDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(projectDir, "package.json"),
+		[]byte(`{"driftr":{"node":"18.20.4"},"engines":{"node":">=20"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+	os.Chdir(projectDir)
+
+	res, err := ResolveTool("node", "", false)
+	if err != nil {
+		t.Fatalf("ResolveTool() error: %v", err)
+	}
+	if res.Source != SourcePackageJSON || res.Version != "18.20.4" {
+		t.Errorf("got %v %s, want SourcePackageJSON 18.20.4", res.Source, res.Version)
+	}
+}
+func TestResolveFromProject_NoEnginesNodeFallsThroughToGlobal(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	setupFakeInstall(t, home, "node", "22.14.0")
+
+	globalCfg, _ := config.LoadGlobal()
+	globalCfg.Default.SetTool("node", "22.14.0")
+	config.SaveGlobal(globalCfg)
+
+	projectDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(projectDir, "package.json"),
+		[]byte(`{"name":"app","engines":{"npm":">=9"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+	os.Chdir(projectDir)
+
+	res, err := ResolveTool("node", "", false)
+	if err != nil {
+		t.Fatalf("ResolveTool() error: %v", err)
+	}
+	if res.Source != SourceGlobal {
+		t.Errorf("source = %v, want SourceGlobal", res.Source)
+	}
+}
+func TestResolveFromProject_EnginesNodeIgnoredForOtherTools(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	setupFakeInstall(t, home, "pnpm", "9.15.0")
+
+	globalCfg, _ := config.LoadGlobal()
+	globalCfg.Default.SetTool("pnpm", "9.15.0")
+	config.SaveGlobal(globalCfg)
+
+	enginesProject(t, ">=18")
+
+	res, err := ResolveTool("pnpm", "", false)
+	if err != nil {
+		t.Fatalf("ResolveTool(pnpm) error: %v", err)
+	}
+	if res.Source != SourceGlobal {
+		t.Errorf("source = %v, want SourceGlobal", res.Source)
+	}
+}
+func TestResolveFromProject_EnginesNodeNotInstalled(t *testing.T) {
+	tests := []struct {
+		name      string
+		rangeText string
+		wantHint  string
+	}{
+		{"lower bound names its major", ">=18", "driftr install node@18"},
+		{"caret names its major", "^20.9.0", "driftr install node@20"},
+		{"unbounded below falls back to lts", "<21", "driftr install node@lts"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			setupFakeInstall(t, home, "node", "16.20.2")
+			if tt.rangeText == "<21" {
+				// Make sure nothing at all matches.
+				os.RemoveAll(filepath.Join(home, ".driftr", "tools", "node"))
+			}
+			enginesProject(t, tt.rangeText)
+
+			_, err := ResolveTool("node", "", false)
+			if err == nil {
+				t.Fatal("expected an error, got nil")
+			}
+			var notInstalled *NotInstalledError
+			if !errors.As(err, &notInstalled) {
+				t.Fatalf("error = %T (%v), want *NotInstalledError", err, err)
+			}
+			if !strings.Contains(err.Error(), tt.wantHint) {
+				t.Errorf("error %q does not contain %q", err.Error(), tt.wantHint)
+			}
+		})
+	}
+}
+func TestResolveFromProject_EnginesNodeUnsupportedRange(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	setupFakeInstall(t, home, "node", "20.11.1")
+	enginesProject(t, "18 - 20")
+
+	_, err := ResolveTool("node", "", false)
+	if err == nil {
+		t.Fatal("expected an error for an unsupported range, got nil")
+	}
+	for _, want := range []string{"package.json", "18 - 20", "hyphen"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not mention %q", err.Error(), want)
+		}
 	}
 }

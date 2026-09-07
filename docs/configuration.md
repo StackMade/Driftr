@@ -104,6 +104,7 @@ When resolving a version, Driftr walks up from the current directory to the file
 3. `package.json` (`packageManager` field, e.g. `"packageManager": "pnpm@9.15.0"` — pnpm/yarn only)
 4. `.nvmrc` (node only)
 5. `.node-version` (node only)
+6. `package.json` (`engines.node`, node only)
 
 ```
 /home/user/my-project/packages/core/   <- cwd, no config
@@ -120,6 +121,36 @@ This means:
 - You only need one config at the project root
 - All subdirectories inherit the pinned version
 - A nested config overrides the parent
+
+### engines.node
+
+The last project-level source is the standard `engines` object:
+
+```json
+{
+  "engines": {
+    "node": ">=18"
+  }
+}
+```
+
+Unlike the other sources, this is a range rather than one version, so Driftr takes the newest installed version that satisfies it. It never downloads anything here and never queries nodejs.org. If nothing installed fits the range, Driftr fails with an error naming a version you can install: `driftr install node@18` for `>=18`, or `driftr install node@lts` when the range has no lower bound.
+
+Supported syntax:
+
+| Form | Example |
+|------|---------|
+| Comparators | `>=18`, `>18`, `<21`, `<=20`, `=20.11.1` |
+| Caret | `^20.9.0` |
+| Tilde | `~20.9.0` |
+| Wildcards | `18.x`, `18.*`, `*` |
+| Bare version | `18`, `18.1`, `18.1.0` |
+| AND (whitespace) | `>=16 <21` |
+| OR | `18 \|\| 20` |
+
+Not supported: hyphen ranges (`18 - 20`) and pre-release tags (`>=18.0.0-rc.1`). Driftr rejects those with an error naming the range instead of guessing what you meant.
+
+Driftr only reads `engines.node`. `driftr pin` still writes the `driftr` key.
 
 ### Version Control
 

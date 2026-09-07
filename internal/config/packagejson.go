@@ -14,6 +14,20 @@ import (
 type PackageJSON struct {
 	Driftr         DriftrConfig `json:"driftr"`
 	PackageManager string       `json:"packageManager"`
+	Engines        Engines      `json:"engines"`
+}
+
+// Engines mirrors the standard "engines" object.
+type Engines struct {
+	Node string `json:"node"`
+}
+
+// EnginesNode returns the semver range from "engines".node, or "" when absent.
+func (p *PackageJSON) EnginesNode() string {
+	if p == nil {
+		return ""
+	}
+	return strings.TrimSpace(p.Engines.Node)
 }
 
 // PackageManagerTool parses the standard "packageManager" field (e.g.
@@ -80,7 +94,7 @@ func LoadPackageJSON(dir string) (*PackageJSON, error) {
 	}
 
 	// Return nil if no tool versions are configured.
-	if !pkg.Driftr.hasVersions() && pkg.PackageManager == "" {
+	if !pkg.Driftr.hasVersions() && pkg.PackageManager == "" && pkg.EnginesNode() == "" {
 		return nil, nil
 	}
 

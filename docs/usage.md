@@ -46,10 +46,14 @@ driftr install node@22 -v
 With no argument, `driftr install` reads the pins for the current directory and
 installs each one. It reads the same sources resolution reads, walking up
 through parent directories: `.driftr.toml`, the `driftr` key in `package.json`,
-the standard `packageManager` field (pnpm and yarn), `.nvmrc`, and
-`.node-version`. The first source that names a tool wins, and each tool is
+the standard `packageManager` field (pnpm and yarn), `.nvmrc`, `.node-version`,
+and `engines.node`. The first source that names a tool wins, and each tool is
 looked up separately, so a repo can pin Node.js in `.nvmrc` and pnpm in
 `packageManager`.
+
+An `engines.node` range does not name one version, so Driftr installs the major
+version at the range's lower bound, which is the oldest release the project
+accepts. If the range has no lower bound, Driftr installs the newest LTS.
 
 The output names the source each version came from:
 
@@ -324,7 +328,8 @@ When you run a tool (`node`, `npm`, `npx`, `pnpm`, `pnpx`, or `yarn`), Driftr re
 | 4 | `package.json` `packageManager` field (pnpm/yarn only) | Found in current or parent directory |
 | 5 | `.nvmrc` (node only) | Found in current or parent directory; `lts`, `lts/*` and `lts/<codename>` resolve against installed versions |
 | 6 | `.node-version` (node only) | Found in current or parent directory; same LTS aliases as `.nvmrc` |
-| 7 | Global default | Set via `driftr default` |
+| 7 | `package.json` `engines.node` (node only) | Found in current or parent directory |
+| 8 | Global default | Set via `driftr default` |
 
 If no version is configured at any level, Driftr prints an actionable error.
 

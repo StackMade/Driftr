@@ -39,6 +39,16 @@ func TestProjectPins(t *testing.T) {
 			want:  []Pin{{Tool: "node", Version: "lts/iron", Source: SourceNvmrc}},
 		},
 		{
+			name:  "engines.node yields its lower-bound major",
+			files: map[string]string{"sub/package.json": `{"engines": {"node": ">=20.9.0"}}`},
+			want:  []Pin{{Tool: "node", Version: "20", Source: SourceEnginesNode}},
+		},
+		{
+			name:  "driftr key beats engines.node",
+			files: map[string]string{"sub/package.json": `{"driftr": {"node": "22.14.0"}, "engines": {"node": ">=20"}}`},
+			want:  []Pin{{Tool: "node", Version: "22.14.0", Source: SourcePackageJSON}},
+		},
+		{
 			name:  "no pins",
 			files: map[string]string{"sub/README.md": "nothing here"},
 			want:  nil,
