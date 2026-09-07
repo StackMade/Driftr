@@ -121,7 +121,7 @@ e2e/                 testscript e2e suite (testdata/script/*.txtar)
 test/fixture/        fake nodejs.org, npm registry and bun releases
 docs/                documentation
 test_path_e2e.sh     per-shell PATH bootstrap suite
-Dockerfile           production image
+Dockerfile           throwaway image for trying driftr out, nothing publishes it
 Dockerfile.path-e2e  per-shell test runner image
 ```
 
