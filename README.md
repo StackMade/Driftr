@@ -251,6 +251,21 @@ open a shell.
 - Internet access (to download releases from nodejs.org, GitHub, and the npm registry)
 - Go 1.26+ (only if building from source)
 
+## About
+
+<a href="https://stackmade.pl">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/stackmade-logo-on-dark.svg">
+    <img src="./assets/stackmade-logo-on-light.svg" alt="StackMade" height="32">
+  </picture>
+</a>
+
+Built by [StackMade](https://stackmade.pl) - a family of small, focused tools shipped as
+code-first products.
+
+Maintained by [Krzysztof Słomka](https://slomka.pro), software architect specializing in fintech,
+distributed systems and event-driven architectures.
+
 ## License
 
 MIT
