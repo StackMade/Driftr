@@ -167,6 +167,45 @@ This writes the version in the other format and removes the old config.
 - Nested directories inherit the pin until another config overrides it
 - In non-interactive environments (CI), defaults to `.driftr.toml`
 
+## driftr use
+
+Switch a tool version for the current shell, without touching any config file.
+
+```bash
+eval "$(driftr use node@24)"
+eval "$(driftr use node@24.1.0)"
+eval "$(driftr use pnpm@9)"
+eval "$(driftr use --unset node)"
+```
+
+The command prints a snippet and nothing else. `eval` is what applies it:
+
+```bash
+$ driftr use node@24
+export DRIFTR_NODE=24.1.0
+```
+
+The snippet sets `DRIFTR_NODE` (or `DRIFTR_PNPM`, `DRIFTR_YARN`), which the resolver reads
+before any project config. The override lives in the shell you ran it in and disappears when
+you close it. Other shells and other terminal tabs keep resolving normally.
+
+The version must already be installed, and a partial version picks the newest installed
+release that matches, same as `driftr pin`.
+
+Syntax follows `$SHELL`, so fish users get `set -gx DRIFTR_NODE 24.1.0`. Pass `--shell` when
+the detection is wrong or when you are writing the line into a script:
+
+```bash
+driftr use node@24 --shell fish
+```
+
+**A shell function, if you type this often:**
+
+```bash
+# ~/.zshenv
+dr() { eval "$(driftr use "$@")"; }
+```
+
 ## driftr list
 
 List installed versions for a tool. Defaults to node.
@@ -221,7 +260,8 @@ This shows each step of the resolution chain:
 ```
   [resolve] Starting node version resolution
   [resolve] Step 1: No explicit override
-  [resolve] Step 2: Searching for project config from /home/user/my-project
+  [resolve] Step 2: DRIFTR_NODE not set
+  [resolve] Step 3: Searching for project config from /home/user/my-project
   [resolve]   Checking: /home/user/my-project/.driftr.toml
   [resolve] Resolved: 22.14.0 from project config (/home/user/my-project)
 Tool:    node
@@ -323,13 +363,14 @@ When you run a tool (`node`, `npm`, `npx`, `pnpm`, `pnpx`, or `yarn`), Driftr re
 | Priority | Source | When |
 |----------|--------|------|
 | 1 | Explicit `--node` flag | `driftr run --node 24 -- ...` |
-| 2 | Project `.driftr.toml` | Found in current or parent directory |
-| 3 | `package.json` driftr key | Found in current or parent directory |
-| 4 | `package.json` `packageManager` field (pnpm/yarn only) | Found in current or parent directory |
-| 5 | `.nvmrc` (node only) | Found in current or parent directory; `lts`, `lts/*` and `lts/<codename>` resolve against installed versions |
-| 6 | `.node-version` (node only) | Found in current or parent directory; same LTS aliases as `.nvmrc` |
-| 7 | `package.json` `engines.node` (node only) | Found in current or parent directory |
-| 8 | Global default | Set via `driftr default` |
+| 2 | `DRIFTR_<TOOL>` variable | Set in the shell, usually via `driftr use` |
+| 3 | Project `.driftr.toml` | Found in current or parent directory |
+| 4 | `package.json` driftr key | Found in current or parent directory |
+| 5 | `package.json` `packageManager` field (pnpm/yarn only) | Found in current or parent directory |
+| 6 | `.nvmrc` (node only) | Found in current or parent directory; `lts`, `lts/*` and `lts/<codename>` resolve against installed versions |
+| 7 | `.node-version` (node only) | Found in current or parent directory; same LTS aliases as `.nvmrc` |
+| 8 | `package.json` `engines.node` (node only) | Found in current or parent directory |
+| 9 | Global default | Set via `driftr default` |
 
 If no version is configured at any level, Driftr prints an actionable error.
 

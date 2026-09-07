@@ -97,7 +97,7 @@ This writes the version in the new format and removes the old config (deletes `.
 
 ### Directory Walk Behavior
 
-When resolving a version, Driftr walks up from the current directory to the filesystem root. In each directory, it checks config files in priority order:
+A `DRIFTR_<TOOL>` variable in the environment (see [Environment Variables](#environment-variables)) short-circuits the walk described here. Without one, Driftr walks up from the current directory to the filesystem root. In each directory, it checks config files in priority order:
 
 1. `.driftr.toml`
 2. `package.json` (driftr key)
@@ -165,11 +165,15 @@ git commit -m "Pin Node.js version with Driftr"
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
+| `DRIFTR_NODE`, `DRIFTR_PNPM`, `DRIFTR_YARN` | unset | Version for that tool in the current shell. Read before any project config, so it overrides `.driftr.toml`, `package.json`, `.nvmrc` and `.node-version`. Takes a full version, a partial one (`24`), or `latest`/`lts`, and must name a version you already have installed. `driftr use` prints the line that sets it. |
 | `DRIFTR_NODE_MIRROR` | `https://nodejs.org/dist` | Alternative Node.js distribution mirror (corporate mirrors, air-gapped setups, hermetic tests). Must serve the same layout: `index.json`, `v<version>/SHASUMS256.txt`, and version tarballs. |
 | `DRIFTR_NPM_REGISTRY` | `https://registry.npmjs.org` | Alternative npm registry for pnpm/yarn installs. Tarball URLs in registry metadata must point back at the same host. |
 
 ```bash
 DRIFTR_NODE_MIRROR=https://npmmirror.com/mirrors/node driftr install node@22
+
+eval "$(driftr use node@24)"   # sets DRIFTR_NODE for this shell
+eval "$(driftr use --unset node)"
 ```
 
 ## Storage Layout

@@ -103,12 +103,15 @@ The hidden `driftr shim` command sets `DisableFlagParsing: true` in cobra. This 
 The resolver follows a strict priority order:
 
 1. **Explicit** -- `--node` flag on `driftr run`
-2. **Project** -- `.driftr.toml` found by walking up from `cwd`
-3. **package.json** -- `driftr` key in `package.json`, same walk-up
-4. **`.nvmrc`** -- node only, found by walking up from `cwd`
-5. **`.node-version`** -- node only, found by walking up from `cwd`
-6. **`engines.node`** -- node only, the standard `engines` object in `package.json`, same walk-up
-7. **Global** -- `~/.driftr/config/config.toml`
+2. **Environment** -- `DRIFTR_NODE`, `DRIFTR_PNPM` or `DRIFTR_YARN`, set for one shell by `driftr use`
+3. **Project** -- `.driftr.toml` found by walking up from `cwd`
+4. **package.json** -- `driftr` key in `package.json`, same walk-up
+5. **`.nvmrc`** -- node only, found by walking up from `cwd`
+6. **`.node-version`** -- node only, found by walking up from `cwd`
+7. **`engines.node`** -- node only, the standard `engines` object in `package.json`, same walk-up
+8. **Global** -- `~/.driftr/config/config.toml`
+
+The variable name is `DRIFTR_` plus the tool name in upper case, and only for tools Driftr knows, so an unrelated `DRIFTR_*` in the environment cannot steer resolution. Its value goes through the same partial-version matching as `driftr pin`, against installed versions only.
 
 In each directory, `.driftr.toml` is checked before `package.json`, then `.nvmrc`, then `.node-version`, then `engines.node` (the last three node only). The closest config to the working directory wins, regardless of format.
 

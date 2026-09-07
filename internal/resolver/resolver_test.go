@@ -423,12 +423,112 @@ func TestResolveTool_PackageManagerFieldIgnoredForNode(t *testing.T) {
 	}
 }
 
+// projectWithPin creates a project dir pinning node in .driftr.toml and
+// chdirs into it.
+func projectWithPin(t *testing.T, ver string) string {
+	t.Helper()
+	dir := t.TempDir()
+	cfg := &config.ProjectConfig{}
+	cfg.Tools.SetTool("node", ver)
+	if err := config.SaveProject(dir, cfg); err != nil {
+		t.Fatalf("SaveProject() error: %v", err)
+	}
+	t.Chdir(dir)
+	return dir
+}
+
+func TestResolveTool_EnvVarBeatsProjectConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	setupFakeInstall(t, home, "node", "22.14.0")
+	setupFakeInstall(t, home, "node", "24.1.0")
+	projectWithPin(t, "22.14.0")
+
+	t.Setenv("DRIFTR_NODE", "24.1.0")
+
+	res, err := ResolveTool("node", "", false)
+	if err != nil {
+		t.Fatalf("ResolveTool() error: %v", err)
+	}
+	if res.Version != "24.1.0" {
+		t.Errorf("version = %q, want the env override %q", res.Version, "24.1.0")
+	}
+	if res.Source != SourceEnv {
+		t.Errorf("source = %v, want %v", res.Source, SourceEnv)
+	}
+}
+
+func TestResolveTool_EnvVarPartialVersion(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	setupFakeInstall(t, home, "node", "24.1.0")
+	setupFakeInstall(t, home, "node", "24.9.0")
+	projectWithPin(t, "24.1.0")
+
+	t.Setenv("DRIFTR_NODE", "24")
+
+	res, err := ResolveTool("node", "", false)
+	if err != nil {
+		t.Fatalf("ResolveTool() error: %v", err)
+	}
+	if res.Version != "24.9.0" {
+		t.Errorf("version = %q, want newest installed 24.x", res.Version)
+	}
+}
+
+func TestResolveTool_EmptyEnvVarIgnored(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	setupFakeInstall(t, home, "node", "22.14.0")
+	projectWithPin(t, "22.14.0")
+
+	t.Setenv("DRIFTR_NODE", "")
+
+	res, err := ResolveTool("node", "", false)
+	if err != nil {
+		t.Fatalf("ResolveTool() error: %v", err)
+	}
+	if res.Source != SourceProject {
+		t.Errorf("source = %v, want %v", res.Source, SourceProject)
+	}
+}
+
+func TestResolveTool_EnvVarNotInstalled(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	setupFakeInstall(t, home, "node", "22.14.0")
+	projectWithPin(t, "22.14.0")
+
+	t.Setenv("DRIFTR_NODE", "24.1.0")
+
+	_, err := ResolveTool("node", "", false)
+	if err == nil || !strings.Contains(err.Error(), "DRIFTR_NODE=24.1.0") {
+		t.Errorf("expected an error naming the variable, got: %v", err)
+	}
+}
+
+func TestEnvVarName(t *testing.T) {
+	tests := map[string]string{
+		"node": "DRIFTR_NODE",
+		"pnpm": "DRIFTR_PNPM",
+		"yarn": "DRIFTR_YARN",
+		"ruby": "",
+		"":     "",
+	}
+	for tool, want := range tests {
+		if got := EnvVarName(tool); got != want {
+			t.Errorf("EnvVarName(%q) = %q, want %q", tool, got, want)
+		}
+	}
+}
+
 func TestSourceString(t *testing.T) {
 	tests := []struct {
 		source Source
 		want   string
 	}{
 		{SourceExplicit, "explicit override"},
+		{SourceEnv, "environment variable"},
 		{SourceProject, "project config"},
 		{SourcePackageJSON, "package.json (driftr)"},
 		{SourceNvmrc, ".nvmrc"},

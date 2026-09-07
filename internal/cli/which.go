@@ -37,7 +37,11 @@ func newWhichCmd() *cobra.Command {
 			row("Tool:", tool)
 			row("Version:", ioutil.Bold(res.Version))
 			row("Binary:", ioutil.Green(binPath))
-			row("Source:", fmt.Sprint(res.Source))
+			source := fmt.Sprint(res.Source)
+			if res.Source == resolver.SourceEnv {
+				source = fmt.Sprintf("%s (%s)", source, resolver.EnvVarName(res.Tool))
+			}
+			row("Source:", source)
 			if res.ProjectDir != "" {
 				row("Project:", res.ProjectDir)
 			}

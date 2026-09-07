@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/stackmade/driftr/internal/config"
 	"github.com/stackmade/driftr/internal/platform"
@@ -134,6 +135,7 @@ type Source int
 
 const (
 	SourceExplicit       Source = iota
+	SourceEnv                   // DRIFTR_<TOOL> environment variable
 	SourceProject               // .driftr.toml
 	SourcePackageJSON           // package.json driftr key
 	SourceNvmrc                 // .nvmrc
@@ -147,6 +149,8 @@ func (s Source) String() string {
 	switch s {
 	case SourceExplicit:
 		return "explicit override"
+	case SourceEnv:
+		return "environment variable"
 	case SourceProject:
 		return "project config"
 	case SourcePackageJSON:
@@ -185,8 +189,19 @@ func ResolveNodeVerbose(explicit string, verbose bool) (*Resolution, error) {
 	return ResolveTool("node", explicit, verbose)
 }
 
+// EnvVarName returns the environment variable that overrides a tool's version
+// for the current shell, e.g. DRIFTR_NODE. It returns "" for tools Driftr does
+// not know, so a stray DRIFTR_SOMETHING in the environment cannot influence
+// resolution.
+func EnvVarName(tool string) string {
+	if _, ok := platform.LookupTool(tool); !ok {
+		return ""
+	}
+	return "DRIFTR_" + strings.ToUpper(tool)
+}
+
 // ResolveTool determines which version of a tool to use.
-// Resolution order: explicit > project config > global default.
+// Resolution order: explicit > DRIFTR_<TOOL> > project config > global default.
 func ResolveTool(tool, explicit string, verbose bool) (*Resolution, error) {
 	if verbose {
 		fmt.Printf("  [resolve] Starting %s version resolution\n", tool)
@@ -202,13 +217,25 @@ func ResolveTool(tool, explicit string, verbose bool) (*Resolution, error) {
 		fmt.Println("  [resolve] Step 1: No explicit override")
 	}
 
+	if envVar := EnvVarName(tool); envVar != "" {
+		if spec := strings.TrimSpace(os.Getenv(envVar)); spec != "" {
+			if verbose {
+				fmt.Printf("  [resolve] Step 2: %s=%s\n", envVar, spec)
+			}
+			return resolveEnv(tool, spec, envVar)
+		}
+		if verbose {
+			fmt.Printf("  [resolve] Step 2: %s not set\n", envVar)
+		}
+	}
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("cannot determine working directory: %w", err)
 	}
 
 	if verbose {
-		fmt.Printf("  [resolve] Step 2: Searching for project config from %s\n", cwd)
+		fmt.Printf("  [resolve] Step 3: Searching for project config from %s\n", cwd)
 	}
 
 	res, err := resolveFromProject(tool, cwd, verbose)
@@ -223,7 +250,7 @@ func ResolveTool(tool, explicit string, verbose bool) (*Resolution, error) {
 	}
 
 	if verbose {
-		fmt.Println("  [resolve] Step 3: No project config found, checking global default")
+		fmt.Println("  [resolve] Step 4: No project config found, checking global default")
 	}
 
 	res, err = resolveFromGlobal(tool)
@@ -251,6 +278,22 @@ func resolveExplicit(tool, ver string) (*Resolution, error) {
 		Version:    ver,
 		BinaryPath: binPath,
 		Source:     SourceExplicit,
+	}, nil
+}
+
+// resolveEnv resolves the value of a DRIFTR_<TOOL> variable. Unlike an
+// explicit flag it accepts partial specs ("24") and "latest"/"lts", since the
+// value is typed once per shell and often without a patch number.
+func resolveEnv(tool, spec, envVar string) (*Resolution, error) {
+	ver, binPath, err := RequireToolInstalled(tool, spec)
+	if err != nil {
+		return nil, fmt.Errorf("%s=%s: %w", envVar, spec, err)
+	}
+	return &Resolution{
+		Tool:       tool,
+		Version:    ver,
+		BinaryPath: binPath,
+		Source:     SourceEnv,
 	}, nil
 }
 
