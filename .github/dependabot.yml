@@ -1,24 +1,86 @@
 version: 2
+
 updates:
   - package-ecosystem: gomod
     directory: /
     schedule:
       interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Warsaw
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
     commit-message:
       prefix: "build(deps)"
+      prefix-development: "build(deps-dev)"
+    cooldown:
+      default-days: 5
+      semver-major-days: 21
+      semver-minor-days: 7
+      semver-patch-days: 3
     groups:
+      # One PR for every non-breaking Go update; majors stay separate so they
+      # get read before they are merged.
       go-dependencies:
+        applies-to: version-updates
         update-types:
           - minor
           - patch
+      # Security fixes bypass the cooldown, so keep them in their own PR
+      # rather than waiting for the weekly batch.
+      go-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Warsaw
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github_actions
     commit-message:
       prefix: "build(deps)"
+    cooldown:
+      default-days: 5
     groups:
       github-actions:
+        applies-to: version-updates
         update-types:
           - minor
           - patch
+      github-actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Warsaw
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    commit-message:
+      prefix: "build(deps)"
+    cooldown:
+      default-days: 5
+    groups:
+      docker:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+      docker-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
