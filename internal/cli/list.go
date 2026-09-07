@@ -29,7 +29,7 @@ func newListCmd() *cobra.Command {
 		Use:     "list [tool]",
 		Aliases: []string{"ls"},
 		Short:   "List installed versions",
-		Long:    "List installed versions for a tool. Defaults to node.\n\nExamples:\n  driftr list\n  driftr list node\n  driftr list --remote node\n  driftr list --remote pnpm --pre\n  driftr list --remote node --limit 10",
+		Long:    "List installed versions for a tool. Defaults to node.\n\nExamples:\n  driftr list\n  driftr list node\n  driftr list --remote node\n  driftr list --remote pnpm --pre\n  driftr list --remote bun\n  driftr list --remote node --limit 10",
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			tool := "node"
@@ -141,13 +141,16 @@ func listRemote(tool string, includePre bool, limit int) error {
 		activeVer = res.Version
 	}
 
-	if tool == "node" {
+	switch tool {
+	case "node":
 		return listRemoteNode(limit, installed, activeVer, defaultVer)
+	case "bun":
+		return listRemoteBun(limit, installed, activeVer, defaultVer)
 	}
 
 	pkg, ok := npmPackage[tool]
 	if !ok {
-		supported := []string{"node"}
+		supported := []string{"node", "bun"}
 		for k := range npmPackage {
 			supported = append(supported, k)
 		}
@@ -187,7 +190,20 @@ func listRemoteNpm(pkg, tool string, includePre bool, limit int, installed map[s
 	if err != nil {
 		return fmt.Errorf("failed to fetch %s versions: %w", tool, err)
 	}
+	return printRemoteList(tool, versions, limit, installed, activeVer, defaultVer)
+}
 
+// listRemoteBun lists bun releases from GitHub — bun ships binaries there, not
+// through the npm registry.
+func listRemoteBun(limit int, installed map[string]bool, activeVer, defaultVer string) error {
+	versions, err := installer.ListBunReleases()
+	if err != nil {
+		return fmt.Errorf("failed to fetch bun versions: %w", err)
+	}
+	return printRemoteList("bun", versions, limit, installed, activeVer, defaultVer)
+}
+
+func printRemoteList(tool string, versions []string, limit int, installed map[string]bool, activeVer, defaultVer string) error {
 	total := len(versions)
 	if limit > 0 && len(versions) > limit {
 		versions = versions[:limit]

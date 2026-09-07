@@ -16,14 +16,15 @@ driftr install node@22
 # Install a specific version
 driftr install node@22.14.0
 
-# Install pnpm and yarn
+# Install package managers
 driftr install pnpm@9
 driftr install yarn@1
+driftr install bun@1
 
 # Install the latest version of a tool
 driftr install node@latest
 
-# Install the newest active LTS release (node only — pnpm/yarn have no LTS concept)
+# Install the newest active LTS release (node only, the other tools have no LTS concept)
 driftr install node@lts
 
 # Install a named LTS line by codename (matched against the release index)
@@ -40,13 +41,14 @@ driftr install node@22 -v
 | Node.js | nodejs.org archives                    | SHA256 against SHASUMS256.txt |
 | pnpm    | npm registry tarball                   | SHA-512 SRI integrity         |
 | yarn    | npm registry tarball                   | SHA-512 SRI integrity         |
+| bun     | GitHub release zip                     | SHA256 against SHASUMS256.txt |
 
 **Installing what a project pins:**
 
 With no argument, `driftr install` reads the pins for the current directory and
 installs each one. It reads the same sources resolution reads, walking up
 through parent directories: `.driftr.toml`, the `driftr` key in `package.json`,
-the standard `packageManager` field (pnpm and yarn), `.nvmrc`, `.node-version`,
+the standard `packageManager` field (pnpm, yarn and bun), `.nvmrc`, `.node-version`,
 and `engines.node`. The first source that names a tool wins, and each tool is
 looked up separately, so a repo can pin Node.js in `.nvmrc` and pnpm in
 `packageManager`.
@@ -82,6 +84,7 @@ Remove a previously installed tool version.
 driftr uninstall node@22.14.0
 driftr uninstall pnpm@9.15.0
 driftr uninstall yarn@1.22.22
+driftr uninstall bun@1.2.0
 ```
 
 Removes the version directory from `~/.driftr/tools/<tool>/<version>/`.
@@ -125,6 +128,7 @@ Set the global default version for a tool.
 driftr default node@22.14.0
 driftr default pnpm@9.15.0
 driftr default yarn@1.22.22
+driftr default bun@1.2.0
 ```
 
 The global default is used whenever you run a tool outside a project with a pinned version.
@@ -184,7 +188,7 @@ This writes the version in the other format and removes the old config.
 **Requirements:**
 - The version must already be installed
 - `package.json` format requires an existing `package.json` file (run `npm init` first)
-- `package.json` format supports `node`, `pnpm`, and `yarn`
+- `package.json` format supports `node`, `pnpm`, `yarn`, and `bun`
 
 **Behavior:**
 - Anyone who clones the project and has Driftr set up will automatically use the pinned version
@@ -239,6 +243,7 @@ List installed versions for a tool. Defaults to node.
 driftr list          # list node versions
 driftr list pnpm     # list pnpm versions
 driftr list yarn     # list yarn versions
+driftr list bun      # list bun versions
 ```
 
 Output example:
@@ -297,6 +302,7 @@ Show which binary Driftr would execute, and why.
 driftr which node
 driftr which pnpm
 driftr which yarn
+driftr which bun
 ```
 
 Output example:
@@ -362,7 +368,7 @@ driftr setup
 ```
 
 **What it creates:**
-- `~/.driftr/bin/` with shims for `node`, `npm`, `npx`, `pnpm`, `pnpx`, `yarn`
+- `~/.driftr/bin/` with shims for `node`, `npm`, `npx`, `pnpm`, `pnpx`, `yarn`, `bun`
 - `~/.driftr/tools/` for installed tool versions
 - `~/.driftr/config/` for global settings
 - `~/.driftr/cache/` for downloads
@@ -418,7 +424,7 @@ note about any stale entries in old rc files — safe to remove manually.
 
 ## Resolution Order
 
-When you run a tool (`node`, `npm`, `npx`, `pnpm`, `pnpx`, or `yarn`), Driftr resolves the version in this order:
+When you run a tool (`node`, `npm`, `npx`, `pnpm`, `pnpx`, `yarn`, or `bun`), Driftr resolves the version in this order:
 
 | Priority | Source | When |
 |----------|--------|------|
@@ -426,7 +432,7 @@ When you run a tool (`node`, `npm`, `npx`, `pnpm`, `pnpx`, or `yarn`), Driftr re
 | 2 | `DRIFTR_<TOOL>` variable | Set in the shell, usually via `driftr use` |
 | 3 | Project `.driftr.toml` | Found in current or parent directory |
 | 4 | `package.json` driftr key | Found in current or parent directory |
-| 5 | `package.json` `packageManager` field (pnpm/yarn only) | Found in current or parent directory |
+| 5 | `package.json` `packageManager` field (pnpm/yarn/bun only) | Found in current or parent directory |
 | 6 | `.nvmrc` (node only) | Found in current or parent directory; `lts`, `lts/*` and `lts/<codename>` resolve against installed versions |
 | 7 | `.node-version` (node only) | Found in current or parent directory; same LTS aliases as `.nvmrc` |
 | 8 | `package.json` `engines.node` (node only) | Found in current or parent directory |
@@ -439,6 +445,7 @@ If no version is configured at any level, Driftr prints an actionable error.
 - `npm` and `npx` resolve via the **node** version (they are bundled with Node.js)
 - `pnpm` and `pnpx` resolve via the **pnpm** version (pnpx is a symlink to pnpm)
 - `yarn` resolves via the **yarn** version, and also co-resolves **node** because yarn is a JS script that needs `node` to execute
+- `bun` resolves via the **bun** version. It is a native binary, so it runs without `node` installed
 
 ## Typical Workflow
 
@@ -452,6 +459,7 @@ source ~/.zshenv
 driftr install node@22
 driftr install pnpm@9
 driftr install yarn@1
+driftr install bun@1
 
 # Set global defaults
 driftr default node@22.14.0

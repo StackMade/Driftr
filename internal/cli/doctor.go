@@ -17,7 +17,7 @@ import (
 )
 
 // versionedTools are tools that have independently installed versions.
-var versionedTools = []string{"node", "pnpm", "yarn"}
+var versionedTools = []string{"node", "pnpm", "yarn", "bun"}
 
 // conflicting node version managers to detect on PATH.
 var conflictingBinaries = []string{"fnm", "volta", "n"}

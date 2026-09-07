@@ -19,8 +19,12 @@ func ShasumsURL(version string) string {
 
 // FetchExpectedChecksum downloads SHASUMS256.txt and extracts the hash for the given filename.
 func FetchExpectedChecksum(version, filename string) (string, error) {
-	url := ShasumsURL(version)
+	return fetchChecksumLine(ShasumsURL(version), filename)
+}
 
+// fetchChecksumLine downloads a SHASUMS256.txt-style listing and returns the
+// hash recorded for filename.
+func fetchChecksumLine(url, filename string) (string, error) {
 	resp, err := httpClient.Get(url)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch checksums: %w", err)

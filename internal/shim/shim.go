@@ -9,7 +9,7 @@ import (
 )
 
 // shimTools lists the tools for which shims are created.
-var shimTools = []string{"node", "npm", "npx", "pnpm", "pnpx", "yarn"}
+var shimTools = []string{"node", "npm", "npx", "pnpm", "pnpx", "yarn", "bun"}
 
 // ShimTools returns the list of tools that have shims.
 func ShimTools() []string {

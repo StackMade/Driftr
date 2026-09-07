@@ -21,6 +21,7 @@ func TestToolBinary_KnownTools(t *testing.T) {
 		{"pnpm", "9.15.0", "tools/pnpm/9.15.0/bin/pnpm.cjs"},
 		{"pnpx", "9.15.0", "tools/pnpm/9.15.0/bin/pnpx.cjs"},
 		{"yarn", "1.22.22", "tools/yarn/1.22.22/bin/yarn.js"},
+		{"bun", "1.2.3", "tools/bun/1.2.3/bin/bun"},
 	}
 
 	for _, tt := range tests {
@@ -54,6 +55,7 @@ func TestLookupTool(t *testing.T) {
 		{"npm", true, false, "node"},
 		{"pnpm", true, true, "pnpm"},
 		{"yarn", true, true, "yarn"},
+		{"bun", true, false, "bun"},
 		{"unknown", false, false, ""},
 	}
 

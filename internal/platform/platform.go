@@ -174,6 +174,8 @@ var toolBinaryMap = map[string]ToolEntry{
 	"pnpm": {Parent: "pnpm", Binary: "pnpm.cjs", NeedsNode: true},
 	"pnpx": {Parent: "pnpm", Binary: "pnpx.cjs", NeedsNode: true},
 	"yarn": {Parent: "yarn", Binary: "yarn.js", NeedsNode: true},
+	// bun is a native binary, so it runs without node.
+	"bun": {Parent: "bun", Binary: "bun"},
 }
 
 // LookupTool returns the ToolEntry for a tool, or false if unknown.

@@ -25,11 +25,11 @@
 
 Driftr is a new project. It doesn't have Volta's years of polish or fnm's community size. But it has a clean foundation, an honest design, and an active maintainer who actually uses it. If you're looking for something simple that does the job, give it a try. If it's missing something you need, [open an issue](https://github.com/StackMade/Driftr/issues) -- we're listening.
 
-- **Multi-tool** -- manages Node.js, pnpm, and yarn from a single CLI
-- **Shim-based** -- `node`, `npm`, `npx`, `pnpm`, `pnpx`, and `yarn` just work, resolved per-project or globally
+- **Multi-tool** -- manages Node.js, pnpm, yarn, and bun from a single CLI
+- **Shim-based** -- `node`, `npm`, `npx`, `pnpm`, `pnpx`, `yarn`, and `bun` just work, resolved per-project or globally
 - **Fast** -- near-zero overhead via `syscall.Exec` process replacement
 - **Minimal** -- 2 external dependencies (cobra + toml), everything else is Go stdlib
-- **Deterministic** -- explicit resolution chain: `DRIFTR_<TOOL>` (one shell, via `driftr use`) > project config > `package.json` (`driftr` key, then `packageManager` field for pnpm/yarn) > `.nvmrc` / `.node-version` (node) > `package.json` `engines.node` (node) > global default
+- **Deterministic** -- explicit resolution chain: `DRIFTR_<TOOL>` (one shell, via `driftr use`) > project config > `package.json` (`driftr` key, then `packageManager` field for pnpm/yarn/bun) > `.nvmrc` / `.node-version` (node) > `package.json` `engines.node` (node) > global default
 - **nvm-compatible pins** -- `.nvmrc` and `.node-version` are read as they are, including the `lts`, `lts/*` and `lts/<codename>` aliases
 - **Secure** -- SHA256 and SHA-512 SRI checksum verification on every download
 - **Simple** -- a handful of commands cover the entire workflow
@@ -63,6 +63,7 @@ driftr install
 driftr install node@22
 driftr install pnpm@9
 driftr install yarn@1
+driftr install bun@1
 
 # Set global defaults
 driftr default node@22.22.0
@@ -82,14 +83,14 @@ pnpm -v   # resolves automatically
 
 | Command | Description |
 |---------|-------------|
-| `driftr install [tool[@version]]` | Download and install a tool version (node, pnpm, yarn); with no argument, installs everything the current project pins; a bare tool name installs the latest; `node@lts` installs the newest LTS release, `node@lts/jod` a named LTS line |
+| `driftr install [tool[@version]]` | Download and install a tool version (node, pnpm, yarn, bun); with no argument, installs everything the current project pins; a bare tool name installs the latest; `node@lts` installs the newest LTS release, `node@lts/jod` a named LTS line |
 | `driftr uninstall <tool@version>` | Remove an installed tool version |
 | `driftr prune [--dry-run] [-y] [--tool <name>]` | Remove installed versions that neither the global default nor the current project uses |
 | `driftr default <tool@version>` | Set the global default version for a tool |
 | `driftr pin <tool@version>` | Pin a version to the current project (`.driftr.toml` or `package.json`) |
 | `driftr use <tool@version>` | Print a shell snippet pinning a version for the current shell: `eval "$(driftr use node@24)"` |
 | `driftr list [tool]` | List installed versions (defaults to node) |
-| `driftr list --remote [tool]` | Browse available remote versions from nodejs.org / npm registry |
+| `driftr list --remote [tool]` | Browse available remote versions from nodejs.org, the npm registry, or bun's GitHub releases |
 | `driftr outdated` | Compare the versions in use against the newest releases upstream |
 | `driftr which <tool>` | Show which binary would be executed and why |
 | `driftr run --node <ver> -- <cmd>` | Run a command under a specific Node.js version |
@@ -178,11 +179,11 @@ flowchart TD
     C --> C5["6. .node-version (node only)\n(walks up dirs)"]
     C --> C6["7. package.json engines.node\n(node only, newest installed match)"]
     C --> C7["8. global config.toml"]
-    C --> C3b["4b. package.json packageManager field\n(pnpm/yarn only, walks up dirs)"]
+    C --> C3b["4b. package.json packageManager field\n(pnpm/yarn/bun only, walks up dirs)"]
     C1 & C1b & C2 & C3 & C3b & C4 & C5 & C6 & C7 --> D["syscall.Exec\nreplaces process with real node"]
 ```
 
-Shims in `~/.driftr/bin/` intercept calls to `node`, `npm`, `npx`, `pnpm`, `pnpx`, and `yarn`. The resolver determines the correct version, and `syscall.Exec` replaces the process with the real binary. Standalone tools (node, pnpm) are exec'd directly. Tools that need Node.js (yarn) are exec'd as `node <tool-script>`.
+Shims in `~/.driftr/bin/` intercept calls to `node`, `npm`, `npx`, `pnpm`, `pnpx`, `yarn`, and `bun`. The resolver determines the correct version, and `syscall.Exec` replaces the process with the real binary. Standalone tools (node, pnpm, bun) are exec'd directly. Tools that need Node.js (yarn) are exec'd as `node <tool-script>`.
 
 ## Documentation
 
@@ -198,11 +199,12 @@ Shims in `~/.driftr/bin/` intercept calls to `node`, `npm`, `npx`, `pnpm`, `pnpx
 
 ```
 ~/.driftr/
-  bin/              shims (node, npm, npx, pnpm, pnpx, yarn)
+  bin/              shims (node, npm, npx, pnpm, pnpx, yarn, bun)
   tools/
     node/           installed Node.js versions
     pnpm/           installed pnpm versions
     yarn/           installed yarn versions
+    bun/            installed bun versions
   config/
     config.toml     global default settings
   cache/            downloaded archives + binaries
@@ -218,11 +220,11 @@ Shims in `~/.driftr/bin/` intercept calls to `node`, `npm`, `npx`, `pnpm`, `pnpx
 | External dependencies | **2** | 0 (shell) | ~36 crates | 24 crates | 113 crates |
 | macOS / Linux | Yes | Yes | Yes | Yes | Yes |
 | Windows | No | No | Yes (rough) | Yes | Very basic |
-| Manages npm/pnpm/yarn | **Yes** | No | Partial | No | Yes |
+| Manages npm/pnpm/yarn/bun | **Yes** | No | Partial | No | Yes |
 | Maintained | Yes | Yes | **No** | Yes | Yes |
 | Self-update | `driftr self-update` | `nvm` script | No | No | `mise self-update` |
 
-**When to choose Driftr**: You want a fast, minimal, shim-based manager for Node.js, pnpm, and yarn with a Volta-like experience -- pin versions to projects, and tools just work. You value simplicity and a small dependency footprint.
+**When to choose Driftr**: You want a fast, minimal, shim-based manager for Node.js, pnpm, yarn, and bun with a Volta-like experience -- pin versions to projects, and tools just work. You value simplicity and a small dependency footprint.
 
 **When to choose something else**: If you need Windows support, fnm is your best bet. If you want one tool for Node + Python + Ruby + everything else, mise is the polyglot option. If nvm already works for you and startup time doesn't bother you, there's no reason to switch.
 

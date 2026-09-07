@@ -365,6 +365,35 @@ func TestResolveTool_PackageManagerField(t *testing.T) {
 	}
 }
 
+func TestResolveBinaryFull_BunNeedsNoNode(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	setupFakeInstall(t, home, "bun", "1.2.3")
+
+	projectDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(projectDir, "package.json"),
+		[]byte(`{"name":"app","packageManager":"bun@1.2.3"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+	os.Chdir(projectDir)
+
+	// No node version is installed at all: bun is a native binary and must
+	// still resolve.
+	rb, err := ResolveBinaryFull("bun", "")
+	if err != nil {
+		t.Fatalf("ResolveBinaryFull(bun) error: %v", err)
+	}
+	if rb.NodePath != "" {
+		t.Errorf("NodePath = %q, want empty (bun does not run under node)", rb.NodePath)
+	}
+	if !strings.Contains(rb.ToolPath, filepath.Join("bun", "1.2.3")) {
+		t.Errorf("ToolPath = %q, want bun 1.2.3", rb.ToolPath)
+	}
+}
+
 func TestResolveTool_DriftrKeyBeatsPackageManagerField(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

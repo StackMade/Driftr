@@ -367,7 +367,7 @@ func resolveFromProject(tool, dir string, verbose bool) (*Resolution, error) {
 			// "pnpm@9.15.0". Only meaningful for tools with their own
 			// independently pinned version — node's own version isn't
 			// expressed this way, and npm/npx always follow node.
-			if tool == "pnpm" || tool == "yarn" {
+			if usesPackageManagerField(tool) {
 				if pmTool, pmVer := pkg.PackageManagerTool(); pmTool == tool && pmVer != "" {
 					return resolveProjectVersion(tool, pmVer, current, SourcePackageManager)
 				}
@@ -531,6 +531,17 @@ func resolveFromGlobal(tool string) (*Resolution, error) {
 		BinaryPath: binPath,
 		Source:     SourceGlobal,
 	}, nil
+}
+
+// usesPackageManagerField reports whether a tool can be pinned through the
+// standard package.json "packageManager" field. node's own version is not
+// expressed that way, and npm/npx always follow node.
+func usesPackageManagerField(tool string) bool {
+	switch tool {
+	case "pnpm", "yarn", "bun":
+		return true
+	}
+	return false
 }
 
 // toolParent maps tools to the parent tool whose version controls resolution.

@@ -11,12 +11,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
-	"github.com/stackmade/driftr/internal/ioutil"
-	"github.com/stackmade/driftr/internal/platform"
 	"github.com/stackmade/driftr/internal/version"
 )
 
@@ -228,73 +225,16 @@ func DownloadRegistryPackage(pkg, ver string, verbose bool) (string, *registryVe
 		return "", nil, err
 	}
 
-	cacheDir, err := platform.CacheDir()
-	if err != nil {
-		return "", nil, err
-	}
-
-	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
-		return "", nil, fmt.Errorf("failed to create cache dir: %w", err)
-	}
-
-	filename := fmt.Sprintf("%s-%s.tgz", pkg, ver)
-	destPath := filepath.Join(cacheDir, filename)
-
-	// Skip download if already cached.
-	if info, err := os.Stat(destPath); err == nil && info.Size() > 0 {
-		if verbose {
-			fmt.Printf("  Using cached archive: %s\n", destPath)
-		}
-		return destPath, rv, nil
-	}
-
 	tarballURL := rv.Dist.Tarball
 	if err := validateTarballURL(tarballURL); err != nil {
 		return "", nil, err
 	}
-	if verbose {
-		fmt.Printf("  Downloading: %s\n", tarballURL)
-	}
 
-	resp, err := httpClient.Get(tarballURL)
+	filename := fmt.Sprintf("%s-%s.tgz", pkg, ver)
+	destPath, err := fetchToCache(tarballURL, filename, maxRegistryDownloadBytes, verbose, nil)
 	if err != nil {
-		return "", nil, fmt.Errorf("download failed: %w", err)
+		return "", nil, err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", nil, fmt.Errorf("download failed with status %d", resp.StatusCode)
-	}
-
-	tmpFile, err := os.CreateTemp(cacheDir, "driftr-registry-*")
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to create temp file: %w", err)
-	}
-	tmpPath := tmpFile.Name()
-
-	limited := io.LimitReader(resp.Body, maxRegistryDownloadBytes)
-	if ioutil.IsTerminal(os.Stderr) {
-		pw := &ioutil.ProgressWriter{Dest: tmpFile, Total: resp.ContentLength}
-		_, err = io.Copy(pw, limited)
-		pw.Finish()
-	} else {
-		_, err = io.Copy(tmpFile, limited)
-	}
-	// A failed close means a truncated file; it must not be renamed into the
-	// cache, where it would be treated as a valid archive.
-	if cerr := tmpFile.Close(); err == nil {
-		err = cerr
-	}
-	if err != nil {
-		os.Remove(tmpPath)
-		return "", nil, fmt.Errorf("download interrupted: %w", err)
-	}
-
-	if err := os.Rename(tmpPath, destPath); err != nil {
-		os.Remove(tmpPath)
-		return "", nil, fmt.Errorf("failed to save archive: %w", err)
-	}
-
 	return destPath, rv, nil
 }
 

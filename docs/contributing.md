@@ -45,9 +45,9 @@ cmd/driftr/          entry point
 internal/
   cli/               CLI commands (cobra)
   config/            TOML + JSON config management
-  installer/         tool installers (node, pnpm, yarn) + npm registry client
+  installer/         tool installers (node, pnpm, yarn, bun) + npm registry client
   resolver/          generic version resolution chain
-  shim/              shim script generation (node, npm, npx, pnpm, pnpx, yarn)
+  shim/              shim script generation (node, npm, npx, pnpm, pnpx, yarn, bun)
   process/           process execution (syscall.Exec)
   platform/          OS/architecture abstraction, tool binary map
   version/           semver parsing with tool@ prefix support

@@ -63,10 +63,27 @@ func removeCorruptArchive(archivePath string, cause error) error {
 	return cause
 }
 
+// errNotFound reports that the download host answered 404. Callers wrap it
+// with a message naming what was actually missing.
+var errNotFound = errors.New("not found")
+
 // Download fetches the Node.js archive to the cache directory.
 // Returns the path to the downloaded file.
 // If cleanup is non-nil, the temp file path is registered for signal-safe removal.
 func Download(version string, verbose bool, cleanup *installCleanup) (string, error) {
+	url := DownloadURL(version)
+	path, err := fetchToCache(url, ArchiveFilename(version), maxNodeDownloadBytes, verbose, cleanup)
+	if errors.Is(err, errNotFound) {
+		return "", fmt.Errorf("node.js version %s not found at %s", version, url)
+	}
+	return path, err
+}
+
+// fetchToCache downloads url into the cache directory under filename and
+// returns the resulting path. A non-empty file already cached under that name
+// is reused without touching the network. If cleanup is non-nil, the temp file
+// is registered for signal-safe removal.
+func fetchToCache(url, filename string, maxBytes int64, verbose bool, cleanup *installCleanup) (string, error) {
 	cacheDir, err := platform.CacheDir()
 	if err != nil {
 		return "", err
@@ -76,7 +93,6 @@ func Download(version string, verbose bool, cleanup *installCleanup) (string, er
 		return "", fmt.Errorf("failed to create cache dir: %w", err)
 	}
 
-	filename := ArchiveFilename(version)
 	destPath := filepath.Join(cacheDir, filename)
 
 	// Skip download if already cached.
@@ -87,7 +103,6 @@ func Download(version string, verbose bool, cleanup *installCleanup) (string, er
 		return destPath, nil
 	}
 
-	url := DownloadURL(version)
 	if verbose {
 		fmt.Printf("  Downloading: %s\n", url)
 	}
@@ -99,7 +114,7 @@ func Download(version string, verbose bool, cleanup *installCleanup) (string, er
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return "", fmt.Errorf("node.js version %s not found at %s", version, url)
+		return "", fmt.Errorf("%w: %s", errNotFound, url)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("download failed with status %d", resp.StatusCode)
@@ -116,7 +131,7 @@ func Download(version string, verbose bool, cleanup *installCleanup) (string, er
 		cleanup.setTmpFile(tmpPath)
 	}
 
-	limited := io.LimitReader(resp.Body, maxNodeDownloadBytes)
+	limited := io.LimitReader(resp.Body, maxBytes)
 	if ioutil.IsTerminal(os.Stderr) {
 		pw := &ioutil.ProgressWriter{Dest: tmpFile, Total: resp.ContentLength}
 		_, err = io.Copy(pw, limited)

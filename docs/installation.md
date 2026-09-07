@@ -134,7 +134,7 @@ This creates the following structure:
 
 ```
 ~/.driftr/
-  bin/           shim scripts (node, npm, npx, pnpm, pnpx, yarn)
+  bin/           shim scripts (node, npm, npx, pnpm, pnpx, yarn, bun)
   tools/         installed tool versions
   config/        global configuration
   cache/         downloaded archives + binaries

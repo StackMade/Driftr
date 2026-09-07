@@ -19,7 +19,7 @@ type Pin struct {
 
 // installableTools are the tools `driftr install` with no argument acts on,
 // in the order they are reported.
-var installableTools = []string{"node", "pnpm", "yarn"}
+var installableTools = []string{"node", "pnpm", "yarn", "bun"}
 
 // ProjectPins collects the tool versions pinned by the project containing dir.
 // It walks up the directory tree exactly like resolveFromProject, but does not
@@ -109,8 +109,7 @@ func pinAt(tool, dir string, cfg *config.ProjectConfig, pkg *config.PackageJSON)
 		if ver := pkg.Driftr.GetTool(tool); ver != "" {
 			return ver, SourcePackageJSON, true, nil
 		}
-		// Only pnpm/yarn are expressed by the standard "packageManager" field.
-		if tool == "pnpm" || tool == "yarn" {
+		if usesPackageManagerField(tool) {
 			if pmTool, pmVer := pkg.PackageManagerTool(); pmTool == tool && pmVer != "" {
 				return pmVer, SourcePackageManager, true, nil
 			}

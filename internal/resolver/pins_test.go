@@ -24,6 +24,11 @@ func TestProjectPins(t *testing.T) {
 			want:  []Pin{{Tool: "pnpm", Version: "9.15.0", Source: SourcePackageManager}},
 		},
 		{
+			name:  "bun from packageManager",
+			files: map[string]string{"sub/package.json": `{"packageManager": "bun@1.2.3"}`},
+			want:  []Pin{{Tool: "bun", Version: "1.2.3", Source: SourcePackageManager}},
+		},
+		{
 			name:  "driftr key beats packageManager",
 			files: map[string]string{"sub/package.json": `{"driftr": {"pnpm": "8.0.0"}, "packageManager": "pnpm@9.15.0"}`},
 			want:  []Pin{{Tool: "pnpm", Version: "8.0.0", Source: SourcePackageJSON}},

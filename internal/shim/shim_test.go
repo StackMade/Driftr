@@ -62,6 +62,7 @@ func TestWriteShim_AllTools(t *testing.T) {
 	expected := map[string]bool{
 		"node": true, "npm": true, "npx": true,
 		"pnpm": true, "pnpx": true, "yarn": true,
+		"bun": true,
 	}
 	for _, tool := range ShimTools() {
 		if !expected[tool] {

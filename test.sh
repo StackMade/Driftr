@@ -148,6 +148,7 @@ echo -e "${BLUE}[13] Setup Shims${NC}"
 check "pnpm shim was created" test -f "$HOME/.driftr/bin/pnpm"
 check "pnpx shim was created" test -f "$HOME/.driftr/bin/pnpx"
 check "yarn shim was created" test -f "$HOME/.driftr/bin/yarn"
+check "bun shim was created" test -f "$HOME/.driftr/bin/bun"
 echo
 
 # ── 14. Node Shared Storage ─────────────────
@@ -167,6 +168,7 @@ LTS_OUTPUT=$(driftr install node@lts -v 2>&1) || true
 check_output "driftr install node@lts succeeds" "Installed" echo "$LTS_OUTPUT"
 check_output "install pnpm@lts errors (no LTS concept)" "lts is only supported for node" driftr install pnpm@lts
 check_output "install yarn@lts errors (no LTS concept)" "lts is only supported for node" driftr install yarn@lts
+check_output "install bun@lts errors (no LTS concept)" "lts is only supported for node" driftr install bun@lts
 echo
 
 # ── 15. pnpm/yarn Install ───────────────────
@@ -192,6 +194,22 @@ YARN_INSTALLED=$(driftr list yarn 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | hea
 check "driftr default yarn@\$YARN_INSTALLED succeeds" driftr default "yarn@$YARN_INSTALLED"
 check_output "yarn resolves to installed version" "$YARN_INSTALLED" driftr which yarn
 check_output "yarn shim execs yarn.js via node" "yarn.js" "$HOME/.driftr/bin/yarn" -v
+echo
+
+# ── 15c. bun Install ─────────────────────────
+# An exact version is used on purpose: a partial spec would query the GitHub
+# releases API, which is rate-limited per IP and flaky on shared CI runners.
+# bun is a native binary, so this also covers the standalone-exec shim path
+# without node in the picture.
+echo -e "${BLUE}[15c] bun Install${NC}"
+BUN_VERSION=1.2.0
+BUN_OUTPUT=$(driftr install "bun@$BUN_VERSION" -v 2>&1) || true
+echo "$BUN_OUTPUT" | head -10
+check_output "driftr install bun@$BUN_VERSION succeeds" "Checksum verified OK\\|Installed" echo "$BUN_OUTPUT"
+check_output "list bun shows installed version" "$BUN_VERSION" driftr list bun
+check "driftr default bun@\$BUN_VERSION succeeds" driftr default "bun@$BUN_VERSION"
+check_output "bun resolves to installed version" "$BUN_VERSION" driftr which bun
+check_output "bun shim execs the real binary" "$BUN_VERSION" "$HOME/.driftr/bin/bun" --version
 echo
 
 # ── 15b. package.json packageManager Field ──

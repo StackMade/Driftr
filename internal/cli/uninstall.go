@@ -18,7 +18,7 @@ func newUninstallCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "uninstall <tool@version>",
 		Short: "Remove an installed tool version",
-		Long:  "Remove a previously installed tool version and free disk space.\n\nExamples:\n  driftr uninstall node@22.14.0\n  driftr uninstall pnpm@9.15.0\n  driftr uninstall yarn@1.22.22",
+		Long:  "Remove a previously installed tool version and free disk space.\n\nExamples:\n  driftr uninstall node@22.14.0\n  driftr uninstall pnpm@9.15.0\n  driftr uninstall yarn@1.22.22\n  driftr uninstall bun@1.2.0",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			tool, versionSpec := parseToolVersion(args[0])
@@ -26,7 +26,7 @@ func newUninstallCmd() *cobra.Command {
 			// Resolve bundled tools to their parent (e.g. npm → node, pnpx → pnpm).
 			entry, ok := platform.LookupTool(tool)
 			if !ok {
-				return fmt.Errorf("unknown tool: %s. Supported tools: node, pnpm, yarn", tool)
+				return fmt.Errorf("unknown tool: %s. Supported tools: node, pnpm, yarn, bun", tool)
 			}
 			tool = entry.Parent
 
