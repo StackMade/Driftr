@@ -219,18 +219,30 @@ Shims in `~/.driftr/bin/` intercept calls to `node`, `npm`, `npx`, `pnpm`, `pnpx
 | | **Driftr** | **nvm** | **Volta** | **fnm** | **mise** |
 |---|---|---|---|---|---|
 | Language | Go | Shell | Rust | Rust | Rust |
-| Mechanism | Shims | Shell function | Shims | PATH manipulation | PATH manipulation |
-| Shell startup cost | ~1ms | 200-500ms | ~1ms | ~1ms | ~5ms |
-| External dependencies | **2** | 0 (shell) | ~36 crates | 24 crates | 113 crates |
+| Mechanism | Shims | Shell function | Shims | PATH via shell hook | PATH via shell hook (shims optional) |
+| Cost model | ~5ms per tool call, nothing at shell startup | 200-500ms per shell startup | per tool call | per prompt / directory change | per prompt / directory change |
+| Direct dependencies | **2** (cobra, toml) | 0 (shell) | 12 | 27 | 79 |
+| Tools managed | node, npm, npx, pnpm, pnpx, yarn, bun | node + its bundled npm | node, npm, yarn; pnpm experimental (`VOLTA_FEATURE_PNPM=1`) | node only | node, pnpm, yarn, bun + hundreds of others |
+| Reads `.nvmrc` / `.node-version` | Yes | Yes | No | Yes | Yes |
+| Reads `engines.node` | Yes (installed versions) | No | No | Yes (default on) | No |
+| Reads `packageManager` | Yes (pnpm, yarn, bun) | No | No | Via corepack | Via corepack |
+| Checksum verification | Always: SHA-256 (node, bun), SHA-512 SRI (pnpm, yarn) | Yes, SHA-256 | [No](https://github.com/volta-cli/volta/issues/134) | No | Opt-in via `mise.lock` |
+| Auto-install a missing pinned version | Yes, on shim call (prompt, or `auto_install = true`) | No | Yes | `--install-if-missing` | Yes |
 | macOS / Linux | Yes | Yes | Yes | Yes | Yes |
-| Windows | No | No | Yes (rough) | Yes | Very basic |
-| Manages npm/pnpm/yarn/bun | **Yes** | No | Partial | No | Yes |
-| Maintained | Yes | Yes | **No** | Yes | Yes |
-| Self-update | `driftr self-update` | `nvm` script | No | No | `mise self-update` |
+| Windows | No | No | Yes | Yes | Yes |
+| Latest release | v1.1.0 (2026-08) | v0.40.7 (2026-08) | v2.0.2 (**2024-12**) | v1.39.0 (2026-03) | v2026.9.1 (2026-09) |
+| Maintained | Yes | Yes | **No** ([upstream says so](https://github.com/volta-cli/volta)) | Yes | Yes |
+| Self-update | `driftr self-update` | `nvm` install script | No | Package manager | `mise self-update` |
 
-**When to choose Driftr**: You want a fast, minimal, shim-based manager for Node.js, pnpm, yarn, and bun with a Volta-like experience -- pin versions to projects, and tools just work. You value simplicity and a small dependency footprint.
+Verified against upstream repositories and documentation on 2026-09-07. Dependency counts are
+direct dependencies from each project's manifest, not the transitive tree. The Driftr cost figure is
+the measured gap between running `~/.driftr/bin/node -v` and calling the real `node` binary on an
+Apple Silicon Mac. It is per-call overhead, so you pay it when you run a tool and never when you
+open a shell.
 
-**When to choose something else**: If you need Windows support, fnm is your best bet. If you want one tool for Node + Python + Ruby + everything else, mise is the polyglot option. If nvm already works for you and startup time doesn't bother you, there's no reason to switch.
+**When to choose Driftr**: You want a shim-based manager for Node.js, pnpm, yarn and bun that behaves the way Volta did: pin a version to a project, and the tools follow. Driftr adds nothing to your shell startup, so the same pins hold in scripts, cron jobs and CI without an `activate` step. It checks the checksum of every download before unpacking it, ships with two library dependencies, and `driftr node` can point pnpm at one shared store instead of a separate `node_modules` copy per project.
+
+**When to choose something else**: fnm if you need Windows. mise if you want one tool for Node, Python, Ruby and everything else; Volta's own README now sends people there. nvm if it already works for you and shell startup time doesn't bother you.
 
 ## Requirements
 
