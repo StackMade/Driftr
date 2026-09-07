@@ -74,6 +74,14 @@ updates:
       prefix: "build(deps)"
     cooldown:
       default-days: 5
+    ignore:
+      # The builder image has to match the toolchain the release binaries are
+      # built with, which comes from the go directive in go.mod. Bump this tag
+      # together with go.mod, not on its own.
+      - dependency-name: golang
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
     groups:
       docker:
         applies-to: version-updates
