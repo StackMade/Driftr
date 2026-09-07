@@ -21,9 +21,29 @@ import (
 
 const (
 	repo                    = "stackmade/driftr"
-	apiBaseURL              = "https://api.github.com/repos/" + repo
+	defaultAPIBaseURL       = "https://api.github.com/repos/" + repo
+	defaultReleaseBaseURL   = "https://github.com/" + repo + "/releases/download"
 	maxUpdaterDownloadBytes = 50 * 1024 * 1024 // 50 MB
 )
+
+// apiBase returns the release index base URL. DRIFTR_UPDATE_API overrides the
+// default — for mirrors and hermetic tests.
+func apiBase() string {
+	if m := os.Getenv("DRIFTR_UPDATE_API"); m != "" {
+		return strings.TrimRight(m, "/")
+	}
+	return defaultAPIBaseURL
+}
+
+// releaseBase returns the release asset base URL, to which "/v<version>" is
+// appended. DRIFTR_UPDATE_MIRROR overrides the default — for mirrors and
+// hermetic tests.
+func releaseBase() string {
+	if m := os.Getenv("DRIFTR_UPDATE_MIRROR"); m != "" {
+		return strings.TrimRight(m, "/")
+	}
+	return defaultReleaseBaseURL
+}
 
 var httpClient = &http.Client{
 	Timeout: 60 * time.Second,
@@ -64,7 +84,7 @@ func Update(currentVersion string, verbose bool) (string, error) {
 	fmt.Printf("Updating driftr v%s → v%s...\n", currentVersion, latest)
 
 	archiveName := fmt.Sprintf("driftr_%s_%s_%s.tar.gz", latest, runtime.GOOS, runtime.GOARCH)
-	baseURL := fmt.Sprintf("https://github.com/%s/releases/download/v%s", repo, latest)
+	baseURL := fmt.Sprintf("%s/v%s", releaseBase(), latest)
 
 	tmpDir, err := os.MkdirTemp("", "driftr-update-*")
 	if err != nil {
@@ -114,7 +134,7 @@ func Update(currentVersion string, verbose bool) (string, error) {
 }
 
 func fetchLatestVersion() (string, error) {
-	resp, err := httpClient.Get(apiBaseURL + "/releases/latest")
+	resp, err := httpClient.Get(apiBase() + "/releases/latest")
 	if err != nil {
 		return "", err
 	}

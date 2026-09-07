@@ -1,0 +1,23 @@
+# self-update downloads a release, verifies its checksum, and replaces the
+# binary it is running from.
+#
+# That last part is why this script works on a copy. Every script in the suite
+# shares one driftr binary, and letting self-update overwrite it would break
+# every test running in parallel.
+
+mkdir $WORK/bin
+cp $DRIFTR_BIN $WORK/bin/driftr
+chmod 0755 $WORK/bin/driftr
+
+exec $WORK/bin/driftr self-update -v
+stdout 'Updating driftr'
+stdout 'Verifying checksum'
+stdout 'Updated successfully to driftr v'$DRIFTR_UPDATE_VERSION
+
+# The replacement came out of the archive and is now what runs.
+exec $WORK/bin/driftr --version
+stdout $DRIFTR_UPDATE_VERSION
+
+# The binary the rest of the suite shares was not touched.
+exec $DRIFTR_BIN --version
+! stdout $DRIFTR_UPDATE_VERSION

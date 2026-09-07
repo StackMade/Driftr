@@ -1,0 +1,26 @@
+# driftr list --remote reads the same upstream feeds as install: the nodejs.org
+# release index, the npm registry, and bun's GitHub releases.
+
+exec driftr setup
+
+exec driftr list --remote node
+stdout 'Available node versions \(latest 1 of 1\):'
+stdout $NODE_VERSION' \(LTS: Fixture\)'
+
+exec driftr list --remote pnpm
+stdout 'Available pnpm versions \(latest 1 of 1\):'
+stdout $PNPM_VERSION
+
+exec driftr list --remote bun
+stdout 'Available bun versions \(latest 1 of 1\):'
+stdout $BUN_VERSION
+
+# Once a version is installed and set as the default, the remote list marks it.
+exec driftr install node@$NODE_VERSION
+exec driftr default node@$NODE_VERSION
+exec driftr list --remote node
+stdout '>\*● '$NODE_VERSION
+stdout '= global default'
+
+! exec driftr list --remote npm
+stderr 'remote listing not supported'

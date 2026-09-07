@@ -111,7 +111,21 @@ jobs:
           check-latest: true
           cache: true
       - name: Run unit and e2e tests
-        run: go test -race -coverprofile=coverage.txt ./...
+        # DRIFTR_E2E_COVERDIR makes the e2e suite build driftr with -cover, so
+        # the work it does in a subprocess lands in coverage.txt too. Both
+        # profiles are in atomic mode, so appending one to the other merges
+        # them.
+        #
+        # -count=1 is load-bearing. setup-go restores the test cache, and a
+        # cached e2e result replays the recorded profile without running
+        # TestMain, so the coverdata directory stays empty and the e2e half of
+        # the coverage silently disappears.
+        run: |
+          mkdir -p "$RUNNER_TEMP/e2e-coverdata"
+          DRIFTR_E2E_COVERDIR="$RUNNER_TEMP/e2e-coverdata" go test -race -count=1 -coverprofile=unit.cov ./...
+          go tool covdata textfmt -i="$RUNNER_TEMP/e2e-coverdata" -o e2e.cov
+          cat unit.cov > coverage.txt
+          tail -n +2 e2e.cov >> coverage.txt
       - name: Upload coverage to Codecov
         if: matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0

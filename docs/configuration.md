@@ -175,6 +175,8 @@ git commit -m "Pin Node.js version with Driftr"
 | `DRIFTR_NPM_REGISTRY` | `https://registry.npmjs.org` | Alternative npm registry for pnpm/yarn installs. Tarball URLs in registry metadata must point back at the same host. |
 | `DRIFTR_BUN_RELEASES` | `https://api.github.com/repos/oven-sh/bun/releases` | Alternative source for the bun release list. Must answer with the same JSON shape: an array of objects carrying `tag_name`, `draft` and `prerelease`. |
 | `DRIFTR_BUN_MIRROR` | `https://github.com/oven-sh/bun/releases/download` | Alternative host for bun release assets. Must serve `bun-v<version>/bun-<os>-<arch>.zip` and `bun-v<version>/SHASUMS256.txt`. |
+| `DRIFTR_UPDATE_API` | `https://api.github.com/repos/stackmade/driftr` | Alternative source for the Driftr release index used by `driftr self-update`. `/releases/latest` is appended, and the answer must carry a `tag_name`. |
+| `DRIFTR_UPDATE_MIRROR` | `https://github.com/stackmade/driftr/releases/download` | Alternative host for Driftr's own release assets. `/v<version>` is appended, and the directory must hold `driftr_<version>_<os>_<arch>.tar.gz` and `checksums.txt`. |
 
 ```bash
 DRIFTR_NODE_MIRROR=https://npmmirror.com/mirrors/node driftr install node@22

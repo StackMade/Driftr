@@ -40,6 +40,49 @@ To run a single e2e script and see every command it executes:
 go test ./e2e -run 'TestDriftr/install-node' -v
 ```
 
+### Coverage
+
+The e2e suite runs driftr as a subprocess, so a plain `-coverprofile` credits it with
+nothing. Setting `DRIFTR_E2E_COVERDIR` makes `e2e/e2e_test.go` build the binary with `go
+build -cover` instead and point every script's `GOCOVERDIR` at that directory; `go tool
+covdata` then turns the raw profiles into a text profile that appends to the one `go test`
+writes. The variable is driftr's own because `go test -coverprofile` overwrites
+`GOCOVERDIR` in the test binary's environment:
+
+```bash
+mkdir -p /tmp/e2e-coverdata
+DRIFTR_E2E_COVERDIR=/tmp/e2e-coverdata go test -race -count=1 -coverprofile=unit.cov ./...
+go tool covdata textfmt -i=/tmp/e2e-coverdata -o e2e.cov
+cat unit.cov > coverage.txt
+tail -n +2 e2e.cov >> coverage.txt
+```
+
+`-count=1` matters: a cached test result replays the recorded profile without running
+`TestMain`, so the coverdata directory stays empty and the e2e half of the coverage
+disappears without any error.
+
+That is exactly what the `test` job in CI runs. Without `DRIFTR_E2E_COVERDIR` nothing
+changes and no directories are left behind. Two paths stay invisible either way: a driftr run that
+ends in `os.Exit` never flushes its counters, and neither does the shim, which hands the
+process over with `syscall.Exec`.
+
+### Fuzzing
+
+The hand-written parsers have `go test -fuzz` targets: `FuzzParse` and `FuzzParseRange` in
+`internal/version`, and `FuzzParseVersionFile`, `FuzzLoadPackageJSON` and
+`FuzzPatchTopLevelKey` in `internal/config`. They run as ordinary tests over their seed
+corpus during `go test ./...`, and the nightly workflow gives each one two minutes of real
+fuzzing, uploading any crasher it finds as an artifact.
+
+To fuzz one target locally:
+
+```bash
+go test ./internal/version/ -run '^$' -fuzz FuzzParse -fuzztime 60s
+```
+
+A crasher lands in `internal/<pkg>/testdata/fuzz/<Target>/`. Commit it — it becomes a
+regression seed for every later run.
+
 The PATH bootstrap suite is separate, because it needs a real login shell:
 
 ```bash

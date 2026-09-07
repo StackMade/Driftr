@@ -296,3 +296,61 @@ func TestFetchLatestVersion_APIError(t *testing.T) {
 		t.Errorf("expected status 403 error, got: %v", err)
 	}
 }
+
+func TestBaseURLs_Default(t *testing.T) {
+	// No env set: self-update must talk to GitHub and nowhere else.
+	t.Setenv("DRIFTR_UPDATE_API", "")
+	t.Setenv("DRIFTR_UPDATE_MIRROR", "")
+
+	if got := apiBase(); got != "https://api.github.com/repos/stackmade/driftr" {
+		t.Errorf("apiBase() = %q", got)
+	}
+	if got := releaseBase(); got != "https://github.com/stackmade/driftr/releases/download" {
+		t.Errorf("releaseBase() = %q", got)
+	}
+}
+
+func TestBaseURLs_Override(t *testing.T) {
+	// Trailing slashes are trimmed so callers can always append "/...".
+	t.Setenv("DRIFTR_UPDATE_API", "http://127.0.0.1:1234/update/api/")
+	t.Setenv("DRIFTR_UPDATE_MIRROR", "http://127.0.0.1:1234/update/download//")
+
+	if got := apiBase(); got != "http://127.0.0.1:1234/update/api" {
+		t.Errorf("apiBase() = %q", got)
+	}
+	if got := releaseBase(); got != "http://127.0.0.1:1234/update/download" {
+		t.Errorf("releaseBase() = %q", got)
+	}
+}
+
+func TestFetchLatestVersion_UsesOverride(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/update/api/releases/latest" {
+			t.Errorf("unexpected path %q", r.URL.Path)
+		}
+		fmt.Fprint(w, `{"tag_name":"v9.9.9"}`)
+	}))
+	defer srv.Close()
+
+	t.Setenv("DRIFTR_UPDATE_API", srv.URL+"/update/api")
+
+	got, err := fetchLatestVersion()
+	if err != nil {
+		t.Fatalf("fetchLatestVersion: %v", err)
+	}
+	if got != "9.9.9" {
+		t.Errorf("got %q, want 9.9.9", got)
+	}
+}
+
+func TestRedirectGuardRejectsPlaintext(t *testing.T) {
+	// The override loosens the *initial* URL only. A redirect off HTTPS is
+	// still refused, because self-update overwrites the running binary.
+	req, err := http.NewRequest(http.MethodGet, "http://example.invalid/x", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := httpClient.CheckRedirect(req, nil); err == nil {
+		t.Error("expected redirect to plaintext HTTP to be refused")
+	}
+}

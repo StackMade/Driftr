@@ -37,6 +37,9 @@ var (
 	// torn down when the parent test function returns would be gone before
 	// they finish.
 	fixtureURL string
+	// coverDir, when set, is where the coverage-instrumented driftr binary
+	// writes its raw profiles. See run.
+	coverDir string
 )
 
 func TestMain(m *testing.M) {
@@ -54,10 +57,36 @@ func run(m *testing.M) int {
 	defer os.RemoveAll(tmp)
 
 	driftrBin = filepath.Join(tmp, "driftr")
+
+	// The e2e suite runs driftr as a subprocess, so `go test -cover` sees
+	// nothing it executes. Setting DRIFTR_E2E_COVERDIR — ci.yml does — builds
+	// the binary instrumented instead, and every driftr run drops a raw
+	// profile in that directory for `go tool covdata textfmt` to convert
+	// afterwards. Unset, which is the plain `go test ./e2e` case, nothing
+	// changes. It is not GOCOVERDIR because `go test -coverprofile` overwrites
+	// that variable in the test binary's environment with a temp directory of
+	// its own.
+	args := []string{"build", "-o", driftrBin}
+	if dir := os.Getenv("DRIFTR_E2E_COVERDIR"); dir != "" {
+		coverDir, err = filepath.Abs(dir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "e2e: resolve DRIFTR_E2E_COVERDIR: %v\n", err)
+			return 1
+		}
+		if err := os.MkdirAll(coverDir, 0o755); err != nil {
+			fmt.Fprintf(os.Stderr, "e2e: create DRIFTR_E2E_COVERDIR: %v\n", err)
+			return 1
+		}
+		// The pattern is absolute rather than ./... — the build runs from the
+		// e2e directory, where ./... would match this package and nothing else.
+		args = append(args, "-cover", "-covermode=atomic", "-coverpkg=github.com/stackmade/driftr/...")
+	}
+	args = append(args, "../cmd/driftr")
+
 	// The shims driftr generates embed the absolute path of the binary that
 	// created them (os.Executable), so this has to be a genuine binary rather
 	// than a testscript-registered command backed by the test process.
-	build := exec.Command("go", "build", "-o", driftrBin, "../cmd/driftr")
+	build := exec.Command("go", args...)
 	build.Stderr = os.Stderr
 	build.Stdout = os.Stdout
 	if err := build.Run(); err != nil {
@@ -100,6 +129,16 @@ func TestDriftr(t *testing.T) {
 			env.Setenv("DRIFTR_NPM_REGISTRY", fixtureURL+"/registry")
 			env.Setenv("DRIFTR_BUN_RELEASES", fixtureURL+"/bun/releases")
 			env.Setenv("DRIFTR_BUN_MIRROR", fixtureURL+"/bun/download")
+			env.Setenv("DRIFTR_UPDATE_API", fixtureURL+"/update/api")
+			env.Setenv("DRIFTR_UPDATE_MIRROR", fixtureURL+"/update/download")
+
+			// self-update overwrites the binary it is running from, so the
+			// script has to copy this one first. Every script shares it.
+			env.Setenv("DRIFTR_BIN", driftrBin)
+
+			if coverDir != "" {
+				env.Setenv("GOCOVERDIR", coverDir)
+			}
 
 			// Plain output keeps the assertions readable.
 			env.Setenv("NO_COLOR", "1")
@@ -110,6 +149,7 @@ func TestDriftr(t *testing.T) {
 			env.Setenv("PNPM_VERSION", fixture.PnpmVersion)
 			env.Setenv("YARN_VERSION", fixture.YarnVersion)
 			env.Setenv("BUN_VERSION", fixture.BunVersion)
+			env.Setenv("DRIFTR_UPDATE_VERSION", fixture.DriftrVersion)
 			return nil
 		},
 	})

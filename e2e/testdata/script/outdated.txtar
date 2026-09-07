@@ -1,0 +1,58 @@
+# driftr outdated: what each tool is on now, where that came from, and what
+# upstream has. The fixture serves exactly one release per tool, so "behind"
+# is produced by pinning something older rather than by an older upstream.
+
+# Nothing installed and nothing pinned: the report has no rows at all.
+exec driftr outdated
+stdout 'Nothing to check'
+stdout 'driftr install node@lts'
+
+exec driftr setup
+exec driftr install node@$NODE_VERSION
+exec driftr default node@$NODE_VERSION
+
+# A resolved global default is current. Node reports its newest release on the
+# same major line and its newest LTS, both of which the fixture's single
+# release satisfies.
+exec driftr outdated
+stdout 'TOOL\s+CURRENT\s+SOURCE\s+LINE LATEST\s+LATEST\s+LTS\s+STATUS'
+stdout 'node\s+'$NODE_VERSION'\s+global default\s+'$NODE_VERSION'\s+'$NODE_VERSION'\s+'$NODE_VERSION'\s+up to date'
+
+# A project pin below upstream, for a version that is not even installed. The
+# pin still counts, so outdated works before install does. Node has no release
+# on the 20.x line, so LINE LATEST stays a dash; the LTS column keeps
+# reporting upstream's newest LTS.
+cd $WORK/old
+exec driftr outdated
+stdout 'node\s+20\.1\.0\s+.*not installed.*\s+-\s+'$NODE_VERSION'\s+'$NODE_VERSION'\s+behind: '$NODE_VERSION
+stdout 'pnpm\s+9\.0\.0\s+.*behind: '$PNPM_VERSION
+stdout 'bun\s+1\.0\.0\s+.*behind: '$BUN_VERSION
+# yarn is neither pinned nor installed, so it has no row.
+! stdout '^yarn'
+
+# --exit-code turns "something is behind" into a non-zero exit for CI.
+! exec driftr outdated --exit-code
+stdout 'behind'
+
+# --tool narrows the report to one tool.
+exec driftr outdated --tool node
+stdout '^node'
+! stdout '^pnpm'
+
+! exec driftr outdated --tool ruby
+stderr 'unknown tool "ruby"'
+
+# A partial pin floats, so it is only news when a newer major appears.
+cd $WORK/partial
+exec driftr outdated --tool node
+stdout 'node\s+22\s+.*up to date'
+
+-- old/.driftr.toml --
+[tools]
+node = "20.1.0"
+pnpm = "9.0.0"
+bun = "1.0.0"
+
+-- partial/.driftr.toml --
+[tools]
+node = "22"

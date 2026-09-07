@@ -1,8 +1,9 @@
 // Package fixture serves a minimal fake of every upstream driftr downloads
 // from: the nodejs.org distribution index, the npm registry, and bun's GitHub
-// releases. Tests point driftr at it through DRIFTR_NODE_MIRROR,
-// DRIFTR_NPM_REGISTRY, DRIFTR_BUN_RELEASES and DRIFTR_BUN_MIRROR, so the
-// suite never touches the real network.
+// releases, plus driftr's own release feed for self-update. Tests point driftr
+// at it through DRIFTR_NODE_MIRROR, DRIFTR_NPM_REGISTRY, DRIFTR_BUN_RELEASES,
+// DRIFTR_BUN_MIRROR, DRIFTR_UPDATE_API and DRIFTR_UPDATE_MIRROR, so the suite
+// never touches the real network.
 //
 // Routes:
 //
@@ -15,6 +16,9 @@
 //	/bun/releases                                   bun release index
 //	/bun/download/bun-v<ver>/SHASUMS256.txt         bun checksums
 //	/bun/download/bun-v<ver>/bun-<os>-<arch>.zip    bun asset
+//	/update/api/releases/latest                     driftr release index
+//	/update/download/v<ver>/checksums.txt           driftr release checksums
+//	/update/download/v<ver>/driftr_<ver>_<os>_<arch>.tar.gz  driftr release archive
 //
 // The archives hold shell scripts rather than real binaries. Each one prints a
 // version string and echoes the arguments it received, which is enough to
@@ -44,6 +48,10 @@ const (
 	PnpmVersion = "9.99.0"
 	YarnVersion = "1.99.0"
 	BunVersion  = "1.2.99"
+
+	// DriftrVersion is the "latest driftr" the fake release feed advertises.
+	// It has to outrank any real release so self-update always has work to do.
+	DriftrVersion = "99.0.0"
 )
 
 // nodePlatforms lists the os/arch pairs the node tarball is built for. It
@@ -63,6 +71,16 @@ var bunPlatforms = []struct{ os, arch string }{
 	{"linux", "aarch64"},
 	{"darwin", "x64"},
 	{"darwin", "aarch64"},
+}
+
+// goPlatforms lists the GOOS/GOARCH pairs driftr itself is released for. The
+// updater builds its archive name from runtime.GOOS/runtime.GOARCH, so these
+// use Go's names rather than node's or bun's.
+var goPlatforms = []struct{ os, arch string }{
+	{"linux", "amd64"},
+	{"linux", "arm64"},
+	{"darwin", "amd64"},
+	{"darwin", "arm64"},
 }
 
 // tarFile is one entry in a generated tar archive.
@@ -185,6 +203,9 @@ func Handler() (http.Handler, error) {
 		return nil, err
 	}
 	if err := registerBun(mux); err != nil {
+		return nil, err
+	}
+	if err := registerUpdate(mux); err != nil {
 		return nil, err
 	}
 	return mux, nil
@@ -363,6 +384,49 @@ func registerBun(mux *http.ServeMux) error {
 			return
 		}
 		w.Header().Set("Content-Type", "application/zip")
+		_, _ = w.Write(data)
+	})
+	return nil
+}
+
+// registerUpdate serves driftr's own release feed: the GitHub release index
+// self-update reads the tag from, and the release archive plus checksums.txt
+// it downloads. The archive holds a shell script named "driftr" — that is the
+// name the updater extracts by, and running it proves the replacement landed.
+func registerUpdate(mux *http.ServeMux) error {
+	archives := map[string][]byte{}
+	var checksums bytes.Buffer
+
+	for _, p := range goPlatforms {
+		name := fmt.Sprintf("driftr_%s_%s_%s.tar.gz", DriftrVersion, p.os, p.arch)
+		data, err := buildTarGz([]tarFile{
+			{"driftr", fmt.Sprintf("#!/bin/sh\necho \"driftr version %s\"\n", DriftrVersion)},
+		})
+		if err != nil {
+			return fmt.Errorf("build driftr archive %s: %w", name, err)
+		}
+		archives[name] = data
+		fmt.Fprintf(&checksums, "%x  %s\n", sha256.Sum256(data), name)
+	}
+
+	index := fmt.Sprintf(`{"tag_name":"v%s"}`, DriftrVersion)
+
+	mux.HandleFunc("GET /update/api/releases/latest", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, index)
+	})
+
+	downloadPrefix := fmt.Sprintf("/update/download/v%s/", DriftrVersion)
+	mux.HandleFunc("GET "+downloadPrefix+"checksums.txt", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(checksums.Bytes())
+	})
+	mux.HandleFunc("GET "+downloadPrefix+"{file}", func(w http.ResponseWriter, r *http.Request) {
+		data, ok := archives[r.PathValue("file")]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/gzip")
 		_, _ = w.Write(data)
 	})
 	return nil
