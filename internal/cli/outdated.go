@@ -283,7 +283,7 @@ func newestVersion(versions []string) string {
 	return best
 }
 
-// printOutdated renders the rows aligned. Colour is applied per line after the
+// printOutdated renders the rows aligned. Color is applied per line after the
 // tabwriter has flushed, because ANSI escapes count towards cell width and
 // would throw the columns off.
 func printOutdated(w io.Writer, rows []outdatedRow) {
@@ -294,7 +294,8 @@ func printOutdated(w io.Writer, rows []outdatedRow) {
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			r.tool, r.current, r.source, dash(r.line), dash(r.latest), r.lts, r.status)
 	}
-	tw.Flush()
+	// The writer is backed by a bytes.Buffer, whose Write never fails.
+	_ = tw.Flush()
 
 	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
 	fmt.Fprintln(w, ioutil.Bold(lines[0]))

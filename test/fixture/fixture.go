@@ -149,9 +149,11 @@ func nodeTarball(osName, arch string) ([]byte, error) {
 // "package/" top-level directory, which driftr strips on extraction, so the
 // script lands at <version dir>/bin/<script>.
 func npmTarball(pkg, ver string, scripts []string) ([]byte, error) {
-	files := []tarFile{
-		{"package/package.json", fmt.Sprintf("{\"name\":%q,\"version\":%q}\n", pkg, ver)},
-	}
+	files := make([]tarFile, 0, 1+len(scripts))
+	files = append(files, tarFile{
+		name:    "package/package.json",
+		content: fmt.Sprintf("{\"name\":%q,\"version\":%q}\n", pkg, ver),
+	})
 	for _, script := range scripts {
 		files = append(files, tarFile{
 			name:    "package/bin/" + script,

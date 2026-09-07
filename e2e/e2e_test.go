@@ -11,7 +11,7 @@
 //	go test ./e2e -run 'TestDriftr/install_node'   # one script
 //	go test ./e2e -v                               # per-command tracing
 //
-// Shell-specific behaviour is not covered here: writing PATH into .zshenv,
+// Shell-specific behavior is not covered here: writing PATH into .zshenv,
 // .bashrc or config.fish lives in test_path_e2e.sh, which starts a real login
 // shell for each shell it tests.
 package e2e
