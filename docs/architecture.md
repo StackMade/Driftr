@@ -142,6 +142,17 @@ Partial versions (e.g. `node@22`, `pnpm@9`) are resolved to the latest matching 
 
 On failure, the cached archive is deleted so the next attempt re-downloads.
 
+### Archive Extraction
+
+Entries are unpacked through `os.Root`, so the kernel refuses any write that would
+leave the version directory and refuses to follow a symlink out of it. Symlinks get one
+check on top of that: a link whose target resolves outside the version directory is
+rejected and the install fails. `os.Root` would keep such a link from doing damage
+during extraction, but the link survives into the installed tree, where npm, a
+postinstall script or the user's own tooling reads it without any sandbox. Links that
+stay inside — `bin/npm -> ../lib/node_modules/npm/bin/npm-cli.js`, which every Node.js
+archive ships — are created as-is.
+
 ### Partial Install Cleanup
 
 If extraction fails (disk full, corrupt archive, interrupted), the partially extracted directory is removed via `os.RemoveAll`. This prevents a broken installation from appearing valid to the resolver.

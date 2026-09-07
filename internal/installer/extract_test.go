@@ -159,6 +159,87 @@ func TestExtract_PathTraversalBlocked(t *testing.T) {
 	}
 }
 
+func TestSymlinkEscapes(t *testing.T) {
+	tests := []struct {
+		name     string
+		linkPath string
+		target   string
+		want     bool
+	}{
+		// Node.js archives ship links like bin/npm -> ../lib/node_modules/npm/bin/npm-cli.js.
+		{"sibling directory", "bin/npm", "../lib/node_modules/npm/bin/npm-cli.js", false},
+		{"same directory", "bin/npx", "npm", false},
+		{"the root itself", "bin/here", "..", false},
+		{"below the link", "bin/deep", "sub/file", false},
+		{"one level out", "bin/evil", "../../etc/passwd", true},
+		{"straight out of a top-level link", "evil", "../outside", true},
+		{"absolute target", "bin/evil", "/etc/passwd", true},
+		{"empty target", "bin/evil", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := symlinkEscapes(tt.linkPath, tt.target); got != tt.want {
+				t.Errorf("symlinkEscapes(%q, %q) = %v, want %v", tt.linkPath, tt.target, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExtract_EscapingSymlinkRejected(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	const ver = "99.0.0"
+	prefix := nodePrefix(ver)
+
+	archive := buildTarGz(t, []tarEntry{
+		{Name: prefix + "bin/node", Data: []byte("node binary"), Typeflag: tar.TypeReg},
+		{Name: prefix + "bin/escape", Link: "../../../../etc/passwd", Typeflag: tar.TypeSymlink},
+	})
+
+	err := Extract(archive, ver, false, nil)
+	if err == nil || !strings.Contains(err.Error(), "symlink pointing outside") {
+		t.Fatalf("expected escaping-symlink error, got: %v", err)
+	}
+
+	// A rejected archive must leave no half-installed version behind.
+	destDir, dirErr := platform.NodeVersionDir(ver)
+	if dirErr != nil {
+		t.Fatal(dirErr)
+	}
+	if _, statErr := os.Stat(destDir); !errors.Is(statErr, os.ErrNotExist) {
+		t.Errorf("version dir left behind after rejected extraction: %s", destDir)
+	}
+}
+
+func TestExtract_InternalSymlinkKept(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	const ver = "99.0.0"
+	prefix := nodePrefix(ver)
+
+	archive := buildTarGz(t, []tarEntry{
+		{Name: prefix + "bin/node", Data: []byte("node binary"), Typeflag: tar.TypeReg},
+		{Name: prefix + "lib/real.js", Data: []byte("payload"), Typeflag: tar.TypeReg},
+		{Name: prefix + "bin/npm", Link: "../lib/real.js", Typeflag: tar.TypeSymlink},
+	})
+
+	if err := Extract(archive, ver, false, nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	destDir, err := platform.NodeVersionDir(ver)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(destDir, "bin", "npm"))
+	if err != nil {
+		t.Fatalf("symlink not usable: %v", err)
+	}
+	if string(got) != "payload" {
+		t.Errorf("symlink resolved to %q, want %q", got, "payload")
+	}
+}
+
 func TestExtract_AlreadyExtracted(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	const ver = "99.0.0"

@@ -14,6 +14,23 @@ import (
 	"github.com/stackmade/driftr/internal/platform"
 )
 
+// symlinkEscapes reports whether a symlink created at linkPath and pointing at
+// target would resolve outside the extraction root.
+//
+// os.Root sandboxes where a link is created and refuses to follow one that
+// leaves the root, so an escaping link cannot write outside during extraction.
+// It outlives extraction, though: once the version dir is in place, anything
+// reading it without os.Root — npm, a postinstall script, a user's own tooling
+// — follows the link wherever it points. Both paths use slashes because they
+// come from tar headers.
+func symlinkEscapes(linkPath, target string) bool {
+	if target == "" || path.IsAbs(target) {
+		return true
+	}
+	resolved := path.Join(path.Dir(linkPath), target)
+	return resolved == ".." || strings.HasPrefix(resolved, "../")
+}
+
 // extractToRoot extracts a tar entry into an os.Root-sandboxed directory.
 // The Root enforces that no path can escape destDir, replacing manual prefix checks.
 func extractToRoot(root *os.Root, relPath string, hdr *tar.Header, tr *tar.Reader) error {
@@ -42,6 +59,9 @@ func extractToRoot(root *os.Root, relPath string, hdr *tar.Header, tr *tar.Reade
 		}
 
 	case tar.TypeSymlink:
+		if symlinkEscapes(relPath, hdr.Linkname) {
+			return fmt.Errorf("archive entry %s is a symlink pointing outside the install directory (%s). Run 'driftr cache clean' and retry", relPath, hdr.Linkname)
+		}
 		if dir := filepath.Dir(relPath); dir != "." {
 			if err := root.MkdirAll(dir, 0o755); err != nil {
 				return fmt.Errorf("failed to create parent dir for %s: %w", relPath, err)
