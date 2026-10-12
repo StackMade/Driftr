@@ -6,6 +6,8 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/stackmade/driftr/internal/ioutil"
 )
 
 // ExitError signals that the process should exit with a specific code
@@ -62,6 +64,9 @@ func NewRootCmd() *cobra.Command {
 }
 
 func Execute() {
+	if err := RefreshStaleShims(); err != nil {
+		fmt.Fprintln(os.Stderr, ioutil.Warn(fmt.Sprintf("Could not update the shims for this driftr version: %s. Run 'driftr doctor'", err)))
+	}
 	root := NewRootCmd()
 	if err := root.Execute(); err != nil {
 		var exitErr *ExitError

@@ -54,6 +54,7 @@ func newDoctorCmd() *cobra.Command {
 			issues += checkShellRCPlacement(binDir, fix)
 			issues += checkShims(binDir, fix)
 			issues += checkShimBinaryPath(binDir, fix)
+			issues += checkShimVersion(fix)
 			issues += checkGlobalDefault(cfg, cfgErr)
 			issues += checkDefaultsInstalled(cfg)
 			issues += checkConflictingManagers(binDir)
@@ -244,7 +245,7 @@ func checkShims(binDir string, fix bool) int {
 	}
 
 	// GenerateShims rewrites every shim, so one call repairs the whole set.
-	if err := shim.GenerateShims(); err != nil {
+	if _, err := shim.GenerateShims(Version); err != nil {
 		warn("  fix failed: " + err.Error())
 		return len(broken)
 	}
@@ -255,6 +256,30 @@ func checkShims(binDir string, fix bool) int {
 	}
 
 	pass(fmt.Sprintf("  fixed: regenerated %d shim(s)", len(broken)))
+	return 0
+}
+
+// checkShimVersion catches shims an upgrade could not refresh on its own,
+// e.g. because ~/.driftr/bin is not writable.
+func checkShimVersion(fix bool) int {
+	stamp := shim.Stamp()
+	if stamp == Version {
+		pass("Shims match this driftr version")
+		return 0
+	}
+	if stamp == "" {
+		stamp = "an older version"
+	}
+	warn(fmt.Sprintf("Shims were written by driftr %s, this is %s", stamp, Version))
+	if !fix {
+		warn("  run `driftr doctor --fix` to regenerate them")
+		return 1
+	}
+	if _, err := shim.GenerateShims(Version); err != nil {
+		warn("  fix failed: " + err.Error())
+		return 1
+	}
+	pass("  fixed: regenerated the shims")
 	return 0
 }
 
@@ -290,7 +315,7 @@ func checkShimBinaryPath(binDir string, fix bool) int {
 					warn("  run `driftr doctor --fix` to point them at the current binary")
 					return 1
 				}
-				if err := shim.GenerateShims(); err != nil {
+				if _, err := shim.GenerateShims(Version); err != nil {
 					warn("  fix failed: " + err.Error())
 					return 1
 				}

@@ -95,6 +95,13 @@ There are two execution modes:
 
 1. **Direct exec** (node, pnpm, bun): `syscall.Exec(tool-binary, args, env)`
 2. **Node-wrapped exec** (yarn): `syscall.Exec(node, [yarn.js, args...], env)` — because yarn is a JS script that needs Node.js to run. The Node version is co-resolved from the same config.
+3. **Package bin exec** (`tsc` after `npm install -g typescript`): every name in a Node.js version's `bin/` that is not one of Driftr's own tools gets a shim. The resolver picks the Node.js version that has the bin, preferring the one the project resolves to, and prepends that version's `bin/` to `PATH`, so the bin's `#!/usr/bin/env node` line finds the node it was installed with.
+
+The shim dir comes first on `PATH`, so a package shim could silently replace a command that already worked. On every call it first looks for the same name on `PATH` outside `~/.driftr` and, if it finds one, execs that instead. Deciding this per call rather than when the shims are written keeps the answer tied to the `PATH` of the call: a refresh started from a script with a minimal `PATH` cannot plant a shim that later shadows a Homebrew install in an interactive shell. A package bin gets no shim at all when a file that is not a driftr shim already has its name in `~/.driftr/bin/` (the driftr binary can live there).
+
+`~/.driftr/bin/.driftr-version` records the driftr version that wrote the shims. Every invocation, shims included, compares it with its own version and regenerates the shims once when they differ, so an upgrade by any route updates them. That costs one small file read per call. Shims are written to a temporary file and renamed into place, because several processes may refresh at once right after an upgrade and a shell must never read a half-written shim.
+
+One invocation does not exec: `npm` with `-g`, `--global` or `--location=global` runs as a child process, because the shims have to be regenerated after npm adds or removes bins. Its exit code is passed through.
 
 ### `DisableFlagParsing` on Shim Command
 

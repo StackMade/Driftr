@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stackmade/driftr/internal/platform"
 )
 
 func TestWriteShim_Content(t *testing.T) {
@@ -104,7 +106,7 @@ func TestWriteShim_AllTools(t *testing.T) {
 func TestGenerateShims(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	if err := GenerateShims(); err != nil {
+	if _, err := GenerateShims("test"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -140,5 +142,151 @@ func TestShimTools_ReturnsCopy(t *testing.T) {
 	tools[0] = "mutated"
 	if ShimTools()[0] == "mutated" {
 		t.Error("ShimTools returns a reference to the internal slice; callers can mutate it")
+	}
+}
+
+func TestGenerateShims_PackageBins(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	// The developer's own tsc must not count as "already on PATH".
+	t.Setenv("PATH", t.TempDir())
+	binDir, _ := ShimDir()
+	nodeDir, _ := platform.NodeVersionDir("22.0.0")
+	if err := os.MkdirAll(filepath.Join(nodeDir, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nodeDir, "bin", "tsc"), nil, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A shim whose bin is gone, written by an older driftr at another path,
+	// and a file that only looks similar: the first goes, the second stays.
+	stale := "#!/bin/sh\nexec \"/old/driftr\" shim gone \"$@\"\n"
+	if err := os.WriteFile(filepath.Join(binDir, "gone"), []byte(stale), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mine := "#!/bin/sh\nexec \"/old/driftr\" shim other \"$@\"\n"
+	if err := os.WriteFile(filepath.Join(binDir, "mine"), []byte(mine), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := GenerateShims("test"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(filepath.Join(binDir, "tsc")); err != nil {
+		t.Errorf("tsc shim not created: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(binDir, "gone")); !os.IsNotExist(err) {
+		t.Errorf("stale shim kept: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(binDir, "mine")); err != nil {
+		t.Errorf("non-matching file removed: %v", err)
+	}
+}
+
+func TestGenerateShims_NeverOverwritesAForeignFile(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	binDir, _ := ShimDir()
+	nodeDir, _ := platform.NodeVersionDir("22.0.0")
+	if err := os.MkdirAll(filepath.Join(nodeDir, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A package bin named like the driftr binary the user keeps in the bin dir.
+	if err := os.WriteFile(filepath.Join(nodeDir, "bin", "driftr"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	userBinary := []byte("\x7fELF not a shim")
+	if err := os.WriteFile(filepath.Join(binDir, "driftr"), userBinary, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	skipped, err := GenerateShims("test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(skipped) != 1 || !strings.HasPrefix(skipped[0], "driftr: ") {
+		t.Errorf("want driftr reported as skipped, got %q", skipped)
+	}
+	if got, _ := os.ReadFile(filepath.Join(binDir, "driftr")); string(got) != string(userBinary) {
+		t.Errorf("file in the bin dir was overwritten: %q", got)
+	}
+}
+
+func TestRefreshIfStale(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	binDir, _ := ShimDir()
+
+	// Before setup there is no shim dir, and a refresh must not create one.
+	if err := RefreshIfStale("1.0.0"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(binDir); !os.IsNotExist(err) {
+		t.Fatalf("refresh created the shim dir before setup: %v", err)
+	}
+
+	// Shims from a driftr that predates the stamp: one refresh brings them up.
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := RefreshIfStale("1.0.0"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(binDir, "node")); err != nil {
+		t.Fatalf("stale shims were not regenerated: %v", err)
+	}
+
+	// Same version again: nothing is rewritten.
+	if err := os.Remove(filepath.Join(binDir, "node")); err != nil {
+		t.Fatal(err)
+	}
+	if err := RefreshIfStale("1.0.0"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(binDir, "node")); !os.IsNotExist(err) {
+		t.Errorf("current shims were regenerated anyway: %v", err)
+	}
+
+	// An upgrade: a different version regenerates once more.
+	if err := RefreshIfStale("1.1.0"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(binDir, "node")); err != nil {
+		t.Errorf("upgrade did not regenerate the shims: %v", err)
+	}
+}
+
+func TestStableExecutable(t *testing.T) {
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A stable symlink to the running binary, the way Homebrew links bin/driftr
+	// to its Cellar copy, and an unrelated file.
+	link := filepath.Join(t.TempDir(), "driftr")
+	if err := os.Symlink(exe, link); err != nil {
+		t.Fatal(err)
+	}
+	other := filepath.Join(t.TempDir(), "driftr")
+	if err := os.WriteFile(other, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := os.Args[0]
+	t.Cleanup(func() { os.Args[0] = orig })
+	for _, tt := range []struct{ invoked, want string }{
+		{link, link}, // invoked through the symlink: keep it
+		{other, exe}, // a different file: never trust it
+		{"driftr-not-on-path-xyz", exe},
+	} {
+		os.Args[0] = tt.invoked
+		if got, err := stableExecutable(); err != nil || got != tt.want {
+			t.Errorf("invoked as %s: got %q, %v; want %q", tt.invoked, got, err, tt.want)
+		}
 	}
 }

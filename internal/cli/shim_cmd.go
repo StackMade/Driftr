@@ -14,6 +14,7 @@ import (
 	"github.com/stackmade/driftr/internal/ioutil"
 	"github.com/stackmade/driftr/internal/process"
 	"github.com/stackmade/driftr/internal/resolver"
+	"github.com/stackmade/driftr/internal/shim"
 )
 
 // newShimCmd creates the hidden `driftr shim <tool>` command invoked by shim scripts.
@@ -38,16 +39,78 @@ func newShimCmd() *cobra.Command {
 				}
 			}
 
-			// For tools that need Node.js (e.g. yarn), exec node with the tool script.
-			if rb.NodePath != "" {
-				nodeArgs := append([]string{rb.ToolPath}, toolArgs...)
-				return process.Exec(rb.NodePath, nodeArgs)
-			}
-
-			// Standalone tools exec directly.
-			return process.Exec(rb.ToolPath, toolArgs)
+			return ExecResolved(tool, rb, toolArgs)
 		},
 	}
+}
+
+// RefreshStaleShims regenerates the shims once after driftr was upgraded, by
+// whatever route. Called on every invocation, shims included, so it must stay
+// cheap: one small file read when the shims are current. The shim path drops
+// the error, since a warning on every node call would bury the tool's own
+// output and the command still runs; driftr commands print it, and
+// `driftr doctor` reports the stale shims until they are fixed.
+func RefreshStaleShims() error {
+	return shim.RefreshIfStale(Version)
+}
+
+// ExecResolved replaces the process with a resolved tool. Called from the
+// fast path in main.go and from the cobra shim command.
+func ExecResolved(tool string, rb *resolver.ResolvedBinary, args []string) error {
+	if rb.PathPrefix != "" {
+		if err := os.Setenv("PATH", rb.PathPrefix+string(os.PathListSeparator)+os.Getenv("PATH")); err != nil {
+			return err
+		}
+	}
+
+	// For tools that need Node.js (e.g. yarn), exec node with the tool script.
+	binary, argv := rb.ToolPath, args
+	if rb.NodePath != "" {
+		binary, argv = rb.NodePath, append([]string{rb.ToolPath}, args...)
+	}
+
+	if tool == "npm" && isGlobalNpm(args) {
+		// npm -g adds or removes package bins, so it runs as a child: exec
+		// would leave no process behind to refresh the shims afterwards.
+		code, err := process.Run(binary, argv)
+		if err != nil {
+			return err
+		}
+		skipped, err := shim.GenerateShims(Version)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "driftr: could not refresh shims: %s. Run 'driftr setup'\n", err)
+		}
+		printSkippedShims(os.Stderr, skipped)
+		if code != 0 {
+			return &ExitError{Code: code}
+		}
+		return nil
+	}
+
+	return process.Exec(binary, argv)
+}
+
+// printSkippedShims names the package bins that got no shim, so a bin that
+// keeps running some other install is not a mystery.
+func printSkippedShims(w io.Writer, skipped []string) {
+	for _, note := range skipped {
+		fmt.Fprintln(w, ioutil.Dim("driftr: no shim for "+note))
+	}
+}
+
+// isGlobalNpm reports whether npm args carry a global flag before any "--".
+func isGlobalNpm(args []string) bool {
+	for i, a := range args {
+		switch {
+		case a == "--":
+			return false
+		case a == "-g", a == "--global", a == "--location=global":
+			return true
+		case a == "--location" && i+1 < len(args) && args[i+1] == "global":
+			return true
+		}
+	}
+	return false
 }
 
 // HandleShimError checks if the error is a NotInstalledError and offers to install.

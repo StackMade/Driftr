@@ -11,6 +11,7 @@ import (
 	"github.com/stackmade/driftr/internal/config"
 	"github.com/stackmade/driftr/internal/ioutil"
 	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/internal/shim"
 	"github.com/stackmade/driftr/internal/version"
 )
 
@@ -75,8 +76,20 @@ func newUninstallCmd() *cobra.Command {
 			}
 
 			fmt.Println(ioutil.Success(fmt.Sprintf("Uninstalled %s %s", tool, ioutil.Bold(versionStr))))
+			if tool == "node" {
+				refreshShims()
+			}
 			return nil
 		},
+	}
+}
+
+// refreshShims regenerates the shims after node versions are removed, so the
+// shims of package bins that went with them do not linger. A failure only
+// warns: the removal itself already succeeded.
+func refreshShims() {
+	if _, err := shim.GenerateShims(Version); err != nil {
+		fmt.Fprintln(os.Stderr, ioutil.Warn(fmt.Sprintf("Could not refresh shims: %s. Run 'driftr setup'", err)))
 	}
 }
 

@@ -1002,3 +1002,81 @@ func TestResolveFromProject_EnginesNodeUnsupportedRange(t *testing.T) {
 		}
 	}
 }
+
+func TestResolvePackageBin(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	// Another install of nest sits on PATH; the developer's own tsc must not.
+	elsewhere := t.TempDir()
+	if err := os.WriteFile(filepath.Join(elsewhere, "nest"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", elsewhere)
+	for _, v := range []string{"20.0.0", "22.0.0", "24.0.0"} {
+		setupFakeInstall(t, home, "node", v)
+	}
+	// tsc lives under 20 and 22, never under 24; nest under 22 only.
+	for _, f := range []string{"20.0.0/tsc", "22.0.0/tsc", "22.0.0/nest"} {
+		dir, _ := platform.NodeVersionDir(filepath.Dir(f))
+		if err := os.WriteFile(filepath.Join(dir, "bin", filepath.Base(f)), []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	binOf := func(v string) string {
+		dir, _ := platform.NodeVersionDir(v)
+		return filepath.Join(dir, "bin")
+	}
+
+	tests := []struct {
+		name     string
+		explicit string
+		bin      string
+		want     string // node version whose bin dir should run it; "" means an error
+	}{
+		{name: "resolved node has the bin", explicit: "20.0.0", bin: "tsc", want: "20.0.0"},
+		{name: "resolved node lacks it, newest owner wins", explicit: "24.0.0", bin: "tsc", want: "22.0.0"},
+		{name: "no node resolves, newest owner wins", bin: "tsc", want: "22.0.0"},
+		{name: "no node has the bin", explicit: "24.0.0", bin: "tsserver"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rb, err := ResolveBinaryFull(tt.bin, tt.explicit)
+			if tt.want == "" {
+				if err == nil || !strings.Contains(err.Error(), "npm install -g") {
+					t.Fatalf("want an actionable error, got rb=%+v err=%v", rb, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rb.PathPrefix != binOf(tt.want) || rb.ToolPath != filepath.Join(binOf(tt.want), tt.bin) {
+				t.Errorf("got %+v, want bin from node %s", rb, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolvePackageBin_OtherInstallOnPathWins(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	setupFakeInstall(t, home, "node", "22.0.0")
+	dir, _ := platform.NodeVersionDir("22.0.0")
+	elsewhere := t.TempDir()
+	for _, p := range []string{filepath.Join(dir, "bin", "nest"), filepath.Join(elsewhere, "nest")} {
+		if err := os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The node bin dir on PATH is what a package bin's own commands see; it
+	// does not count as somewhere else.
+	t.Setenv("PATH", filepath.Join(dir, "bin")+string(os.PathListSeparator)+elsewhere)
+
+	rb, err := ResolveBinaryFull("nest", "22.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rb.ToolPath != filepath.Join(elsewhere, "nest") || rb.PathPrefix != "" {
+		t.Errorf("want the install outside driftr run untouched, got %+v", rb)
+	}
+}

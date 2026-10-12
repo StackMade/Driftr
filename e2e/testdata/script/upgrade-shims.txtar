@@ -1,0 +1,45 @@
+# Upgrading driftr by any route refreshes the shims on the first call, with no
+# setup run, and a package shim never takes over a command found elsewhere.
+
+exec driftr setup
+exec driftr install node@22
+exec driftr default node@$NODE_VERSION
+
+# What a driftr from before the version stamp leaves behind: shims, no stamp.
+# A package bin was installed back then and never got a shim.
+rm $HOME/.driftr/bin/.driftr-version
+mkdir $HOME/.driftr/tools/node/20.0.0/bin
+cp node20 $HOME/.driftr/tools/node/20.0.0/bin/node
+cp hello $HOME/.driftr/tools/node/20.0.0/bin/hello
+chmod 0755 $HOME/.driftr/tools/node/20.0.0/bin/node
+chmod 0755 $HOME/.driftr/tools/node/20.0.0/bin/hello
+! exists $HOME/.driftr/bin/hello
+
+# The first plain node call after the upgrade brings the shims up to date.
+exec node -v
+stdout 'v'$NODE_VERSION
+exists $HOME/.driftr/bin/.driftr-version
+exists $HOME/.driftr/bin/hello
+exec hello
+stdout 'hello under v20.0.0'
+
+# Another hello later on PATH: the shim comes first on PATH, so it steps aside
+# and runs that one, as if it were not there.
+mkdir $WORK/other
+cp otherhello $WORK/other/hello
+chmod 0755 $WORK/other/hello
+env PATH=$PATH${:}$WORK/other
+exec hello
+stdout 'the other hello'
+exec driftr which hello
+stdout 'outside driftr'
+
+-- node20 --
+#!/bin/sh
+echo "v20.0.0"
+-- hello --
+#!/bin/sh
+echo "hello under $(node -v)"
+-- otherhello --
+#!/bin/sh
+echo "the other hello"

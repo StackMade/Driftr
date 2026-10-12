@@ -125,6 +125,14 @@ func TestDriftr(t *testing.T) {
 	testscript.Run(t, testscript.Params{
 		Dir:                 "testdata/script",
 		RequireExplicitExec: true,
+		// [root]: file permissions do not bind root, so checks that rely on
+		// an unwritable dir skip there (the Linux container runs as root).
+		Condition: func(cond string) (bool, error) {
+			if cond == "root" {
+				return os.Geteuid() == 0, nil
+			}
+			return false, fmt.Errorf("unknown condition %q", cond)
+		},
 		Setup: func(env *testscript.Env) error {
 			home := filepath.Join(env.WorkDir, "home")
 			if err := os.MkdirAll(home, 0o755); err != nil {

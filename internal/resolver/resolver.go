@@ -538,6 +538,9 @@ var toolParent = map[string]string{
 type ResolvedBinary struct {
 	ToolPath string // path to the tool binary
 	NodePath string // path to node binary, set when the tool needs node to execute
+	// PathPrefix is prepended to PATH before exec. Set for package bins, so a
+	// "#!/usr/bin/env node" script finds the node it was installed under.
+	PathPrefix string
 }
 
 // ResolveBinary resolves the full path to a tool binary.
@@ -554,6 +557,10 @@ func ResolveBinary(tool string, explicit string) (string, error) {
 // ResolveBinaryFull resolves a tool binary with dual resolution.
 // For tools that need Node.js (e.g. yarn), it also resolves the Node binary path.
 func ResolveBinaryFull(tool string, explicit string) (*ResolvedBinary, error) {
+	if _, known := platform.LookupTool(tool); !known {
+		return resolvePackageBin(tool, explicit)
+	}
+
 	resolveTool := tool
 	if parent, ok := toolParent[tool]; ok {
 		resolveTool = parent
@@ -595,4 +602,51 @@ func ResolveBinaryFull(tool string, explicit string) (*ResolvedBinary, error) {
 	}
 
 	return rb, nil
+}
+
+// resolvePackageBin resolves an executable from a global npm install, such as
+// tsc. An install of the same name elsewhere on PATH wins. Otherwise the node the project resolves to wins when it has the bin; otherwise the
+// newest node version that has it runs it. Either way the bin runs under the
+// node it was installed with: a native addon is built for that node's ABI and
+// may not load under another.
+func resolvePackageBin(bin, explicit string) (*ResolvedBinary, error) {
+	// The shim dir comes first on PATH, so the shim must not take over a
+	// command the shell already found somewhere else, such as a Homebrew or
+	// pnpm install: run that one, exactly as if the shim were not there. This
+	// is decided per call, against the PATH of that call.
+	if other := platform.FindOutsideDriftr(bin); other != "" {
+		return &ResolvedBinary{ToolPath: other}, nil
+	}
+
+	has := func(ver string) bool {
+		dir, err := platform.NodeVersionDir(ver)
+		if err != nil {
+			return false
+		}
+		_, err = os.Stat(filepath.Join(dir, "bin", bin))
+		return err == nil
+	}
+
+	ver := ""
+	// A project pin that is not installed is no reason to refuse a bin that
+	// some other node version provides, so the error is dropped here.
+	if res, err := ResolveTool("node", explicit, false); err == nil && has(res.Version) {
+		ver = res.Version
+	} else {
+		best, ok, err := newestInstalledMatching("node", func(v version.Version) bool { return has(v.String()) })
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, fmt.Errorf("%s is not provided by any installed Node.js version. Reinstall its package with `npm install -g`, or run `driftr setup` to remove the stale shim", bin)
+		}
+		ver = best.String()
+	}
+
+	dir, err := platform.NodeVersionDir(ver)
+	if err != nil {
+		return nil, err
+	}
+	binDir := filepath.Join(dir, "bin")
+	return &ResolvedBinary{ToolPath: filepath.Join(binDir, bin), PathPrefix: binDir}, nil
 }

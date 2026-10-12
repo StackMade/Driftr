@@ -315,6 +315,9 @@ Source:  project config
 Project: /home/user/my-project
 ```
 
+`driftr which` also explains a bin from a global npm install, such as `driftr which tsc`. It
+names the Node.js version the bin runs under; see [Global npm packages](#global-npm-packages).
+
 **With verbose tracing:**
 
 ```bash
@@ -368,7 +371,8 @@ driftr setup
 ```
 
 **What it creates:**
-- `~/.driftr/bin/` with shims for `node`, `npm`, `npx`, `pnpm`, `pnpx`, `yarn`, `bun`
+- `~/.driftr/bin/` with shims for `node`, `npm`, `npx`, `pnpm`, `pnpx`, `yarn`, `bun`, plus one
+  for every bin a global npm install left in an installed Node.js version
 - `~/.driftr/tools/` for installed tool versions
 - `~/.driftr/config/` for global settings
 - `~/.driftr/cache/` for downloads
@@ -423,6 +427,45 @@ driftr self-update
 After a successful update, automatically migrates PATH configuration if it was placed in an
 interactive-only file (e.g. `.zshrc`) to the universal target (`.zshenv` for zsh). Prints a
 note about any stale entries in old rc files — safe to remove manually.
+
+## Global npm packages
+
+`npm install -g` works as usual. The package lands in the Node.js version npm ran under, and once
+npm exits Driftr writes a shim for each bin the package added to `~/.driftr/bin/`. `tsc`, `nest`
+or `corepack` then run from any directory:
+
+```bash
+npm install -g typescript
+tsc --version
+driftr which tsc
+```
+
+A bin runs under the Node.js version it was installed with. When the version the current
+directory resolves to has the bin, that one runs it. Otherwise the newest installed version that
+has the bin runs it. A package with a native addon is built for one Node.js ABI, so running it
+under a different version could fail to load.
+
+`npm uninstall -g`, `driftr uninstall node@<version>` and `driftr prune` remove the shims of bins
+that no installed version provides any more.
+
+After Driftr is upgraded, by Homebrew, `driftr self-update` or the install script, the first
+call to any shim or `driftr` command regenerates the shims once. Bins installed before the upgrade
+get their shims then, without running `driftr setup`. If the shims cannot be rewritten, for
+example because `~/.driftr/bin` is not writable, tools keep running, `driftr` commands print a
+warning, and `driftr doctor` reports the outdated shims until `driftr doctor --fix` succeeds.
+
+Upgrading a Linux Homebrew install from driftr 1.2.1 or earlier: those shims point at the Cellar
+directory the upgrade removed, so `node` fails with `not found` until you run any `driftr`
+command once. Shims written since then point at the stable `bin/driftr` symlink.
+
+The shim dir comes first on `PATH`, so a package shim steps aside when the shell would find the
+same name somewhere else, such as a `nest` installed through Homebrew's own npm or `pnpm add -g`:
+it runs that one, as if the shim were not there. This is decided on every call, against the
+`PATH` of that call. `driftr which nest` says when that happens. Remove the other install if you
+want Driftr's copy to run instead.
+
+Only npm's global installs are covered. `pnpm add -g` and `yarn global add` keep their own global
+directories, outside Driftr's tool versions.
 
 ## Resolution Order
 

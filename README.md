@@ -31,6 +31,7 @@ Driftr is a new project. It doesn't have Volta's years of polish or fnm's commun
 
 - **Multi-tool** -- manages Node.js, pnpm, yarn, and bun from a single CLI
 - **Shim-based** -- `node`, `npm`, `npx`, `pnpm`, `pnpx`, `yarn`, and `bun` just work, resolved per-project or globally
+- **Global packages** -- bins from `npm install -g` (`tsc`, `nest`, `corepack`) get shims and run under the Node.js version that installed them
 - **Fast** -- near-zero overhead via `syscall.Exec` process replacement
 - **Minimal** -- 2 external dependencies (cobra + toml), everything else is Go stdlib
 - **Deterministic** -- explicit resolution chain: `DRIFTR_<TOOL>` (one shell, via `driftr use`) > project config > `package.json` (`driftr` key, then `packageManager` field for pnpm/yarn/bun) > `.nvmrc` / `.node-version` (node) > `package.json` `engines.node` (node) > global default
@@ -96,7 +97,7 @@ pnpm -v   # resolves automatically
 | `driftr list [tool]` | List installed versions (defaults to node) |
 | `driftr list --remote [tool]` | Browse available remote versions from nodejs.org, the npm registry, or bun's GitHub releases |
 | `driftr outdated` | Compare the versions in use against the newest releases upstream |
-| `driftr which <tool>` | Show which binary would be executed and why |
+| `driftr which <tool>` | Show which binary would be executed and why; also takes a bin from a global npm install, e.g. `tsc` |
 | `driftr run --node <ver> -- <cmd>` | Run a command under a specific Node.js version |
 | `driftr setup` | Initialize Driftr, generate shims, and configure your shell PATH |
 | `driftr cache clean` | Remove all cached downloads to free disk space |

@@ -49,6 +49,11 @@ brews:
         echo 'export PATH="$HOME/.driftr/bin:$PATH"' >> ~/.zshrc
 
       Or run `driftr doctor --fix` to configure PATH automatically.
+
+      Upgrading from driftr 1.2.1 or earlier on Linux: those shims point at
+      the Cellar directory this upgrade removed. Run any driftr command once
+      (e.g. `driftr --version`) and they are rewritten; later upgrades refresh
+      the shims on their own.
     test: |
       assert_match version.to_s, shell_output("#{bin}/driftr --version")
 
