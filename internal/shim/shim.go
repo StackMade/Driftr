@@ -44,6 +44,7 @@ func GenerateShims(version string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot determine driftr executable path: %w", err)
 	}
+	previous := bakedPath(filepath.Join(binDir, "node"))
 
 	for _, tool := range shimTools {
 		if err := writeShim(binDir, tool, driftrBin); err != nil {
@@ -75,7 +76,43 @@ func GenerateShims(version string) ([]string, error) {
 	if err := removeStaleShims(binDir, packageBins); err != nil {
 		return nil, err
 	}
-	return skipped, writeAtomic(filepath.Join(binDir, stampFile), []byte(version+"\n"), 0o644)
+	if err := writeAtomic(filepath.Join(binDir, stampFile), []byte(version+"\n"), 0o644); err != nil {
+		return nil, err
+	}
+	if previous != driftrBin {
+		releaseHomebrewKeg(previous)
+	}
+	return skipped, nil
+}
+
+// bakedPath returns the driftr path a shim execs, or "".
+func bakedPath(shimPath string) string {
+	data, err := os.ReadFile(shimPath)
+	if err != nil {
+		return ""
+	}
+	rest, ok := strings.CutPrefix(string(data), "#!/bin/sh\nexec \"")
+	if !ok {
+		return ""
+	}
+	path, _, ok := strings.Cut(rest, "\"")
+	if !ok {
+		return ""
+	}
+	return path
+}
+
+// releaseHomebrewKeg lets Homebrew clean up the keg old shims pointed at.
+// Up to 1.2.1, shims on Linux baked the versioned Cellar path; the formula's
+// post_install marks older kegs with .keepme so `brew upgrade` keeps them and
+// those shims keep working. Once the shims point elsewhere, the mark goes.
+// Only a .keepme in <prefix>/Cellar/driftr/<version> is ever removed.
+func releaseHomebrewKeg(oldDriftr string) {
+	keg := filepath.Dir(filepath.Dir(oldDriftr))
+	if filepath.Base(filepath.Dir(keg)) != "driftr" || filepath.Base(filepath.Dir(filepath.Dir(keg))) != "Cellar" {
+		return
+	}
+	_ = os.Remove(filepath.Join(keg, ".keepme")) // best effort: a kept keg only costs disk
 }
 
 // Stamp returns the driftr version that last generated the shims, or "" when

@@ -49,11 +49,18 @@ brews:
         echo 'export PATH="$HOME/.driftr/bin:$PATH"' >> ~/.zshrc
 
       Or run `driftr doctor --fix` to configure PATH automatically.
+    # Shims written by driftr 1.2.1 and earlier on Linux exec the versioned
+    # Cellar path, which `brew upgrade` would delete. Marking the older kegs
+    # with .keepme makes Homebrew's cleanup keep them, so those shims keep
+    # working; driftr removes the mark once it has rewritten the shims.
+    post_install: |
+      if OS.linux?
+        prefix.parent.children.each do |keg|
+          next if keg == prefix || !(keg/"bin/driftr").exist?
 
-      Upgrading from driftr 1.2.1 or earlier on Linux: those shims point at
-      the Cellar directory this upgrade removed. Run any driftr command once
-      (e.g. `driftr --version`) and they are rewritten; later upgrades refresh
-      the shims on their own.
+          (keg/".keepme").write("#{keg}/bin/driftr\n")
+        end
+      end
     test: |
       assert_match version.to_s, shell_output("#{bin}/driftr --version")
 
