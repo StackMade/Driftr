@@ -170,47 +170,11 @@ func outdatedCurrent(tool string, pins []resolver.Pin, cfg *config.GlobalConfig)
 // the given major line, and the newest LTS release (node only). A major of -1
 // means the current version could not be parsed, so no line is reported.
 func upstreamVersions(tool string, major int, includePre bool) (latest, line, lts string, err error) {
-	if tool == "node" {
-		releases, err := installer.FetchNodeIndex()
-		if err != nil {
-			return "", "", "", err
-		}
-		if len(releases) == 0 {
-			return "", "", "", fmt.Errorf("no Node.js releases found")
-		}
-		// The index is newest-first, so the first match in each category wins.
-		latest = releases[0].Version
-		for _, rel := range releases {
-			if lts == "" && rel.IsLTS() {
-				lts = rel.Version
-			}
-			if line == "" && major >= 0 {
-				if rv, perr := version.Parse(rel.Version); perr == nil && rv.Major == major {
-					line = rel.Version
-				}
-			}
-		}
-		return latest, line, lts, nil
-	}
-
-	// Everything else ships a flat newest-first version list, from either the
-	// npm registry or, for bun, GitHub releases.
-	var versions []string
-	if tool == "bun" {
-		versions, err = installer.ListBunReleases()
-	} else {
-		pkg, ok := npmPackage[tool]
-		if !ok {
-			return "", "", "", fmt.Errorf("no upstream release source for %s", tool)
-		}
-		versions, err = installer.ListRemoteVersions(pkg, includePre)
-	}
+	versions, lts, err := upstreamReleases(tool, includePre)
 	if err != nil {
 		return "", "", "", err
 	}
-	if len(versions) == 0 {
-		return "", "", "", fmt.Errorf("no %s releases found", tool)
-	}
+	// The lists are newest-first, so the first match wins.
 	latest = versions[0]
 	if major >= 0 {
 		for _, v := range versions {
@@ -220,7 +184,45 @@ func upstreamVersions(tool string, major int, includePre bool) (latest, line, lt
 			}
 		}
 	}
-	return latest, line, "", nil
+	return latest, line, lts, nil
+}
+
+// upstreamReleases returns every upstream release of a tool, newest-first,
+// plus the newest LTS release for node. It is the one place that knows where
+// each tool's releases live; `outdated` and `pin --bump` both read from it.
+func upstreamReleases(tool string, includePre bool) (versions []string, lts string, err error) {
+	switch tool {
+	case "node":
+		releases, err := installer.FetchNodeIndex()
+		if err != nil {
+			return nil, "", err
+		}
+		for _, rel := range releases {
+			if lts == "" && rel.IsLTS() {
+				lts = rel.Version
+			}
+			versions = append(versions, rel.Version)
+		}
+	case "bun":
+		// bun ships binaries on GitHub releases rather than on npm.
+		versions, err = installer.ListBunReleases()
+	default:
+		pkg, ok := npmPackage[tool]
+		if !ok {
+			return nil, "", fmt.Errorf("no upstream release source for %s", tool)
+		}
+		versions, err = installer.ListRemoteVersions(pkg, includePre)
+	}
+	if err != nil {
+		return nil, "", err
+	}
+	if len(versions) == 0 {
+		if tool == "node" {
+			return nil, "", fmt.Errorf("no Node.js releases found")
+		}
+		return nil, "", fmt.Errorf("no %s releases found", tool)
+	}
+	return versions, lts, nil
 }
 
 // outdatedStatus classifies a current version against upstream. Aliases and
