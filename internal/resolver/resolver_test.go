@@ -1094,7 +1094,10 @@ func TestResolveTool_ExplicitPartialVersion(t *testing.T) {
 	for _, v := range []string{"20.11.0", "20.12.1", "22.0.0"} {
 		setupFakeInstall(t, home, "node", v)
 	}
-	for spec, want := range map[string]string{"20": "20.12.1", "20.11": "20.11.0", "v22.0.0": "22.0.0"} {
+	for spec, want := range map[string]string{
+		"20": "20.12.1", "20.11": "20.11.0", "v22.0.0": "22.0.0",
+		"lts": "22.0.0", "lts/*": "22.0.0", "lts/iron": "20.12.1", "lts/jod": "22.0.0",
+	} {
 		res, err := ResolveTool("node", spec, false)
 		if err != nil {
 			t.Errorf("--node %s: %v", spec, err)
@@ -1106,5 +1109,8 @@ func TestResolveTool_ExplicitPartialVersion(t *testing.T) {
 	}
 	if _, err := ResolveTool("node", "18", false); err == nil {
 		t.Error("--node 18 with no 18.x installed should fail")
+	}
+	if _, err := ResolveTool("node", "lts/mithril", false); err == nil || !strings.Contains(err.Error(), "unknown LTS codename") {
+		t.Errorf("an unknown LTS codename should say so, got %v", err)
 	}
 }
