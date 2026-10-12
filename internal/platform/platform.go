@@ -260,24 +260,48 @@ func NodePackageBins() (map[string][]string, error) {
 
 // FindOutsideDriftr returns the first executable called name on PATH that is
 // not under ~/.driftr, or "". It is what the shell would run if driftr's shim
-// dir were not on PATH.
+// dir were not on PATH, so it searches PATH the way the shell does: an empty
+// or relative entry is taken relative to the current directory.
 func FindOutsideDriftr(name string) string {
 	home, err := DriftrHome()
 	if err != nil {
 		return ""
 	}
+	realHome := home
+	if r, err := filepath.EvalSymlinks(home); err == nil {
+		realHome = r
+	}
 	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
-		// Driftr's own dirs do not count: the shim dir, and node bin dirs a
-		// package bin puts on PATH for the commands it runs.
-		if !filepath.IsAbs(dir) || filepath.Clean(dir) == home || strings.HasPrefix(filepath.Clean(dir), home+string(filepath.Separator)) {
+		if dir == "" {
+			dir = "."
+		}
+		abs, err := filepath.Abs(dir)
+		if err != nil {
 			continue
 		}
-		candidate := filepath.Join(dir, name)
-		if info, err := os.Stat(candidate); err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0 {
-			return candidate
+		candidate := filepath.Join(abs, name)
+		info, err := os.Stat(candidate)
+		if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
+			continue
 		}
+		// Driftr's own files do not count, under any name a symlink gives
+		// them: the shim dir, and node bin dirs a package bin puts on PATH for
+		// the commands it runs. Counting a symlinked alias of the shim dir
+		// would make the shim exec itself forever.
+		if within(abs, home) {
+			continue
+		}
+		if real, err := filepath.EvalSymlinks(candidate); err != nil || within(real, realHome) {
+			continue
+		}
+		return candidate
 	}
 	return ""
+}
+
+func within(path, dir string) bool {
+	path = filepath.Clean(path)
+	return path == dir || strings.HasPrefix(path, dir+string(filepath.Separator))
 }
 
 // IsSafeBinName reports whether name can become a shim file name and a shell
