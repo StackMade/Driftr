@@ -22,7 +22,7 @@ func RequireToolInstalled(tool, versionSpec string) (string, string, error) {
 		return "", "", fmt.Errorf("invalid version: %w", err)
 	}
 
-	if v.Latest || v.IsPartial() {
+	if v.Latest || v.LTS || v.IsPartial() {
 		return resolveInstalledPartial(tool, v)
 	}
 
@@ -36,7 +36,12 @@ func RequireToolInstalled(tool, versionSpec string) (string, string, error) {
 
 // resolveInstalledPartial finds the latest installed version matching a partial spec.
 func resolveInstalledPartial(tool string, v version.Version) (string, string, error) {
-	best, ok, err := newestInstalledMatching(tool, v.Matches)
+	// installedMatcher also covers the LTS aliases, offline, as for .nvmrc.
+	match, known := installedMatcher(v)
+	if !known {
+		return "", "", fmt.Errorf("unknown LTS codename in %s. Run `driftr install %s@%s` to look it up", v.Raw, tool, v.Raw)
+	}
+	best, ok, err := newestInstalledMatching(tool, match)
 	if err != nil {
 		return "", "", err
 	}
