@@ -270,8 +270,10 @@ func ResolveTool(tool, explicit string, verbose bool) (*Resolution, error) {
 	return res, nil
 }
 
-func resolveExplicit(tool, ver string) (*Resolution, error) {
-	binPath, err := requireToolBinaryExists(tool, ver, "")
+func resolveExplicit(tool, spec string) (*Resolution, error) {
+	// Partial specs ("24") resolve to the newest installed match, as they do
+	// for DRIFTR_<TOOL> and every other command that takes a version.
+	ver, binPath, err := RequireToolInstalled(tool, spec)
 	if err != nil {
 		return nil, err
 	}
