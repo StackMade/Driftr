@@ -193,3 +193,49 @@ func TestIsSafeBinName(t *testing.T) {
 		}
 	}
 }
+
+func TestFindOutsideDriftr(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	bin, _ := BinDir()
+	writeExec := func(p string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeExec(filepath.Join(bin, "nest")) // driftr's own shim
+
+	// Aliases of the shim that must never count as "elsewhere": a symlinked
+	// shim dir, and a symlink straight to the shim file.
+	aliasDir := filepath.Join(t.TempDir(), "shims")
+	if err := os.Symlink(bin, aliasDir); err != nil {
+		t.Fatal(err)
+	}
+	fileLinks := t.TempDir()
+	if err := os.Symlink(filepath.Join(bin, "nest"), filepath.Join(fileLinks, "nest")); err != nil {
+		t.Fatal(err)
+	}
+	sep := string(os.PathListSeparator)
+
+	t.Setenv("PATH", bin+sep+aliasDir+sep+fileLinks)
+	if got := FindOutsideDriftr("nest"); got != "" {
+		t.Errorf("an alias of driftr's own shim counted as another install: %s", got)
+	}
+
+	// A relative entry is searched from the current directory, as in the shell.
+	cwd := t.TempDir()
+	writeExec(filepath.Join(cwd, "tools", "nest"))
+	t.Chdir(cwd)
+	t.Setenv("PATH", aliasDir+sep+"tools")
+	if got, want := FindOutsideDriftr("nest"), filepath.Join(cwd, "tools", "nest"); got != want {
+		// macOS temp dirs live behind the /var -> /private/var symlink.
+		if real, _ := filepath.EvalSymlinks(got); real != want {
+			if rw, _ := filepath.EvalSymlinks(want); real != rw {
+				t.Errorf("relative PATH entry: got %q, want %q", got, want)
+			}
+		}
+	}
+}
