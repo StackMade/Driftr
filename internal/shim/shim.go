@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/stackmade/driftr/internal/ioutil"
 	"github.com/stackmade/driftr/internal/platform"
 )
 
@@ -76,7 +77,7 @@ func GenerateShims(version string) ([]string, error) {
 	if err := removeStaleShims(binDir, packageBins); err != nil {
 		return nil, err
 	}
-	if err := writeAtomic(filepath.Join(binDir, stampFile), []byte(version+"\n"), 0o644); err != nil {
+	if err := ioutil.WriteFileAtomic(filepath.Join(binDir, stampFile), []byte(version+"\n"), 0o644); err != nil {
 		return nil, err
 	}
 	if previous != driftrBin {
@@ -241,31 +242,7 @@ func writeShim(binDir, tool, driftrBin string) error {
 	content := fmt.Sprintf(`#!/bin/sh
 exec "%s" shim %s "$@"
 `, driftrBin, tool)
-	return writeAtomic(filepath.Join(binDir, tool), []byte(content), 0o755)
-}
-
-// writeAtomic replaces path in one rename. Shims are rewritten while other
-// processes run them, possibly by several driftr processes refreshing at once
-// after an upgrade; writing in place could let a shell read a half-written
-// shim. The mode is set explicitly, so a shim that lost its executable bit
-// gets it back.
-func writeAtomic(path string, data []byte, mode os.FileMode) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name()) // no-op once the rename succeeded
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if err := os.Chmod(tmp.Name(), mode); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), path)
+	return ioutil.WriteFileAtomic(filepath.Join(binDir, tool), []byte(content), 0o755)
 }
 
 // ShimDir returns the path to the shim directory for display purposes.
