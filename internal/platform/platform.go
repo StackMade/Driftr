@@ -224,6 +224,80 @@ func ListToolVersions(tool string) ([]string, error) {
 	return versions, nil
 }
 
+// NodePackageBins maps each executable that a global npm install put in a
+// Node.js version's bin dir (e.g. tsc after `npm install -g typescript`) to
+// the node versions that have it. Driftr's own tools are left out, since they
+// already have shims, and so are names unsafe to write into a shim script.
+func NodePackageBins() (map[string][]string, error) {
+	versions, err := ListToolVersions("node")
+	if err != nil {
+		return nil, err
+	}
+
+	bins := map[string][]string{}
+	for _, v := range versions {
+		dir, err := ToolVersionDir("node", v)
+		if err != nil {
+			return nil, err
+		}
+		entries, err := os.ReadDir(filepath.Join(dir, "bin"))
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return nil, fmt.Errorf("failed to read node %s bin dir: %w", v, err)
+		}
+		for _, e := range entries {
+			name := e.Name()
+			if _, core := toolBinaryMap[name]; core || e.IsDir() || !IsSafeBinName(name) {
+				continue
+			}
+			bins[name] = append(bins[name], v)
+		}
+	}
+	return bins, nil
+}
+
+// FindOutsideDriftr returns the first executable called name on PATH that is
+// not under ~/.driftr, or "". It is what the shell would run if driftr's shim
+// dir were not on PATH.
+func FindOutsideDriftr(name string) string {
+	home, err := DriftrHome()
+	if err != nil {
+		return ""
+	}
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		// Driftr's own dirs do not count: the shim dir, and node bin dirs a
+		// package bin puts on PATH for the commands it runs.
+		if !filepath.IsAbs(dir) || filepath.Clean(dir) == home || strings.HasPrefix(filepath.Clean(dir), home+string(filepath.Separator)) {
+			continue
+		}
+		candidate := filepath.Join(dir, name)
+		if info, err := os.Stat(candidate); err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0 {
+			return candidate
+		}
+	}
+	return ""
+}
+
+// IsSafeBinName reports whether name can become a shim file name and a shell
+// word without quoting. npm package authors choose bin names, so anything
+// outside this set is skipped rather than escaped.
+func IsSafeBinName(name string) bool {
+	if name == "" || name[0] == '.' || name[0] == '-' {
+		return false
+	}
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case r == '.', r == '_', r == '-', r == '+', r == '@':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 // ArchiveExt returns the archive extension for the current platform.
 func ArchiveExt() string {
 	return "tar.gz"

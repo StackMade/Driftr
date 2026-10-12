@@ -23,9 +23,11 @@ func newSetupCmd() *cobra.Command {
 				return fmt.Errorf("failed to create directories: %w", err)
 			}
 
-			if err := shim.GenerateShims(); err != nil {
+			skipped, err := shim.GenerateShims(Version)
+			if err != nil {
 				return fmt.Errorf("failed to generate shims: %w", err)
 			}
+			printSkippedShims(cmd.OutOrStdout(), skipped)
 
 			binDir, err := platform.BinDir()
 			if err != nil {

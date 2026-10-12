@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -19,6 +20,30 @@ func newWhichCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			tool := args[0]
 
+			row := func(label, value string) {
+				// Pad the plain label before coloring so the (runtime zero-width)
+				// ANSI codes don't throw off column alignment.
+				fmt.Printf("%s %s\n", ioutil.Label(fmt.Sprintf("%-8s", label)), value)
+			}
+
+			// Anything that is not a driftr tool is a bin from a global npm install.
+			if _, known := platform.LookupTool(tool); !known {
+				rb, err := resolver.ResolveBinaryFull(tool, "")
+				if err != nil {
+					return err
+				}
+				row("Tool:", tool)
+				if rb.PathPrefix == "" {
+					row("Binary:", ioutil.Green(rb.ToolPath))
+					row("Source:", "found on PATH outside driftr, so driftr leaves it alone")
+					return nil
+				}
+				row("Node:", ioutil.Bold(filepath.Base(filepath.Dir(rb.PathPrefix))))
+				row("Binary:", ioutil.Green(rb.ToolPath))
+				row("Source:", "global npm package")
+				return nil
+			}
+
 			res, err := resolver.ResolveTool(tool, "", verbose)
 			if err != nil {
 				return err
@@ -29,11 +54,6 @@ func newWhichCmd() *cobra.Command {
 				return err
 			}
 
-			row := func(label, value string) {
-				// Pad the plain label before coloring so the (runtime zero-width)
-				// ANSI codes don't throw off column alignment.
-				fmt.Printf("%s %s\n", ioutil.Label(fmt.Sprintf("%-8s", label)), value)
-			}
 			row("Tool:", tool)
 			row("Version:", ioutil.Bold(res.Version))
 			row("Binary:", ioutil.Green(binPath))

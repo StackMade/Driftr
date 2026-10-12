@@ -193,6 +193,9 @@ func removeCandidates(candidates []pruneCandidate) error {
 	}
 
 	fmt.Println(ioutil.Success(fmt.Sprintf("Removed %d version(s), freed %s.", removed, ioutil.Bold(formatSize(freed)))))
+	if removed > 0 {
+		refreshShims()
+	}
 
 	if len(failures) > 0 {
 		return fmt.Errorf("%d of %d version(s) could not be removed: %w", len(failures), len(candidates), errors.Join(failures...))

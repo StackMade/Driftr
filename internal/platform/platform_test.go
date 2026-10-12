@@ -156,3 +156,40 @@ func TestEnsureToolDirs(t *testing.T) {
 func pathEndsWith(path, suffix string) bool {
 	return len(path) >= len(suffix) && path[len(path)-len(suffix):] == suffix
 }
+
+func TestNodePackageBins(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	for v, names := range map[string][]string{
+		"20.0.0": {"node", "npm", "tsc", "corepack", "bad;name", ".hidden"},
+		"22.0.0": {"node", "tsc"},
+	} {
+		dir, _ := ToolVersionDir("node", v)
+		for _, n := range names {
+			if err := os.MkdirAll(filepath.Join(dir, "bin"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "bin", n), nil, 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	bins, err := NodePackageBins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bins) != 2 || len(bins["tsc"]) != 2 || len(bins["corepack"]) != 1 {
+		t.Errorf("want tsc under both versions and corepack under one, got %v", bins)
+	}
+}
+
+func TestIsSafeBinName(t *testing.T) {
+	for name, want := range map[string]bool{
+		"tsc": true, "vue-cli-service": true, "esbuild_1.2+x": true, "a@b": true,
+		"": false, ".bin": false, "-rf": false, "a b": false, "a;b": false, "$(x)": false, "a/b": false,
+	} {
+		if got := IsSafeBinName(name); got != want {
+			t.Errorf("IsSafeBinName(%q) = %v, want %v", name, got, want)
+		}
+	}
+}

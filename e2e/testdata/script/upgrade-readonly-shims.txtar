@@ -1,0 +1,28 @@
+# An upgrade that cannot rewrite the shims: tools keep working, driftr
+# commands say so, and doctor reports it until --fix succeeds.
+
+[root] skip 'root ignores file permissions'
+
+exec driftr setup
+exec driftr install node@22
+exec driftr default node@$NODE_VERSION
+
+# Shims from a driftr that predates the stamp, in a dir driftr cannot write.
+rm $HOME/.driftr/bin/.driftr-version
+chmod 0555 $HOME/.driftr/bin
+
+# The shim path stays quiet: node's own output must not carry driftr noise.
+exec node -v
+stdout 'v'$NODE_VERSION
+! stderr .
+
+exec driftr list
+stderr 'Could not update the shims'
+
+exec driftr doctor
+stdout 'Shims were written by driftr an older version'
+
+chmod 0755 $HOME/.driftr/bin
+exec driftr doctor --fix
+! stdout 'Shims were written by'
+exists $HOME/.driftr/bin/.driftr-version
