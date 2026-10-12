@@ -371,8 +371,10 @@ driftr run --node 20.11.0 -- node script.js
   as it is found on `PATH`
 - `driftr run --node 20 -- npm install -g <package>` installs into Node 20 and refreshes the
   shims, like `npm install -g` run directly
-- A signal sent to `driftr` reaches the command. Ctrl-C and Ctrl-\ are left to the terminal,
-  which delivers them to the command itself
+- A signal sent to `driftr` reaches the command. The exception is SIGINT and SIGQUIT while
+  `driftr run` is the terminal's foreground job: they are taken to be Ctrl-C and Ctrl-\, which
+  the terminal delivers to the command itself, so a `kill -INT` aimed at `driftr` then is not
+  passed on. Send SIGTERM, or signal the command's own process
 
 ## driftr setup
 
