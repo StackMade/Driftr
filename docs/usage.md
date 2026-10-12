@@ -17,6 +17,7 @@ driftr install node@22
 driftr install node@22.14.0
 
 # Install package managers
+driftr install npm@10
 driftr install pnpm@9
 driftr install yarn@1
 driftr install bun@1
@@ -39,6 +40,7 @@ driftr install node@22 -v
 | Tool    | Source                                 | Verification                  |
 |---------|----------------------------------------|-------------------------------|
 | Node.js | nodejs.org archives                    | SHA256 against SHASUMS256.txt |
+| npm     | npm registry tarball                   | SHA-512 SRI integrity         |
 | pnpm    | npm registry tarball                   | SHA-512 SRI integrity         |
 | yarn    | npm registry tarball                   | SHA-512 SRI integrity         |
 | bun     | GitHub release zip                     | SHA256 against SHASUMS256.txt |
@@ -48,7 +50,7 @@ driftr install node@22 -v
 With no argument, `driftr install` reads the pins for the current directory and
 installs each one. It reads the same sources resolution reads, walking up
 through parent directories: `.driftr.toml`, the `driftr` key in `package.json`,
-the standard `packageManager` field (pnpm, yarn and bun), `.nvmrc`, `.node-version`,
+the standard `packageManager` field (npm, pnpm, yarn and bun), `.nvmrc`, `.node-version`,
 and `engines.node`. The first source that names a tool wins, and each tool is
 looked up separately, so a repo can pin Node.js in `.nvmrc` and pnpm in
 `packageManager`.
@@ -82,6 +84,7 @@ Remove a previously installed tool version.
 
 ```bash
 driftr uninstall node@22.14.0
+driftr uninstall npm@10.9.2
 driftr uninstall pnpm@9.15.0
 driftr uninstall yarn@1.22.22
 driftr uninstall bun@1.2.0
@@ -126,6 +129,7 @@ Set the global default version for a tool.
 
 ```bash
 driftr default node@22.14.0
+driftr default npm@10.9.2
 driftr default pnpm@9.15.0
 driftr default yarn@1.22.22
 driftr default bun@1.2.0
@@ -188,7 +192,7 @@ This writes the version in the other format and removes the old config.
 **Requirements:**
 - The version must already be installed
 - `package.json` format requires an existing `package.json` file (run `npm init` first)
-- `package.json` format supports `node`, `pnpm`, `yarn`, and `bun`
+- `package.json` format supports `node`, `npm`, `pnpm`, `yarn`, and `bun`
 
 **Behavior:**
 - Anyone who clones the project and has Driftr set up will automatically use the pinned version
@@ -214,7 +218,7 @@ $ driftr use node@24
 export DRIFTR_NODE=24.1.0
 ```
 
-The snippet sets `DRIFTR_NODE` (or `DRIFTR_PNPM`, `DRIFTR_YARN`, `DRIFTR_BUN`), which the resolver reads
+The snippet sets `DRIFTR_NODE` (or `DRIFTR_NPM`, `DRIFTR_PNPM`, `DRIFTR_YARN`, `DRIFTR_BUN`), which the resolver reads
 before any project config. The override lives in the shell you ran it in and disappears when
 you close it. Other shells and other terminal tabs keep resolving normally.
 
@@ -241,6 +245,7 @@ List installed versions for a tool. Defaults to node.
 
 ```bash
 driftr list          # list node versions
+driftr list npm      # list npm versions installed by driftr
 driftr list pnpm     # list pnpm versions
 driftr list yarn     # list yarn versions
 driftr list bun      # list bun versions
@@ -300,6 +305,7 @@ Show which binary Driftr would execute, and why.
 
 ```bash
 driftr which node
+driftr which npm
 driftr which pnpm
 driftr which yarn
 driftr which bun
@@ -314,6 +320,8 @@ Binary:  /home/user/.driftr/tools/node/22.14.0/bin/node
 Source:  project config
 Project: /home/user/my-project
 ```
+
+When nothing pins npm, `driftr which npm` names the Node.js version whose bundled npm runs.
 
 `driftr which` also explains a bin from a global npm install, such as `driftr which tsc`. It
 names the Node.js version the bin runs under; see [Global npm packages](#global-npm-packages).
@@ -358,10 +366,10 @@ driftr run --node 20.11.0 -- node script.js
   picks the newest installed match without a network call
 - The `--` separator is required between flags and the command
 - Exit codes are preserved
-- `--node` always pins the Node.js runtime. For `yarn`/`pnpm`, which need
-  Node.js to execute but have their own independently pinned version, only
-  the Node.js they run under is affected — the tool's own version still
-  resolves normally from project/global config (e.g. `driftr run --node
+- `--node` always pins the Node.js runtime. For `yarn`/`pnpm`, and `npm` when it is
+  pinned, which need Node.js to execute but have their own independently pinned
+  version, only the Node.js they run under is affected — the tool's own version
+  still resolves normally from project/global config (e.g. `driftr run --node
   20.11.0 -- yarn` runs your pinned/default yarn under Node 20.11.0)
 - Everything the command starts stays on that version: `npm`, `npx` and package bins are
   `#!/usr/bin/env node` scripts, and the scripts they run look `node` up on `PATH` too, so
@@ -444,6 +452,31 @@ After a successful update, automatically migrates PATH configuration if it was p
 interactive-only file (e.g. `.zshrc`) to the universal target (`.zshenv` for zsh). Prints a
 note about any stale entries in old rc files — safe to remove manually.
 
+## Pinning npm
+
+Every Node.js release bundles an npm, and without a pin that is what the `npm` and `npx` shims
+run, as they always have. To hold a project on one npm, for example to keep its lockfile format
+stable across Node.js upgrades, pin it like any other tool:
+
+```bash
+driftr install npm@10
+driftr pin npm@10.9.2
+npm -v    # 10.9.2, whatever node is in use
+```
+
+A `packageManager` field such as `"npm@10.9.2"` pins it too, below the `driftr` key. Driftr
+installs npm from the npm registry tarball, checks its SHA-512 integrity, and keeps it in
+`~/.driftr/tools/npm/<version>/`. The shims run its `npm-cli.js` or `npx-cli.js` under the
+Node.js version the directory resolves to, so `--node` and `DRIFTR_NODE` still choose the
+runtime.
+
+`npm install -g` under a pinned npm still installs into that Node.js version, the same place the
+bundled npm uses, so the shims for global package bins work as described below.
+
+A pinned npm covers the `npm` and `npx` you run, through the shims. Two kinds of nested call
+find the Node.js `bin` directory first on `PATH`, and so the bundled npm: an `npm` that a global
+package bin starts, and one that a script under `driftr run --node` starts.
+
 ## Global npm packages
 
 `npm install -g` works as usual. The package lands in the Node.js version npm ran under, and once
@@ -495,7 +528,7 @@ When you run a tool (`node`, `npm`, `npx`, `pnpm`, `pnpx`, `yarn`, or `bun`), Dr
 | 2 | `DRIFTR_<TOOL>` variable | Set in the shell, usually via `driftr use` |
 | 3 | Project `.driftr.toml` | Found in current or parent directory |
 | 4 | `package.json` driftr key | Found in current or parent directory |
-| 5 | `package.json` `packageManager` field (pnpm/yarn/bun only) | Found in current or parent directory |
+| 5 | `package.json` `packageManager` field (npm/pnpm/yarn/bun only) | Found in current or parent directory |
 | 6 | `.nvmrc` (node only) | Found in current or parent directory; `lts`, `lts/*` and `lts/<codename>` resolve against installed versions |
 | 7 | `.node-version` (node only) | Found in current or parent directory; same LTS aliases as `.nvmrc` |
 | 8 | `package.json` `engines.node` (node only) | Found in current or parent directory |
@@ -505,7 +538,7 @@ If no version is configured at any level, Driftr prints an actionable error.
 
 **Tool resolution:**
 
-- `npm` and `npx` resolve via the **node** version (they are bundled with Node.js)
+- `npm` and `npx` resolve via the **npm** version when one is pinned or set as the default, and run under the resolved **node**, like yarn. With no npm configured anywhere they run the npm bundled with the resolved **node** version
 - `pnpm` and `pnpx` resolve via the **pnpm** version (pnpx is a symlink to pnpm)
 - `yarn` resolves via the **yarn** version, and also co-resolves **node** because yarn is a JS script that needs `node` to execute
 - `bun` resolves via the **bun** version. It is a native binary, so it runs without `node` installed

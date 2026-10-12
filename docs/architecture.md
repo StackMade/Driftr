@@ -6,7 +6,7 @@ This document describes Driftr's internal design for contributors and anyone cur
 
 Driftr is a shim-based toolchain manager. When you type `node`, `pnpm`, `yarn`, or `bun`, a lightweight shim intercepts the call, resolves the correct version, and replaces itself with the real binary using `syscall.Exec`. The entire resolution happens in single-digit milliseconds.
 
-Standalone tools (node, pnpm, bun) are exec'd directly. Tools that need Node.js to run (yarn) are exec'd as `node <tool-script>`.
+Standalone tools (node, bun) are exec'd directly. Tools that need Node.js to run (pnpm, yarn, and npm when it is pinned) are exec'd as `node <tool-script>`.
 
 ```mermaid
 flowchart TD
@@ -41,8 +41,8 @@ internal/
 
   installer/                tool installation pipelines
     node.go                 Node.js: resolve → download → verify SHA256 → extract
-    pnpm.go                 pnpm: resolve → download from npm registry → verify SRI → extract
-    yarn.go                 yarn: resolve → download from npm registry → verify SRI → extract
+    registry_install.go     npm, pnpm, yarn: resolve → download from npm registry → verify SRI → extract
+    npm.go, pnpm.go, yarn.go  per-tool entry points into registry_install.go
     bun.go                  bun: resolve → download from GitHub releases → verify SHA256 → extract
     registry.go             npm registry client: version resolution, tarball download, SRI verification
     registry_extract.go     tarball extraction for npm registry packages
@@ -93,8 +93,8 @@ Shims exist for `node`, `npm`, `npx`, `pnpm`, `pnpx`, `yarn`, and `bun`. The `ex
 
 There are three execution modes:
 
-1. **Direct exec** (node, pnpm, bun): `syscall.Exec(tool-binary, args, env)`
-2. **Node-wrapped exec** (yarn): `syscall.Exec(node, [yarn.js, args...], env)` — because yarn is a JS script that needs Node.js to run. The Node version is co-resolved from the same config.
+1. **Direct exec** (node, bun, and the npm bundled with node): `syscall.Exec(tool-binary, args, env)`
+2. **Node-wrapped exec** (pnpm, yarn, pinned npm): `syscall.Exec(node, [yarn.js, args...], env)` — because these are JS scripts that need Node.js to run. The Node version is co-resolved from the same config.
 3. **Package bin exec** (`tsc` after `npm install -g typescript`): every name in a Node.js version's `bin/` that is not one of Driftr's own tools gets a shim. The resolver picks the Node.js version that has the bin, preferring the one the project resolves to, and prepends that version's `bin/` to `PATH`, so the bin's `#!/usr/bin/env node` line finds the node it was installed with.
 
 The shim dir comes first on `PATH`, so a package shim could silently replace a command that already worked. On every call it first looks for the same name on `PATH` outside `~/.driftr` and, if it finds one, execs that instead. Deciding this per call rather than when the shims are written keeps the answer tied to the `PATH` of the call: a refresh started from a script with a minimal `PATH` cannot plant a shim that later shadows a Homebrew install in an interactive shell. A package bin gets no shim at all when a file that is not a driftr shim already has its name in `~/.driftr/bin/` (the driftr binary can live there).
@@ -112,7 +112,7 @@ The hidden `driftr shim` command sets `DisableFlagParsing: true` in cobra. This 
 The resolver follows a strict priority order:
 
 1. **Explicit** -- `--node` flag on `driftr run`
-2. **Environment** -- `DRIFTR_NODE`, `DRIFTR_PNPM`, `DRIFTR_YARN` or `DRIFTR_BUN`, set for one shell by `driftr use`
+2. **Environment** -- `DRIFTR_NODE`, `DRIFTR_NPM`, `DRIFTR_PNPM`, `DRIFTR_YARN` or `DRIFTR_BUN`, set for one shell by `driftr use`
 3. **Project** -- `.driftr.toml` found by walking up from `cwd`
 4. **package.json** -- `driftr` key in `package.json`, same walk-up
 5. **`.nvmrc`** -- node only, found by walking up from `cwd`
@@ -128,14 +128,16 @@ In each directory, `.driftr.toml` is checked before `package.json`, then `.nvmrc
 
 An `.nvmrc` or `.node-version` holding an LTS alias (`lts`, `lts/*`, `lts/jod`) resolves against installed versions only. The shim path never reaches the network. `lts` and `lts/*` take the newest installed major listed in a small static table of LTS codenames in `internal/version`, which a line joins when it is promoted, so an even major that is still Current is never picked. A codename maps to its major through the same table; the install path reads codenames off the release index instead, so that table exists only for offline resolution.
 
-Each tool resolves independently: `npm`/`npx` resolve via node's version (bundled), `pnpm`/`pnpx` via pnpm's version, `yarn` via yarn's version, and `bun` via bun's own version. There is no system fallback — if no version is configured, Driftr returns an actionable error.
+Each tool resolves independently: `npm`/`npx` via npm's version, `pnpm`/`pnpx` via pnpm's version, `yarn` via yarn's version, and `bun` via bun's own version. There is no system fallback — if no version is configured, Driftr returns an actionable error. The one exception is npm: with no npm configured at any level, `npm` and `npx` run the copy bundled with the resolved Node.js version, which is what they did before npm could be pinned. That costs the same second config walk pnpm and yarn already pay.
+
+A pinned npm runs as `node npm-cli.js`. npm takes its global prefix from the node binary running it, so `npm install -g` lands in that Node.js version's directory either way, and package bin shims keep working.
 
 ### Partial Version Resolution
 
 Partial versions (e.g. `node@22`, `pnpm@9`) are resolved to the latest matching release:
 
 - **Node.js**: queries `nodejs.org/dist/index.json`
-- **pnpm/yarn**: queries the npm registry at `registry.npmjs.org/<package>`
+- **npm/pnpm/yarn**: queries the npm registry at `registry.npmjs.org/<package>`
 - **bun**: queries the GitHub releases API for `oven-sh/bun` and reads the version out of each `bun-v<version>` tag
 
 ### Checksum Verification
@@ -143,6 +145,7 @@ Partial versions (e.g. `node@22`, `pnpm@9`) are resolved to the latest matching 
 | Tool    | Method                                            |
 |---------|---------------------------------------------------|
 | Node.js | SHA256 against `SHASUMS256.txt` from nodejs.org   |
+| npm     | SHA-512 SRI integrity from npm registry metadata  |
 | pnpm    | SHA-512 SRI integrity from npm registry metadata  |
 | yarn    | SHA-512 SRI integrity from npm registry metadata  |
 | bun     | SHA256 against the `SHASUMS256.txt` published with the release |

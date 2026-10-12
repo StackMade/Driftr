@@ -17,6 +17,7 @@ auto_install = true  # install missing versions without prompting
 node = "22.14.0"
 
 [default.tools]
+npm = "10.9.2"
 pnpm = "9.15.0"
 yarn = "1.22.22"
 bun = "1.2.3"
@@ -28,6 +29,7 @@ bun = "1.2.3"
 |-------------------|----------------|--------|---------------------------------------------------------|
 | (top-level)       | `auto_install` | bool   | Automatically install missing versions (default: false) |
 | `[default]`       | `node`         | string | Global default Node.js version                          |
+| `[default.tools]` | `npm`          | string | Global default npm version (unset: npm bundled with node) |
 | `[default.tools]` | `pnpm`         | string | Global default pnpm version                             |
 | `[default.tools]` | `yarn`         | string | Global default yarn version                             |
 | `[default.tools]` | `bun`          | string | Global default bun version                              |
@@ -60,6 +62,7 @@ pnpm = "9.15.0"
 | Section   | Key    | Type   | Description                                |
 |-----------|--------|--------|--------------------------------------------|
 | `[tools]` | `node` | string | Pinned Node.js version for this project    |
+| `[tools]` | `npm`  | string | Pinned npm version for this project       |
 | `[tools]` | `pnpm` | string | Pinned pnpm version for this project       |
 | `[tools]` | `yarn` | string | Pinned yarn version for this project       |
 | `[tools]` | `bun`  | string | Pinned bun version for this project        |
@@ -83,6 +86,7 @@ pnpm = "9.15.0"
 | Key            | Type   | Description                              |
 |----------------|--------|------------------------------------------|
 | `driftr.node`  | string | Pinned Node.js version for this project  |
+| `driftr.npm`   | string | Pinned npm version for this project      |
 | `driftr.pnpm`  | string | Pinned pnpm version for this project     |
 | `driftr.yarn`  | string | Pinned yarn version for this project     |
 | `driftr.bun`   | string | Pinned bun version for this project      |
@@ -106,7 +110,7 @@ A `DRIFTR_<TOOL>` variable in the environment (see [Environment Variables](#envi
 
 1. `.driftr.toml`
 2. `package.json` (driftr key)
-3. `package.json` (`packageManager` field, e.g. `"packageManager": "pnpm@9.15.0"`, pnpm/yarn/bun only)
+3. `package.json` (`packageManager` field, e.g. `"packageManager": "pnpm@9.15.0"`, npm/pnpm/yarn/bun only)
 4. `.nvmrc` (node only)
 5. `.node-version` (node only)
 6. `package.json` (`engines.node`, node only)
@@ -117,7 +121,7 @@ A `DRIFTR_<TOOL>` variable in the environment (see [Environment Variables](#envi
 /home/user/my-project/                 <- .driftr.toml found! uses this
 ```
 
-If multiple config files exist in the same directory, the priority order above applies. `.nvmrc` and `.node-version` are only used for Node.js version resolution. The `packageManager` field is read for pnpm, yarn and bun only (not node, since npm/npx always follow node's own version and node has no equivalent standard field); it must name an exact installed version, same as the `driftr` key — it's read-only, Driftr never writes it.
+If multiple config files exist in the same directory, the priority order above applies. `.nvmrc` and `.node-version` are only used for Node.js version resolution. The `packageManager` field is read for npm, pnpm, yarn and bun only (not node, which has no equivalent standard field); it must name an exact installed version, same as the `driftr` key — it's read-only, Driftr never writes it.
 
 **LTS aliases.** `.nvmrc` and `.node-version` may hold `lts`, `lts/*`, or a codename such as `lts/jod`. Driftr resolves those against the versions you already have installed, never over the network, since the shim runs on every `node` call. `lts` and `lts/*` take the newest installed release of a line known to have entered LTS. An even major spends months as Current before it is promoted, so it counts only once this version of Driftr lists its codename; until then `lts` keeps to the previous LTS line. `lts/<codename>` takes the newest installed release of that codename's major, so `lts/iron` means 20 and `lts/jod` means 22. When nothing installed fits, you get the usual not-installed error with the command to run, which is also what lets auto-install step in. An unknown codename prints a warning and resolution moves on to the next source.
 
@@ -170,9 +174,9 @@ git commit -m "Pin Node.js version with Driftr"
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `DRIFTR_NODE`, `DRIFTR_PNPM`, `DRIFTR_YARN`, `DRIFTR_BUN` | unset | Version for that tool in the current shell. Read before any project config, so it overrides `.driftr.toml`, `package.json`, `.nvmrc` and `.node-version`. Takes a full version, a partial one (`24`), or `latest`/`lts`, and must name a version you already have installed. `driftr use` prints the line that sets it. |
+| `DRIFTR_NODE`, `DRIFTR_NPM`, `DRIFTR_PNPM`, `DRIFTR_YARN`, `DRIFTR_BUN` | unset | Version for that tool in the current shell. Read before any project config, so it overrides `.driftr.toml`, `package.json`, `.nvmrc` and `.node-version`. Takes a full version, a partial one (`24`), or `latest`/`lts`, and must name a version you already have installed. `driftr use` prints the line that sets it. |
 | `DRIFTR_NODE_MIRROR` | `https://nodejs.org/dist` | Alternative Node.js distribution mirror (corporate mirrors, air-gapped setups, hermetic tests). Must serve the same layout: `index.json`, `v<version>/SHASUMS256.txt`, and version tarballs. |
-| `DRIFTR_NPM_REGISTRY` | `https://registry.npmjs.org` | Alternative npm registry for pnpm/yarn installs. Tarball URLs in registry metadata must point back at the same host. |
+| `DRIFTR_NPM_REGISTRY` | `https://registry.npmjs.org` | Alternative npm registry for npm/pnpm/yarn installs. Tarball URLs in registry metadata must point back at the same host. |
 | `DRIFTR_BUN_RELEASES` | `https://api.github.com/repos/oven-sh/bun/releases` | Alternative source for the bun release list. Must answer with the same JSON shape: an array of objects carrying `tag_name`, `draft` and `prerelease`. |
 | `DRIFTR_BUN_MIRROR` | `https://github.com/oven-sh/bun/releases/download` | Alternative host for bun release assets. Must serve `bun-v<version>/bun-<os>-<arch>.zip` and `bun-v<version>/SHASUMS256.txt`. |
 | `DRIFTR_UPDATE_API` | `https://api.github.com/repos/stackmade/driftr` | Alternative source for the Driftr release index used by `driftr self-update`. `/releases/latest` is appended, and the answer must carry a `tag_name`. |
@@ -202,7 +206,11 @@ Driftr stores all data under `~/.driftr/`:
   tools/
     node/
       22.14.0/
-        bin/node, npm, npx
+        bin/node, npm, npx    npm bundled with Node.js, used when nothing pins npm
+    npm/
+      10.9.2/
+        bin/npm-cli.js, npx-cli.js
+        node_modules/
     pnpm/
       9.15.0/
         bin/pnpm, pnpx (symlink)
@@ -218,6 +226,7 @@ Driftr stores all data under `~/.driftr/`:
     config.toml               global configuration
   cache/
     node-v22.14.0-*.tar.gz    cached Node.js archives
+    npm-10.9.2.tgz            cached npm tarballs
     pnpm-9.15.0-*             cached pnpm binaries
     yarn-1.22.22.tgz          cached yarn tarballs
     bun-v1.2.3-bun-*.zip      cached bun release zips
