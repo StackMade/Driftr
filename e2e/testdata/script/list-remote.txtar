@@ -7,6 +7,10 @@ exec driftr list --remote node
 stdout 'Available node versions \(latest 1 of 1\):'
 stdout $NODE_VERSION' \(LTS: Fixture\)'
 
+exec driftr list --remote npm
+stdout 'Available npm versions \(latest 1 of 1\):'
+stdout $NPM_VERSION
+
 exec driftr list --remote pnpm
 stdout 'Available pnpm versions \(latest 1 of 1\):'
 stdout $PNPM_VERSION
@@ -22,5 +26,5 @@ exec driftr list --remote node
 stdout '>\*● '$NODE_VERSION
 stdout '= global default'
 
-! exec driftr list --remote npm
+! exec driftr list --remote deno
 stderr 'remote listing not supported'

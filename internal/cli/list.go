@@ -16,6 +16,7 @@ import (
 // npmPackage maps tool names to their npm package names.
 // Tools not in this map are not listable from the npm registry.
 var npmPackage = map[string]string{
+	"npm":  "npm",
 	"pnpm": "pnpm",
 	"yarn": "yarn",
 }

@@ -34,9 +34,9 @@ func TestPaths_LayoutUnderHome(t *testing.T) {
 			filepath.Join(root, "tools", "bun", "1.2.3")},
 		{"NodeBinary", func() (string, error) { return NodeBinary("22.14.0") },
 			filepath.Join(root, "tools", "node", "22.14.0", "bin", "node")},
-		{"NpmBinary", func() (string, error) { return NpmBinary("22.14.0") },
+		{"BundledNpmBinary npm", func() (string, error) { return BundledNpmBinary("npm", "22.14.0") },
 			filepath.Join(root, "tools", "node", "22.14.0", "bin", "npm")},
-		{"NpxBinary", func() (string, error) { return NpxBinary("22.14.0") },
+		{"BundledNpmBinary npx", func() (string, error) { return BundledNpmBinary("npx", "22.14.0") },
 			filepath.Join(root, "tools", "node", "22.14.0", "bin", "npx")},
 	}
 

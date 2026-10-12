@@ -17,7 +17,7 @@ import (
 )
 
 // versionedTools are tools that have independently installed versions.
-var versionedTools = []string{"node", "pnpm", "yarn", "bun"}
+var versionedTools = []string{"node", "npm", "pnpm", "yarn", "bun"}
 
 // conflicting node version managers to detect on PATH.
 var conflictingBinaries = []string{"fnm", "volta", "n"}
@@ -416,7 +416,7 @@ func checkNeedsNode(toolVersions map[string][]string) int {
 	}
 
 	issues := 0
-	for _, tool := range []string{"pnpm", "yarn"} {
+	for _, tool := range []string{"npm", "pnpm", "yarn"} {
 		if len(toolVersions[tool]) > 0 {
 			warn(fmt.Sprintf("%s is installed but no node versions found — %s requires Node.js to run", tool, tool))
 			issues++

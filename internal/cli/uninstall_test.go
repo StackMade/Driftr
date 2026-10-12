@@ -109,20 +109,31 @@ func TestUninstallCmd_BundledToolResolvesToParent(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 	fakeNodeInstall(t, "22.14.0")
+	npmDir, err := platform.ToolVersionDir("npm", "10.9.2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(npmDir, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
-	// npm ships with node; uninstalling it must act on the node install.
+	// npx ships with npm; uninstalling it must act on the npm install, and
+	// leave node alone.
 	captureStdout(t, func() {
-		if err := runCmd(t, "uninstall", "npm@22.14.0"); err != nil {
+		if err := runCmd(t, "uninstall", "npx@10.9.2"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
 
-	dir, err := platform.ToolVersionDir("node", "22.14.0")
+	if _, statErr := os.Stat(npmDir); !os.IsNotExist(statErr) {
+		t.Errorf("npm version dir still exists after `uninstall npx@...`: %s", npmDir)
+	}
+	nodeDir, err := platform.ToolVersionDir("node", "22.14.0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, statErr := os.Stat(dir); !os.IsNotExist(statErr) {
-		t.Errorf("node version dir still exists after `uninstall npm@...`: %s", dir)
+	if _, statErr := os.Stat(nodeDir); statErr != nil {
+		t.Errorf("node version dir removed by `uninstall npx@...`: %v", statErr)
 	}
 }
 

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -27,7 +28,8 @@ func newWhichCmd() *cobra.Command {
 			}
 
 			// Anything that is not a driftr tool is a bin from a global npm install.
-			if _, known := platform.LookupTool(tool); !known {
+			entry, known := platform.LookupTool(tool)
+			if !known {
 				rb, err := resolver.ResolveBinaryFull(tool, "")
 				if err != nil {
 					return err
@@ -44,7 +46,20 @@ func newWhichCmd() *cobra.Command {
 				return nil
 			}
 
-			res, err := resolver.ResolveTool(tool, "", verbose)
+			// npx and pnpx follow the version of npm and pnpm.
+			res, err := resolver.ResolveTool(entry.Parent, "", verbose)
+			var notConfigured *resolver.NotConfiguredError
+			if entry.Parent == "npm" && errors.As(err, &notConfigured) {
+				// Nothing pins npm, so the shim runs the npm bundled with node.
+				rb, err := resolver.ResolveBinaryFull(tool, "")
+				if err != nil {
+					return err
+				}
+				row("Tool:", tool)
+				row("Binary:", ioutil.Green(rb.ToolPath))
+				row("Source:", "bundled with Node.js "+filepath.Base(filepath.Dir(filepath.Dir(rb.ToolPath))))
+				return nil
+			}
 			if err != nil {
 				return err
 			}

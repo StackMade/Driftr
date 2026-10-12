@@ -108,7 +108,7 @@ func TestListRemote_UnsupportedTool(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
-	_, err := listRemoteOutput(t, "npm", false, 0)
+	_, err := listRemoteOutput(t, "deno", false, 0)
 	if err == nil || !strings.Contains(err.Error(), "remote listing not supported") {
 		t.Fatalf("expected an unsupported-tool error, got: %v", err)
 	}

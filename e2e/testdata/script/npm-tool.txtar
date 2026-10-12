@@ -1,0 +1,98 @@
+# npm as a tool of its own: without a pin the npm and npx shims run the npm
+# bundled with node, exactly as before; with one they run driftr's npm under
+# the resolved node.
+
+exec driftr setup
+exec driftr install node@22
+exec driftr default node@$NODE_VERSION
+
+# Nothing pins npm: the bundled npm runs, and which says so.
+exec npm -v
+stdout '^10\.99\.0$'
+exec npx -v
+stdout '^10\.99\.0$'
+exec driftr which npm
+stdout 'bundled with Node.js '$NODE_VERSION
+
+exec driftr install npm@11 -v
+stdout 'Verifying integrity'
+stdout '✓ Installed npm '$NPM_VERSION
+exists $HOME/.driftr/tools/npm/$NPM_VERSION/bin/npm-cli.js
+exec driftr list npm
+stdout $NPM_VERSION
+
+# Installing is not pinning: outside a pinned project npm stays bundled.
+exec npm -v
+stdout '^10\.99\.0$'
+
+# Pinned, npm and npx run their JS entry under the resolved node. The fixture
+# node echoes the script it was handed.
+cd $WORK/project
+exec driftr pin npm@$NPM_VERSION
+exec npm -v
+stdout 'v'$NODE_VERSION' ran: .*tools/npm/'$NPM_VERSION'/bin/npm-cli\.js'
+exec npx -v
+stdout 'v'$NODE_VERSION' ran: .*tools/npm/'$NPM_VERSION'/bin/npx-cli\.js'
+exec driftr which npx
+stdout $NPM_VERSION
+stdout 'project config'
+exec driftr list npm
+stdout '> +'$NPM_VERSION
+
+# The node underneath follows DRIFTR_NODE and --node, as for pnpm and yarn.
+mkdir $HOME/.driftr/tools/node/20.0.0/bin
+cp $WORK/node20 $HOME/.driftr/tools/node/20.0.0/bin/node
+chmod 0755 $HOME/.driftr/tools/node/20.0.0/bin/node
+env DRIFTR_NODE=20.0.0
+exec npm -v
+stdout 'v20\.0\.0 ran: .*npm-cli\.js'
+env DRIFTR_NODE=
+exec driftr run --node 20.0.0 -- npm -v
+stdout 'v20\.0\.0 ran: .*npm-cli\.js'
+
+# npm -g under a pinned npm still runs as a child and refreshes the shims, so
+# a bin that lands in node's bin dir gets one.
+cp $WORK/hello $HOME/.driftr/tools/node/$NODE_VERSION/bin/hello
+chmod 0755 $HOME/.driftr/tools/node/$NODE_VERSION/bin/hello
+! exists $HOME/.driftr/bin/hello
+exec npm install -g hello
+stdout 'npm-cli\.js'
+exists $HOME/.driftr/bin/hello
+
+# packageManager pins npm too, below the driftr key.
+cd $WORK/pm
+exec driftr which npm
+stdout $NPM_VERSION
+stdout 'packageManager'
+
+# A pin nobody installed is installed by the shim when auto_install is on.
+cd $WORK
+exec driftr uninstall npm@$NPM_VERSION
+exec driftr list npm
+stdout 'No npm versions installed'
+cd $WORK/project
+! exec npm -v
+stderr 'npm '$NPM_VERSION' .*is not installed'
+cp $WORK/autoinstall.toml $HOME/.driftr/config/config.toml
+exec npm -v
+stderr 'Installing npm@'$NPM_VERSION
+stdout 'npm-cli\.js'
+
+# Removing the pin brings back the bundled npm.
+rm .driftr.toml
+exec npm -v
+stdout '^10\.99\.0$'
+
+-- project/.keep --
+-- pm/package.json --
+{"name": "pm", "packageManager": "npm@11.99.0"}
+-- autoinstall.toml --
+auto_install = true
+[default]
+node = "22.99.0"
+-- node20 --
+#!/bin/sh
+echo "v20.0.0 ran: $1"
+-- hello --
+#!/bin/sh
+echo hello

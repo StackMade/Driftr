@@ -1115,3 +1115,144 @@ func TestResolveTool_ExplicitPartialVersion(t *testing.T) {
 		t.Errorf("an unknown LTS codename should say so, got %v", err)
 	}
 }
+
+// npmProject installs node 22.14.0 (with its bundled npm and npx) as the
+// global default, node 20.0.0, and npm 10.9.2 from the registry, then moves
+// into an empty working directory and returns it.
+func npmProject(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	setupFakeInstall(t, home, "node", "22.14.0")
+	setupFakeInstall(t, home, "node", "20.0.0")
+	setupFakeInstall(t, home, "npm", "10.9.2")
+	for _, tool := range []string{"npm", "npx"} {
+		bundled, err := platform.BundledNpmBinary(tool, "22.14.0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(bundled, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cfg, _ := config.LoadGlobal()
+	cfg.Default.SetTool("node", "22.14.0")
+	if err := config.SaveGlobal(cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+	return dir
+}
+
+func TestResolveBinaryFull_UnpinnedNpmUsesBundled(t *testing.T) {
+	npmProject(t)
+
+	for _, tool := range []string{"npm", "npx"} {
+		rb, err := ResolveBinaryFull(tool, "")
+		if err != nil {
+			t.Fatalf("ResolveBinaryFull(%s) error: %v", tool, err)
+		}
+		want, _ := platform.BundledNpmBinary(tool, "22.14.0")
+		if rb.ToolPath != want {
+			t.Errorf("%s ToolPath = %q, want the bundled %q", tool, rb.ToolPath, want)
+		}
+		if rb.NodePath != "" {
+			t.Errorf("%s NodePath = %q, want empty: the bundled npm runs as itself", tool, rb.NodePath)
+		}
+	}
+}
+
+func TestResolveBinaryFull_PinnedNpmRunsUnderNode(t *testing.T) {
+	dir := npmProject(t)
+	cfg := &config.ProjectConfig{}
+	cfg.Tools.SetTool("npm", "10.9.2")
+	if err := config.SaveProject(dir, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	for tool, script := range map[string]string{"npm": "npm-cli.js", "npx": "npx-cli.js"} {
+		rb, err := ResolveBinaryFull(tool, "")
+		if err != nil {
+			t.Fatalf("ResolveBinaryFull(%s) error: %v", tool, err)
+		}
+		if want := filepath.Join("npm", "10.9.2", "bin", script); !strings.HasSuffix(rb.ToolPath, want) {
+			t.Errorf("%s ToolPath = %q, want suffix %q", tool, rb.ToolPath, want)
+		}
+		if want := filepath.Join("node", "22.14.0", "bin", "node"); !strings.HasSuffix(rb.NodePath, want) {
+			t.Errorf("%s NodePath = %q, want suffix %q", tool, rb.NodePath, want)
+		}
+	}
+
+	// --node picks the runtime only; npm keeps its own pinned version.
+	rb, err := ResolveBinaryFull("npm", "20.0.0")
+	if err != nil {
+		t.Fatalf("ResolveBinaryFull(npm, 20.0.0) error: %v", err)
+	}
+	if !strings.Contains(rb.ToolPath, filepath.Join("npm", "10.9.2")) {
+		t.Errorf("ToolPath = %q, want npm 10.9.2", rb.ToolPath)
+	}
+	if !strings.Contains(rb.NodePath, filepath.Join("node", "20.0.0")) {
+		t.Errorf("NodePath = %q, want node 20.0.0", rb.NodePath)
+	}
+}
+
+// A pin that is not installed must surface as NotInstalledError, so the shim
+// can offer to install it, never fall back to the bundled npm.
+func TestResolveBinaryFull_PinnedNpmNotInstalled(t *testing.T) {
+	dir := npmProject(t)
+	cfg := &config.ProjectConfig{}
+	cfg.Tools.SetTool("npm", "11.0.0")
+	if err := config.SaveProject(dir, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := ResolveBinaryFull("npx", "")
+	var notInstalled *NotInstalledError
+	if !errors.As(err, &notInstalled) {
+		t.Fatalf("err = %v, want NotInstalledError", err)
+	}
+	if notInstalled.Tool != "npm" || notInstalled.Version != "11.0.0" {
+		t.Errorf("NotInstalledError = %s@%s, want npm@11.0.0", notInstalled.Tool, notInstalled.Version)
+	}
+}
+
+func TestResolveTool_PackageManagerFieldPinsNpm(t *testing.T) {
+	dir := npmProject(t)
+	if err := os.WriteFile(filepath.Join(dir, "package.json"),
+		[]byte(`{"name":"app","packageManager":"npm@10.9.2+sha512.abc"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := ResolveTool("npm", "", false)
+	if err != nil {
+		t.Fatalf("ResolveTool(npm) error: %v", err)
+	}
+	if res.Version != "10.9.2" || res.Source != SourcePackageManager {
+		t.Errorf("got %s from %v, want 10.9.2 from packageManager", res.Version, res.Source)
+	}
+}
+
+func TestResolveBinaryFull_PnpxFollowsPnpm(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	setupFakeInstall(t, home, "node", "22.14.0")
+	setupFakeInstall(t, home, "pnpm", "9.15.0")
+	cfg, _ := config.LoadGlobal()
+	cfg.Default.SetTool("node", "22.14.0")
+	cfg.Default.SetTool("pnpm", "9.15.0")
+	if err := config.SaveGlobal(cfg); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(t.TempDir())
+
+	rb, err := ResolveBinaryFull("pnpx", "")
+	if err != nil {
+		t.Fatalf("ResolveBinaryFull(pnpx) error: %v", err)
+	}
+	if want := filepath.Join("pnpm", "9.15.0", "bin", "pnpx.cjs"); !strings.HasSuffix(rb.ToolPath, want) {
+		t.Errorf("ToolPath = %q, want suffix %q", rb.ToolPath, want)
+	}
+}

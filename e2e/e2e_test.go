@@ -171,6 +171,7 @@ func TestDriftr(t *testing.T) {
 			// Fixture versions, so a script asserts on $NODE_VERSION instead
 			// of a literal that has to be updated in a dozen places.
 			env.Setenv("NODE_VERSION", fixture.NodeVersion)
+			env.Setenv("NPM_VERSION", fixture.NpmVersion)
 			env.Setenv("PNPM_VERSION", fixture.PnpmVersion)
 			env.Setenv("YARN_VERSION", fixture.YarnVersion)
 			env.Setenv("BUN_VERSION", fixture.BunVersion)

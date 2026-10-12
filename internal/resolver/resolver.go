@@ -134,6 +134,16 @@ func (e *NotInstalledError) Error() string {
 	return fmt.Sprintf("%s %s is not installed. Run `driftr install %s@%s`", e.Tool, e.Version, e.Tool, e.Version)
 }
 
+// NotConfiguredError is returned when nothing — no flag, environment
+// variable, project config or global default — selects a version of a tool.
+type NotConfiguredError struct {
+	Tool string
+}
+
+func (e *NotConfiguredError) Error() string {
+	return fmt.Sprintf("no %s version configured. Run `driftr install %s@<version>` and `driftr default %s@<version>`", e.Tool, e.Tool, e.Tool)
+}
+
 // requireToolBinaryExists checks that the binary for the given tool and version is installed.
 func requireToolBinaryExists(tool, ver, context string) (string, error) {
 	binPath, err := platform.ToolBinary(tool, ver)
@@ -356,9 +366,8 @@ func resolveFromProject(tool, dir string, verbose bool) (*Resolution, error) {
 				return resolveProjectVersion(tool, ver, current, SourcePackageJSON)
 			}
 			// Standard "packageManager" field (corepack/npm convention), e.g.
-			// "pnpm@9.15.0". Only meaningful for tools with their own
-			// independently pinned version — node's own version isn't
-			// expressed this way, and npm/npx always follow node.
+			// "pnpm@9.15.0". Only meaningful for package managers — node's
+			// own version isn't expressed this way.
 			if usesPackageManagerField(tool) {
 				if pmTool, pmVer := pkg.PackageManagerTool(); pmTool == tool && pmVer != "" {
 					return resolveProjectVersion(tool, pmVer, current, SourcePackageManager)
@@ -510,7 +519,7 @@ func resolveFromGlobal(tool string) (*Resolution, error) {
 
 	ver := cfg.Default.GetTool(tool)
 	if ver == "" {
-		return nil, fmt.Errorf("no %s version configured. Run `driftr install %s@<version>` and `driftr default %s@<version>`", tool, tool, tool)
+		return nil, &NotConfiguredError{Tool: tool}
 	}
 
 	binPath, err := requireToolBinaryExists(tool, ver, "global default")
@@ -527,20 +536,13 @@ func resolveFromGlobal(tool string) (*Resolution, error) {
 
 // usesPackageManagerField reports whether a tool can be pinned through the
 // standard package.json "packageManager" field. node's own version is not
-// expressed that way, and npm/npx always follow node.
+// expressed that way.
 func usesPackageManagerField(tool string) bool {
 	switch tool {
-	case "pnpm", "yarn", "bun":
+	case "npm", "pnpm", "yarn", "bun":
 		return true
 	}
 	return false
-}
-
-// toolParent maps tools to the parent tool whose version controls resolution.
-// Tools not listed here resolve independently.
-var toolParent = map[string]string{
-	"npm": "node",
-	"npx": "node",
 }
 
 // ResolvedBinary holds the result of resolving a tool binary.
@@ -553,8 +555,8 @@ type ResolvedBinary struct {
 }
 
 // ResolveBinary resolves the full path to a tool binary.
-// For bundled tools (npm, npx), resolves via the parent tool (node).
-// For standalone tools (node, pnpm, yarn), resolves via their own version.
+// Tools that ship inside another (npx, pnpx) resolve via the parent's version.
+// npm and npx fall back to the copy bundled with node when nothing pins npm.
 func ResolveBinary(tool string, explicit string) (string, error) {
 	rb, err := ResolveBinaryFull(tool, explicit)
 	if err != nil {
@@ -566,20 +568,18 @@ func ResolveBinary(tool string, explicit string) (string, error) {
 // ResolveBinaryFull resolves a tool binary with dual resolution.
 // For tools that need Node.js (e.g. yarn), it also resolves the Node binary path.
 func ResolveBinaryFull(tool string, explicit string) (*ResolvedBinary, error) {
-	if _, known := platform.LookupTool(tool); !known {
+	entry, known := platform.LookupTool(tool)
+	if !known {
 		return resolvePackageBin(tool, explicit)
 	}
 
-	resolveTool := tool
-	if parent, ok := toolParent[tool]; ok {
-		resolveTool = parent
-	}
+	// npx and pnpx have no version of their own: they follow npm and pnpm.
+	resolveTool := entry.Parent
 
-	// Standalone tools that need Node.js (yarn, pnpm) resolve their own
-	// version independently of `explicit` — explicit always pins Node.js,
-	// per the --node flag it comes from.
-	entry, hasEntry := platform.LookupTool(tool)
-	standaloneNeedsNode := hasEntry && entry.NeedsNode && resolveTool != "node"
+	// Tools that need Node.js (npm, yarn, pnpm) resolve their own version
+	// independently of `explicit` — explicit always pins Node.js, per the
+	// --node flag it comes from.
+	standaloneNeedsNode := entry.NeedsNode && resolveTool != "node"
 
 	toolExplicit := explicit
 	if standaloneNeedsNode {
@@ -588,6 +588,10 @@ func ResolveBinaryFull(tool string, explicit string) (*ResolvedBinary, error) {
 
 	res, err := ResolveTool(resolveTool, toolExplicit, false)
 	if err != nil {
+		var notConfigured *NotConfiguredError
+		if resolveTool == "npm" && errors.As(err, &notConfigured) {
+			return resolveBundledNpm(tool, explicit)
+		}
 		return nil, err
 	}
 
@@ -607,10 +611,29 @@ func ResolveBinaryFull(tool string, explicit string) (*ResolvedBinary, error) {
 		if err != nil {
 			return nil, err
 		}
+		// A pinned npm runs as `node npm-cli.js`. npm derives its global
+		// prefix from process.execPath, exactly as node's bundled npm does,
+		// so `npm install -g` still lands in this node's dir, where package
+		// bin shims look.
 		rb.NodePath = nodePath
 	}
 
 	return rb, nil
+}
+
+// resolveBundledNpm resolves the npm or npx that ships with the resolved
+// Node.js version: what the shims run when nothing pins npm. That npm is a
+// "#!/usr/bin/env node" script, so it needs no NodePath.
+func resolveBundledNpm(tool, explicit string) (*ResolvedBinary, error) {
+	res, err := ResolveTool("node", explicit, false)
+	if err != nil {
+		return nil, err
+	}
+	toolPath, err := platform.BundledNpmBinary(tool, res.Version)
+	if err != nil {
+		return nil, err
+	}
+	return &ResolvedBinary{ToolPath: toolPath}, nil
 }
 
 // resolvePackageBin resolves an executable from a global npm install, such as

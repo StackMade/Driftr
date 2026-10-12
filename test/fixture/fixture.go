@@ -45,6 +45,10 @@ import (
 // from the network.
 const (
 	NodeVersion = "22.99.0"
+	// NpmVersion is the npm driftr installs from the registry. It differs
+	// from the npm bundled in the fixture node (10.99.0), so a test can tell
+	// which one ran.
+	NpmVersion  = "11.99.0"
 	PnpmVersion = "9.99.0"
 	YarnVersion = "1.99.0"
 	BunVersion  = "1.2.99"
@@ -253,12 +257,14 @@ func registerNode(mux *http.ServeMux) error {
 
 func registerNpm(mux *http.ServeMux) error {
 	// The script names match what driftr expects to exec for each tool
-	// (platform.toolBinaryMap). pnpm ships pnpx.cjs alongside pnpm.cjs, and
-	// the pnpx shim resolves to it inside the same version directory.
+	// (platform.toolBinaryMap). npm and pnpm ship a second entry point
+	// (npx-cli.js, pnpx.cjs), which the npx and pnpx shims resolve to inside
+	// the same version directory.
 	specs := []struct {
 		pkg, ver string
 		scripts  []string
 	}{
+		{"npm", NpmVersion, []string{"npm-cli.js", "npx-cli.js"}},
 		{"pnpm", PnpmVersion, []string{"pnpm.cjs", "pnpx.cjs"}},
 		{"yarn", YarnVersion, []string{"yarn.js"}},
 	}

@@ -17,7 +17,7 @@ func newInstallCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "install [tool[@version]]",
 		Short: "Install a tool version, or everything the project pins",
-		Long:  "Download and install a tool version.\n\nWithout an argument, installs every tool the current project pins,\nreading .driftr.toml, the package.json driftr key, packageManager,\n.nvmrc and .node-version.\n\nA bare tool name installs the newest release.\n\nExamples:\n  driftr install             # everything this project pins\n  driftr install pnpm        # latest pnpm\n  driftr install node        # latest node\n  driftr install node@24\n  driftr install pnpm@9\n  driftr install yarn@1\n  driftr install bun@1\n  driftr install node@latest\n  driftr install node@lts    # newest LTS release (node only)",
+		Long:  "Download and install a tool version.\n\nWithout an argument, installs every tool the current project pins,\nreading .driftr.toml, the package.json driftr key, packageManager,\n.nvmrc and .node-version.\n\nA bare tool name installs the newest release.\n\nExamples:\n  driftr install             # everything this project pins\n  driftr install pnpm        # latest pnpm\n  driftr install node        # latest node\n  driftr install node@24\n  driftr install npm@10\n  driftr install pnpm@9\n  driftr install yarn@1\n  driftr install bun@1\n  driftr install node@latest\n  driftr install node@lts    # newest LTS release (node only)",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
@@ -94,6 +94,8 @@ func installTool(tool, versionSpec string, verbose bool) (string, error) {
 	switch tool {
 	case "node":
 		return installer.Install(spec, verbose)
+	case "npm":
+		return installer.InstallNpm(versionSpec, verbose)
 	case "pnpm":
 		return installer.InstallPnpm(versionSpec, verbose)
 	case "yarn":
@@ -101,6 +103,6 @@ func installTool(tool, versionSpec string, verbose bool) (string, error) {
 	case "bun":
 		return installer.InstallBun(versionSpec, verbose)
 	default:
-		return "", fmt.Errorf("unknown tool: %s. Supported tools: node, pnpm, yarn, bun", tool)
+		return "", fmt.Errorf("unknown tool: %s. Supported tools: node, npm, pnpm, yarn, bun", tool)
 	}
 }

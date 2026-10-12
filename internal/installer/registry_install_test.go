@@ -261,3 +261,35 @@ func TestResolveRegistryLatest_UsesDistTag(t *testing.T) {
 		t.Errorf("ResolveRegistryLatest(latest) = %q, want %q", got, "9.15.0")
 	}
 }
+
+func TestInstallNpm_Success(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	newRegistryFixture(t, "npm", "10.9.2", "npm-cli.js").serve(t)
+
+	got, err := InstallNpm("10", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "10.9.2" {
+		t.Errorf("InstallNpm(10) = %q, want %q", got, "10.9.2")
+	}
+	bin, err := platform.ToolBinary("npm", "10.9.2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join("tools", "npm", "10.9.2", "bin", "npm-cli.js"); !strings.HasSuffix(bin, want) {
+		t.Errorf("npm binary = %q, want suffix %q", bin, want)
+	}
+	if _, err := os.Stat(bin); err != nil {
+		t.Errorf("npm-cli.js not installed: %v", err)
+	}
+}
+
+func TestInstallNpm_RejectsLTS(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	_, err := InstallNpm("lts", false)
+	if err == nil || !strings.Contains(err.Error(), "npm@10") {
+		t.Fatalf("InstallNpm(lts) error = %v, want one naming npm@10", err)
+	}
+}

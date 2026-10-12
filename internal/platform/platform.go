@@ -55,14 +55,14 @@ func NodeBinary(version string) (string, error) {
 	return ToolBinary("node", version)
 }
 
-// NpmBinary returns the path to the npm binary for a given version.
-func NpmBinary(version string) (string, error) {
-	return ToolBinary("npm", version)
-}
-
-// NpxBinary returns the path to the npx binary for a given version.
-func NpxBinary(version string) (string, error) {
-	return ToolBinary("npx", version)
+// BundledNpmBinary returns the npm or npx that ships inside a Node.js
+// version, which is what the npm and npx shims run when nothing pins npm.
+func BundledNpmBinary(tool, nodeVersion string) (string, error) {
+	dir, err := NodeVersionDir(nodeVersion)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "bin", tool), nil
 }
 
 // CacheDir returns the cache directory (~/.driftr/cache).
@@ -169,8 +169,10 @@ type ToolEntry struct {
 // toolBinaryMap maps tool names to their parent tool and binary info.
 var toolBinaryMap = map[string]ToolEntry{
 	"node": {Parent: "node", Binary: "node"},
-	"npm":  {Parent: "node", Binary: "npm"},
-	"npx":  {Parent: "node", Binary: "npx"},
+	// npm installed by driftr from the registry. When nothing pins npm, the
+	// npm and npx shims run the copy bundled with node instead.
+	"npm":  {Parent: "npm", Binary: "npm-cli.js", NeedsNode: true},
+	"npx":  {Parent: "npm", Binary: "npx-cli.js", NeedsNode: true},
 	"pnpm": {Parent: "pnpm", Binary: "pnpm.cjs", NeedsNode: true},
 	"pnpx": {Parent: "pnpm", Binary: "pnpx.cjs", NeedsNode: true},
 	"yarn": {Parent: "yarn", Binary: "yarn.js", NeedsNode: true},
@@ -185,7 +187,7 @@ func LookupTool(tool string) (ToolEntry, bool) {
 }
 
 // ToolBinary returns the binary path for a given tool and version.
-// For bundled tools (npm, npx), the version refers to the parent tool (node).
+// For tools that ship inside another (npx, pnpx), the version is the parent's.
 func ToolBinary(tool, version string) (string, error) {
 	entry, ok := toolBinaryMap[tool]
 	if !ok {

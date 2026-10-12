@@ -29,7 +29,7 @@ func main() {
 		log.Fatalf("build fixture: %v", err)
 	}
 
-	log.Printf("fixture server listening on %s (node v%s, pnpm %s, yarn %s, bun %s)",
-		*addr, fixture.NodeVersion, fixture.PnpmVersion, fixture.YarnVersion, fixture.BunVersion)
+	log.Printf("fixture server listening on %s (node v%s, npm %s, pnpm %s, yarn %s, bun %s)",
+		*addr, fixture.NodeVersion, fixture.NpmVersion, fixture.PnpmVersion, fixture.YarnVersion, fixture.BunVersion)
 	log.Fatal(http.ListenAndServe(*addr, handler))
 }

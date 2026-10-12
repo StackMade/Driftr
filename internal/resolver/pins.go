@@ -19,7 +19,7 @@ type Pin struct {
 
 // installableTools are the tools `driftr install` with no argument acts on,
 // in the order they are reported.
-var installableTools = []string{"node", "pnpm", "yarn", "bun"}
+var installableTools = []string{"node", "npm", "pnpm", "yarn", "bun"}
 
 // ProjectPins collects the tool versions pinned by the project containing dir.
 // It walks up the directory tree exactly like resolveFromProject, but does not

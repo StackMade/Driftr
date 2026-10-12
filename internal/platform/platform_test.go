@@ -16,8 +16,8 @@ func TestToolBinary_KnownTools(t *testing.T) {
 		wantSuffix string
 	}{
 		{"node", "22.14.0", "tools/node/22.14.0/bin/node"},
-		{"npm", "22.14.0", "tools/node/22.14.0/bin/npm"},
-		{"npx", "22.14.0", "tools/node/22.14.0/bin/npx"},
+		{"npm", "10.9.2", "tools/npm/10.9.2/bin/npm-cli.js"},
+		{"npx", "10.9.2", "tools/npm/10.9.2/bin/npx-cli.js"},
 		{"pnpm", "9.15.0", "tools/pnpm/9.15.0/bin/pnpm.cjs"},
 		{"pnpx", "9.15.0", "tools/pnpm/9.15.0/bin/pnpx.cjs"},
 		{"yarn", "1.22.22", "tools/yarn/1.22.22/bin/yarn.js"},
@@ -52,7 +52,8 @@ func TestLookupTool(t *testing.T) {
 		wantParent string
 	}{
 		{"node", true, false, "node"},
-		{"npm", true, false, "node"},
+		{"npm", true, true, "npm"},
+		{"npx", true, true, "npm"},
 		{"pnpm", true, true, "pnpm"},
 		{"yarn", true, true, "yarn"},
 		{"bun", true, false, "bun"},

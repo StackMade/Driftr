@@ -57,6 +57,8 @@ func TestPackageManagerTool(t *testing.T) {
 		wantVer  string
 	}{
 		{"pnpm@9.15.0", "pnpm", "9.15.0"},
+		{"npm@10.9.2", "npm", "10.9.2"},
+		{"npm@10.9.2+sha512.abcdef", "npm", "10.9.2"},
 		{"yarn@1.22.22", "yarn", "1.22.22"},
 		{"yarn@1.22.22+sha512.abcdef", "yarn", "1.22.22"},
 		{"", "", ""},
