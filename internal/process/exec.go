@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"syscall"
 )
 
@@ -26,15 +27,41 @@ func Exec(binary string, args []string) error {
 }
 
 // Run executes a binary as a child process and returns the exit code.
+// driftr outlives the child, so it does not die on a signal meant for it:
+// Ctrl-C and Ctrl-\ reach the child from the terminal anyway, and SIGTERM or
+// SIGHUP sent to driftr is passed on. A child killed by a signal reports
+// 128+signal, as a shell would.
 func Run(binary string, args []string) (int, error) {
 	cmd := exec.Command(binary, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	if err := cmd.Run(); err != nil {
+	if err := cmd.Start(); err != nil {
+		return 1, fmt.Errorf("failed to execute %s: %w", binary, err)
+	}
+
+	// Notify, not Ignore: an ignored signal stays ignored in the child.
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGHUP)
+	defer func() {
+		signal.Stop(sigs)
+		close(sigs) // ends the forwarding goroutine; Stop guarantees no more sends
+	}()
+	go func() {
+		for sig := range sigs {
+			if sig == syscall.SIGTERM || sig == syscall.SIGHUP {
+				_ = cmd.Process.Signal(sig)
+			}
+		}
+	}()
+
+	if err := cmd.Wait(); err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
+			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok && status.Signaled() {
+				return 128 + int(status.Signal()), nil
+			}
 			return exitErr.ExitCode(), nil
 		}
 		return 1, fmt.Errorf("failed to execute %s: %w", binary, err)

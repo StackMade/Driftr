@@ -32,6 +32,7 @@ func TestRun(t *testing.T) {
 	}{
 		{name: "exit zero", binary: "/bin/sh", args: []string{"-c", "exit 0"}, wantCode: 0},
 		{name: "exit code is passed through", binary: "/bin/sh", args: []string{"-c", "exit 3"}, wantCode: 3},
+		{name: "killed by a signal reports 128+signal", binary: "/bin/sh", args: []string{"-c", "kill -TERM $$"}, wantCode: 143},
 		{name: "missing binary is an error", binary: filepath.Join(t.TempDir(), "nope"), wantCode: 1, wantErr: true},
 	}
 
