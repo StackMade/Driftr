@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"strings"
 
@@ -19,8 +20,15 @@ import (
 
 // pruneScopeNote states what prune can and cannot see. It is printed on every
 // run that is about to delete something, because the limit is the whole risk:
-// a version another checkout pins looks unreferenced from here.
-const pruneScopeNote = "Prune only knows about the global default and the pins of the current directory.\nA version that another project pins is not protected here."
+// a version pinned by a checkout driftr has never recorded looks unreferenced.
+const pruneScopeNote = "Prune protects the global default, the current directory and every project recorded by driftr pin or driftr install.\nA project pinned before driftr recorded projects, or only by editing files, is not protected until you run driftr install there once."
+
+// pruneScope is everything prune reads pins from.
+type pruneScope struct {
+	pins     []resolver.Pin
+	projects []string // recorded projects whose pins were read
+	gone     []string // recorded projects whose directory no longer exists
+}
 
 // pruneCandidate is one installed version selected for removal.
 type pruneCandidate struct {
@@ -37,8 +45,9 @@ func newPruneCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "prune",
 		Short: "Remove installed versions nothing references",
-		Long: "Remove installed tool versions that neither the global default nor the current project uses.\n\n" +
-			pruneScopeNote + "\nStart with --dry-run if you keep pinned projects elsewhere on this machine.\n\n" +
+		Long: "Remove installed tool versions that neither the global default nor any known project uses.\n\n" +
+			pruneScopeNote + "\nRecorded projects live in ~/.driftr/config/projects; those whose directory is gone are forgotten.\n" +
+			"Start with --dry-run to see which projects were checked.\n\n" +
 			"Examples:\n  driftr prune --dry-run\n  driftr prune\n  driftr prune --tool node -y",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -51,7 +60,13 @@ func newPruneCmd() *cobra.Command {
 				tools = []string{entry.Parent}
 			}
 
-			candidates, err := prunable(tools)
+			scope, err := loadPruneScope()
+			if err != nil {
+				return err
+			}
+			reportPruneScope(scope, dryRun)
+
+			candidates, err := prunable(tools, scope.pins)
 			if err != nil {
 				return err
 			}
@@ -95,23 +110,80 @@ func newPruneCmd() *cobra.Command {
 	return cmd
 }
 
-// prunable lists the installed versions of tools that nothing references.
-// Every failure to classify aborts the whole run: a version that cannot be
-// proven unreferenced must survive, and the safest way to guarantee that is to
-// delete nothing at all.
-func prunable(tools []string) ([]pruneCandidate, error) {
-	cfg, err := config.LoadGlobal()
-	if err != nil {
-		return nil, fmt.Errorf("cannot read the global config, refusing to prune: %w", err)
-	}
+// loadPruneScope collects the pins of the current directory and of every
+// recorded project. A recorded project that cannot be read aborts the run like
+// any other failure: its pins are unknown, so nothing can be proven unused.
+func loadPruneScope() (pruneScope, error) {
+	var scope pruneScope
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, fmt.Errorf("cannot determine working directory: %w", err)
+		return scope, fmt.Errorf("cannot determine working directory: %w", err)
 	}
-	pins, err := resolver.ProjectPins(cwd)
+	scope.pins, err = resolver.ProjectPins(cwd)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read the project pins, refusing to prune: %w", err)
+		return scope, fmt.Errorf("cannot read the project pins, refusing to prune: %w", err)
+	}
+
+	registry, err := platform.ProjectsRegistryPath()
+	if err != nil {
+		return scope, err
+	}
+	dirs, err := config.LoadProjects()
+	if err != nil {
+		return scope, fmt.Errorf("cannot read %s, refusing to prune: %w", registry, err)
+	}
+	for _, dir := range dirs {
+		info, err := os.Stat(dir)
+		if errors.Is(err, fs.ErrNotExist) || (err == nil && !info.IsDir()) {
+			scope.gone = append(scope.gone, dir)
+			continue
+		}
+		if err != nil {
+			return scope, fmt.Errorf("cannot check recorded project %s, refusing to prune: %w. Fix access to it, or delete its line from %s", dir, err, registry)
+		}
+		pins, err := resolver.ProjectPins(dir)
+		if err != nil {
+			return scope, fmt.Errorf("cannot read the pins of recorded project %s, refusing to prune: %w. Fix the file, or delete its line from %s if the project is no longer used", dir, err, registry)
+		}
+		scope.pins = append(scope.pins, pins...)
+		scope.projects = append(scope.projects, dir)
+	}
+	return scope, nil
+}
+
+// reportPruneScope says which recorded projects were checked and forgets the
+// ones whose directory is gone. A dry run lists the projects and forgets
+// nothing.
+func reportPruneScope(scope pruneScope, dryRun bool) {
+	fmt.Println(ioutil.Dim(fmt.Sprintf("Checked %d recorded project(s).", len(scope.projects))))
+	if dryRun {
+		for _, dir := range scope.projects {
+			fmt.Println(ioutil.Bullet(dir))
+		}
+		for _, dir := range scope.gone {
+			fmt.Println(ioutil.Bullet(dir + " (gone, would be forgotten)"))
+		}
+		return
+	}
+	if len(scope.gone) == 0 {
+		return
+	}
+	if err := config.RemoveProjects(scope.gone); err != nil {
+		fmt.Fprintln(os.Stderr, ioutil.Warn(fmt.Sprintf("Could not forget projects that no longer exist: %v", err)))
+		return
+	}
+	fmt.Println(ioutil.Dim(fmt.Sprintf("Forgot %d recorded project(s) whose directory no longer exists.", len(scope.gone))))
+}
+
+// prunable lists the installed versions of tools that neither the global
+// default nor any of pins references. Every failure to classify aborts the
+// whole run: a version that cannot be proven unreferenced must survive, and
+// the safest way to guarantee that is to delete nothing at all.
+func prunable(tools []string, pins []resolver.Pin) ([]pruneCandidate, error) {
+	cfg, err := config.LoadGlobal()
+	if err != nil {
+		return nil, fmt.Errorf("cannot read the global config, refusing to prune: %w", err)
 	}
 
 	var candidates []pruneCandidate
@@ -216,4 +288,33 @@ func confirm(in io.Reader, prompt string) (bool, error) {
 	}
 	answer := strings.ToLower(strings.TrimSpace(line))
 	return answer == "y" || answer == "yes", nil
+}
+
+// rememberProject records the project dir belongs to, if any, so prune run
+// from anywhere protects its pins. It is called by pin and install, never on
+// the shim path, and never fails the command it is called from.
+func rememberProject(dir string) {
+	pins, err := resolver.ProjectPins(dir)
+	if err != nil {
+		return // best effort: a broken pin file is for the resolver to report
+	}
+	recordProject(pins)
+}
+
+// recordProject records the directory holding the nearest pin. Every other pin
+// sits in one of its parents, so resolving from it finds the same pins as
+// resolving from anywhere below it.
+func recordProject(pins []resolver.Pin) {
+	if len(pins) == 0 {
+		return
+	}
+	root := pins[0].Dir
+	for _, p := range pins[1:] {
+		if len(p.Dir) > len(root) {
+			root = p.Dir
+		}
+	}
+	if err := config.AddProject(root); err != nil {
+		fmt.Fprintln(os.Stderr, ioutil.Warn(fmt.Sprintf("Could not record %s for driftr prune: %v", root, err)))
+	}
 }

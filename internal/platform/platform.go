@@ -102,6 +102,16 @@ func GlobalConfigPath() (string, error) {
 	return filepath.Join(home, "config", "config.toml"), nil
 }
 
+// ProjectsRegistryPath returns the path to the list of known project
+// directories (~/.driftr/config/projects), one absolute path per line.
+func ProjectsRegistryPath() (string, error) {
+	home, err := DriftrHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, "config", "projects"), nil
+}
+
 // EnsureDirs creates all required Driftr directories.
 func EnsureDirs() error {
 	return EnsureToolDirs("node")

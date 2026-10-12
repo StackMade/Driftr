@@ -108,13 +108,17 @@ driftr prune               # show the plan, then ask before deleting
 driftr prune --tool node -y
 ```
 
-A version counts as referenced when it is the global default for its tool, or when the project in the current directory pins it. Pins are resolved the same way the shims resolve them, so a partial pin such as `24`, an `lts/jod` alias, or an `engines.node` range protects the installed version it would actually select. Everything else is listed with its size and removed after you confirm.
+A version counts as referenced when it is the global default for its tool, when the project in the current directory pins it, or when a recorded project pins it. Pins are resolved the same way the shims resolve them, so a partial pin such as `24`, an `lts/jod` alias, or an `engines.node` range protects the installed version it would actually select. Everything else is listed with its size and removed after you confirm.
 
-**Scope:** prune sees the global default and the pins that apply to the current directory. It does not scan the machine for other checkouts, so a version that only some other project pins looks unreferenced from here and will be offered for removal. Run it from the project you care about, or start with `--dry-run`.
+**Scope:** `driftr pin` and `driftr install` record the project they run in, in `~/.driftr/config/projects`, one directory per line. The directory recorded is the one holding the nearest pin, which is where the shims would read it from. Prune re-reads the pins of every recorded project that still exists, along with the current directory and the global default, and prints how many projects it checked. Shims never write to this file, so running `node` stays free of writes.
+
+Prune does not scan the disk. A project pinned before driftr recorded projects, or pinned only by editing `.nvmrc` or `package.json` by hand, is unknown until you run `driftr install` (or `driftr pin`) there once. Until then a version only it pins is offered for removal. Start with `--dry-run`, which lists the projects it checked.
+
+A recorded project whose directory is gone is forgotten on the next prune (not on a dry run). A recorded project whose pins cannot be read stops prune before anything is removed: its pins are unknown, so no version can be shown to be unused. Fix the file, or delete its line from `~/.driftr/config/projects` if the project is no longer used.
 
 **Flags:**
 
-- `--dry-run` prints the plan and exits without touching anything
+- `--dry-run` prints the plan and the recorded projects, and exits without touching anything
 - `-y`, `--yes` skips the confirmation prompt
 - `--tool <name>` restricts the run to one tool
 

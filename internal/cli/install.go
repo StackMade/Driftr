@@ -45,6 +45,9 @@ func newInstallCmd() *cobra.Command {
 			}
 
 			fmt.Println(ioutil.Success(fmt.Sprintf("Installed %s %s", tool, ioutil.Bold(resolved))))
+			if cwd, err := os.Getwd(); err == nil {
+				rememberProject(cwd)
+			}
 			return nil
 		},
 	}
@@ -66,6 +69,7 @@ func installProjectPins() error {
 	if len(pins) == 0 {
 		return fmt.Errorf("no tool versions pinned in %s or its parents. Pin one with `driftr pin node@<version>`, or name a tool: `driftr install node@24`", cwd)
 	}
+	recordProject(pins)
 
 	var failures []error
 	for _, pin := range pins {

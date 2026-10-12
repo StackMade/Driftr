@@ -91,7 +91,7 @@ pnpm -v   # resolves automatically
 |---------|-------------|
 | `driftr install [tool[@version]]` | Download and install a tool version (node, npm, pnpm, yarn, bun); with no argument, installs everything the current project pins; a bare tool name installs the latest; `node@lts` installs the newest LTS release, `node@lts/jod` a named LTS line |
 | `driftr uninstall <tool@version>` | Remove an installed tool version |
-| `driftr prune [--dry-run] [-y] [--tool <name>]` | Remove installed versions that neither the global default nor the current project uses |
+| `driftr prune [--dry-run] [-y] [--tool <name>]` | Remove installed versions that neither the global default nor any recorded project uses |
 | `driftr default <tool@version>` | Set the global default version for a tool |
 | `driftr pin <tool@version>` | Pin a version to the current project (`.driftr.toml` or `package.json`) |
 | `driftr pin --bump [tool...] [--major] [--dry-run]` | Move the project's existing pins to the newest release on their major line (`--major`: newest overall), in the file that holds each pin |
@@ -230,6 +230,7 @@ Shims in `~/.driftr/bin/` intercept calls to `node`, `npm`, `npx`, `pnpm`, `pnpx
     bun/            installed bun versions
   config/
     config.toml     global default settings
+    projects        projects recorded by pin/install, checked by prune
   cache/            downloaded archives + binaries
 ```
 

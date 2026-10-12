@@ -1,0 +1,47 @@
+# prune protects the pins of every project driftr has recorded, not just the
+# current directory. Without the registry, pruning from b would delete the only
+# installed node, which a pins.
+
+exec driftr setup
+exec driftr install node@22
+
+# Pinning records the project. Nothing is pinned outside it and there is no
+# global default, so a is the only thing keeping this version.
+cd $WORK/a
+exec driftr pin node@$NODE_VERSION
+grep $WORK/a $HOME/.driftr/config/projects
+
+# Installing from a project's pins records it too.
+cd $WORK/c
+exec driftr install
+grep $WORK/c $HOME/.driftr/config/projects
+
+# Pruning from an unrelated directory keeps what a pins.
+cd $WORK/b
+exec driftr prune --dry-run
+stdout 'Checked 2 recorded project'
+stdout $WORK/a
+exec driftr prune -y
+stdout 'Nothing to prune'
+exec driftr list
+stdout $NODE_VERSION
+
+# A recorded project that was deleted is forgotten, and no longer protects
+# anything.
+rm $WORK/a
+rm $WORK/c
+exec driftr prune --dry-run
+stdout 'would be forgotten'
+grep $WORK/a $HOME/.driftr/config/projects
+exec driftr prune -y
+stdout 'Forgot 2 recorded project'
+! grep $WORK/a $HOME/.driftr/config/projects
+exec driftr list
+! stdout $NODE_VERSION
+
+-- a/README.md --
+placeholder so the directory exists
+-- b/README.md --
+placeholder so the directory exists
+-- c/.nvmrc --
+22.99.0

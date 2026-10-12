@@ -26,6 +26,10 @@ stderr 'Installed node '$NODE_VERSION
 stdout 'v'$NODE_VERSION
 exists $HOME/.driftr/tools/node/$NODE_VERSION/bin/node
 
+# The shim path never records the project for prune: every tool call must stay
+# free of writes.
+! exists $HOME/.driftr/config/projects
+
 # Second run finds it installed and says nothing about installing.
 exec node -v
 stdout 'v'$NODE_VERSION

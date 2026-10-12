@@ -224,6 +224,7 @@ Driftr stores all data under `~/.driftr/`:
         bin/bun
   config/
     config.toml               global configuration
+    projects                  recorded project directories, one per line (read by prune)
   cache/
     node-v22.14.0-*.tar.gz    cached Node.js archives
     npm-10.9.2.tgz            cached npm tarballs

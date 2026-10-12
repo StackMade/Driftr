@@ -83,7 +83,11 @@ Examples:
 			current := detectPinFormat(cwd)
 
 			if migrate {
-				return migratePin(cwd, tool, versionStr, current)
+				if err := migratePin(cwd, tool, versionStr, current); err != nil {
+					return err
+				}
+				rememberProject(cwd)
+				return nil
 			}
 
 			format := current
@@ -95,7 +99,11 @@ Examples:
 				}
 			}
 
-			return savePin(cwd, tool, versionStr, format)
+			if err := savePin(cwd, tool, versionStr, format); err != nil {
+				return err
+			}
+			rememberProject(cwd)
+			return nil
 		},
 	}
 

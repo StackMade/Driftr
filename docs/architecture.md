@@ -38,6 +38,7 @@ internal/
 
   config/                   configuration management
     global.go               ~/.driftr/config/config.toml read/write
+    projects.go             ~/.driftr/config/projects: directories prune checks
     project.go              .driftr.toml read/write + directory walk
     packagejson.go          package.json driftr key read/write
 

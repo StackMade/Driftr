@@ -6,7 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stackmade/driftr/internal/config"
 	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/internal/resolver"
 )
 
 // pruneEnv gives a test its own driftr home and an empty project directory as
@@ -144,4 +146,133 @@ func TestPrune_NothingToPrune(t *testing.T) {
 	if !nodeInstalled(t, "22.14.0") {
 		t.Error("22.14.0 was removed")
 	}
+}
+
+func TestPrune_KeepsVersionPinnedByRecordedProject(t *testing.T) {
+	pruneEnv(t)
+	fakeNodeInstall(t, "20.0.0")
+	fakeNodeInstall(t, "18.0.0")
+	other := t.TempDir()
+	writePin(t, other, "20")
+	if err := config.AddProject(other); err != nil {
+		t.Fatal(err)
+	}
+
+	var err error
+	out := captureStdout(t, func() { err = runCmd(t, "prune", "-y") })
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !nodeInstalled(t, "20.0.0") {
+		t.Error("20.0.0, pinned by a recorded project elsewhere, was pruned")
+	}
+	if nodeInstalled(t, "18.0.0") {
+		t.Error("unreferenced 18.0.0 was not pruned")
+	}
+	if !strings.Contains(out, "Checked 1 recorded project(s)") {
+		t.Errorf("expected the checked-project count, got: %q", out)
+	}
+}
+
+func TestPrune_ForgetsProjectsThatAreGone(t *testing.T) {
+	pruneEnv(t)
+	gone := filepath.Join(t.TempDir(), "deleted-checkout")
+	if err := config.AddProject(gone); err != nil {
+		t.Fatal(err)
+	}
+
+	var err error
+	out := captureStdout(t, func() { err = runCmd(t, "prune", "--dry-run") })
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, gone) {
+		t.Errorf("dry run did not list the gone project, got: %q", out)
+	}
+	if dirs, _ := config.LoadProjects(); len(dirs) != 1 {
+		t.Errorf("dry run changed the registry: %v", dirs)
+	}
+
+	captureStdout(t, func() { err = runCmd(t, "prune", "-y") })
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if dirs, _ := config.LoadProjects(); len(dirs) != 0 {
+		t.Errorf("gone project was not forgotten: %v", dirs)
+	}
+}
+
+func TestPrune_UnreadableRecordedProjectRemovesNothing(t *testing.T) {
+	pruneEnv(t)
+	fakeNodeInstall(t, "20.0.0")
+	broken := t.TempDir()
+	if err := os.WriteFile(filepath.Join(broken, ".driftr.toml"), []byte("[tools\nnode = "), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.AddProject(broken); err != nil {
+		t.Fatal(err)
+	}
+
+	var err error
+	captureStdout(t, func() { err = runCmd(t, "prune", "-y") })
+	if err == nil || !strings.Contains(err.Error(), "refusing to prune") {
+		t.Fatalf("expected prune to refuse, got: %v", err)
+	}
+	if !nodeInstalled(t, "20.0.0") {
+		t.Error("20.0.0 was removed although a recorded project could not be read")
+	}
+	if dirs, _ := config.LoadProjects(); len(dirs) != 1 {
+		t.Errorf("unreadable project was dropped from the registry: %v", dirs)
+	}
+}
+
+func TestPinCmd_RecordsProject(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	fakeNodeInstall(t, "22.14.0")
+	proj := t.TempDir()
+	t.Chdir(proj)
+
+	if err := runCmd(t, "pin", "node@22.14.0"); err != nil {
+		t.Fatal(err)
+	}
+
+	dirs, err := config.LoadProjects()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dirs) != 1 || !sameDir(t, dirs[0], proj) {
+		t.Errorf("registry = %v, want [%s]", dirs, proj)
+	}
+}
+
+func TestRecordProject_UsesNearestPinDir(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	recordProject([]resolver.Pin{
+		{Tool: "node", Version: "22", Dir: "/work/repo"},
+		{Tool: "pnpm", Version: "9", Dir: "/work/repo/app"},
+	})
+
+	dirs, err := config.LoadProjects()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dirs) != 1 || dirs[0] != "/work/repo/app" {
+		t.Errorf("registry = %v, want [/work/repo/app]", dirs)
+	}
+}
+
+// sameDir compares two paths after resolving symlinks, since temp dirs on
+// macOS live behind /var -> /private/var.
+func sameDir(t *testing.T, a, b string) bool {
+	t.Helper()
+	ra, err := filepath.EvalSymlinks(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rb, err := filepath.EvalSymlinks(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ra == rb
 }
