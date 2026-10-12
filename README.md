@@ -231,7 +231,7 @@ Shims in `~/.driftr/bin/` intercept calls to `node`, `npm`, `npx`, `pnpm`, `pnpx
 | Auto-install a missing pinned version | Yes, on shim call (prompt, or `auto_install = true`) | No | Yes | `--install-if-missing` | Yes |
 | macOS / Linux | Yes | Yes | Yes | Yes | Yes |
 | Windows | No | No | Yes | Yes | Yes |
-| Latest release | v1.3.0 (2026-10) | v0.40.7 (2026-08) | v2.0.2 (**2024-12**) | v1.39.0 (2026-03) | v2026.9.1 (2026-09) |
+| Latest release | v1.3.1 (2026-10) | v0.40.7 (2026-08) | v2.0.2 (**2024-12**) | v1.39.0 (2026-03) | v2026.9.1 (2026-09) |
 | Maintained | Yes | Yes | **No** ([upstream says so](https://github.com/volta-cli/volta)) | Yes | Yes |
 | Self-update | `driftr self-update` | `nvm` install script | No | Package manager | `mise self-update` |
 
