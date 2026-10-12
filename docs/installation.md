@@ -92,11 +92,11 @@ rm -rf ~/.driftr
 
 ## Building from Source
 
-Driftr is written in Go. You need Go 1.26 or later to build it.
+Driftr is written in Go. You need Go 1.27 or later to build it.
 
 ### Prerequisites
 
-- [Go](https://go.dev/dl/) 1.26+
+- [Go](https://go.dev/dl/) 1.27+
 - Git
 - macOS or Linux (Windows support is planned)
 
