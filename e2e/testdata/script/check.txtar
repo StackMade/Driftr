@@ -1,0 +1,64 @@
+# driftr check: every source that pins a tool, which one wins, and where they
+# disagree. It reads files only, so nothing here needs the fixture server
+# except the one install that gives a partial pin something to resolve to.
+
+# No pins anywhere up the tree is not a problem.
+exec driftr check --exit-code
+stdout 'No version pins found'
+
+# Partial and full versions agree when one contains the other, and the
+# winning pin sits inside engines.node.
+cd $WORK/consistent
+exec driftr check --exit-code
+stdout '^node  22'
+stdout '> \.driftr\.toml\s+22$'
+stdout '\.nvmrc\s+22\.99\.0'
+stdout 'package\.json \(engines\.node\)\s+>=22'
+stdout 'All pins agree'
+! stdout '✗'
+
+# .nvmrc and .driftr.toml name different majors. Without --exit-code the
+# command only reports; with it, CI fails.
+cd $WORK/conflict
+exec driftr check
+stdout '\.nvmrc says 20, but \.driftr\.toml says 22\.99\.0 and wins'
+stdout 'driftr pin node@20'
+stdout 'Found 1 problem'
+! exec driftr check --exit-code
+stdout 'Found 1 problem'
+
+# A partial pin is checked against engines.node through the version it
+# resolves to once installed.
+exec driftr install node@$NODE_VERSION
+cd $WORK/engines
+! exec driftr check --exit-code
+stdout '^node  22 \(resolves to '$NODE_VERSION'\)'
+stdout 'node 22 from \.driftr\.toml resolves to '$NODE_VERSION', which is outside package\.json \(engines\.node\) ">=24"'
+stdout 'driftr pin node@24'
+
+# A file the resolver cannot read is a problem too.
+cd $WORK/broken
+exec driftr check
+stdout 'failed to parse project config'
+! exec driftr check --exit-code
+
+-- consistent/.driftr.toml --
+[tools]
+node = "22"
+-- consistent/.nvmrc --
+22.99.0
+-- consistent/package.json --
+{"engines": {"node": ">=22"}}
+-- conflict/.driftr.toml --
+[tools]
+node = "22.99.0"
+-- conflict/.nvmrc --
+20
+-- engines/.driftr.toml --
+[tools]
+node = "22"
+-- engines/package.json --
+{"engines": {"node": ">=24"}}
+-- broken/.driftr.toml --
+[tools
+node = "22"

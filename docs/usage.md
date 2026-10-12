@@ -344,6 +344,56 @@ left out.
 - If one tool's release source cannot be reached, its row says `unknown` and the rest of the report still runs
 - The command exits 0 unless every source failed, or `--exit-code` was given and something is behind
 
+## driftr check
+
+Check that every file pinning a tool version for the current directory agrees
+with the one Driftr uses. Nothing is fetched from the network.
+
+```bash
+driftr check                # report, always exit 0
+driftr check --exit-code    # exit 1 when a problem is found (CI)
+```
+
+Output example:
+
+```
+node  22 (resolves to 22.14.0)
+  > .driftr.toml                 22
+    .nvmrc                       20
+    package.json (engines.node)  >=24
+  ✗ .nvmrc says 20, but .driftr.toml says 22 and wins
+      Change .nvmrc to agree with 22, or run `driftr pin node@20` if 20 is the version you want.
+  ✗ node 22 from .driftr.toml resolves to 22.14.0, which is outside package.json (engines.node) ">=24"
+      Run `driftr pin node@24`, or widen the range in package.json (engines.node).
+
+pnpm  9.15.0
+  > package.json (packageManager)  9.15.0
+
+⚠ Found 2 problem(s).
+```
+
+**Which sources are listed:** every source in the [resolution order](#resolution-order) that
+lives in a file, in the current directory and each parent, in the order the resolver reads
+them. The first one, marked `>`, is the one in use. Sources in a parent directory are listed
+too: a `package.json` with only `engines.node` in a subdirectory wins over a `.driftr.toml`
+further up, and this is where you see it.
+
+**When two pins agree:** when at least one version satisfies both. `22` and `22.14.0`
+agree, `22.14` and `22.15.0` do not. `lts` agrees with any line known to be LTS,
+`lts/<codename>` with its own line, and `latest` with everything, since what it means
+depends on a release index the check does not fetch. Each source is compared with the
+one in use, not with every other source.
+
+**`engines.node`:** the version in use must satisfy every `engines.node` range on the way
+up. For a partial pin or an alias that is the installed version it resolves to; with
+nothing installed, the pin passes when any version it accepts is inside the range.
+
+**Behavior:**
+- A file Driftr cannot read or parse, a pin that is not a version, and an LTS codename this
+  build does not know are reported as problems
+- `DRIFTR_<TOOL>` and the global default are not project pins and are not listed
+- The command exits 0 unless `--exit-code` was given and a problem was found
+
 ## driftr which
 
 Show which binary Driftr would execute, and why.

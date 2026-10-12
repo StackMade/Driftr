@@ -2,6 +2,7 @@ package version
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -263,4 +264,81 @@ func compare(a, b Version) int {
 		return a.Minor - b.Minor
 	}
 	return a.Patch - b.Patch
+}
+
+// Intersects reports whether at least one version satisfies both ranges.
+func (r Range) Intersects(o Range) bool {
+	for _, a := range r.ors {
+		for _, b := range o.ors {
+			if nonEmpty(append(append([]bound(nil), a...), b...)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// nonEmpty reports whether an AND-group of bounds leaves any version: the
+// highest lower bound must sit below the lowest upper bound.
+func nonEmpty(group []bound) bool {
+	var lo, hi *Version
+	for _, b := range group {
+		if b.min != nil && (lo == nil || compare(*b.min, *lo) > 0) {
+			lo = b.min
+		}
+		if b.max != nil && (hi == nil || compare(*b.max, *hi) < 0) {
+			hi = b.max
+		}
+	}
+	if hi == nil {
+		return true
+	}
+	if lo == nil {
+		lo = &Version{}
+	}
+	return compare(*lo, *hi) < 0
+}
+
+// Range returns the versions v accepts, matched the way the resolver matches
+// installed versions offline: "22" is every 22.x.x, "22.14" every 22.14.x,
+// "22.14.0" that release alone, "latest" everything, "lts" every line known to
+// be LTS and "lts/<codename>" that one line. ok is false for an LTS codename
+// this build does not know, which cannot be matched offline.
+func (v Version) Range() (Range, bool) {
+	r := Range{Raw: v.Raw}
+	line := func(major int) []bound {
+		return []bound{{min: &Version{Major: major}, max: &Version{Major: major + 1}}}
+	}
+	switch {
+	case v.Latest:
+		r.ors = [][]bound{nil} // an empty AND-group matches everything
+	case v.LTS && v.LTSCodename != "":
+		major, ok := LTSCodenameMajor(v.LTSCodename)
+		if !ok {
+			return Range{}, false
+		}
+		r.ors = [][]bound{line(major)}
+	case v.LTS:
+		majors := make([]int, 0, len(ltsCodenameMajor))
+		for _, m := range ltsCodenameMajor {
+			majors = append(majors, m)
+		}
+		slices.Sort(majors)
+		for _, m := range majors {
+			r.ors = append(r.ors, line(m))
+		}
+	default:
+		lo := Version{Major: v.Major, Minor: v.Minor, Patch: v.Patch}
+		var hi Version
+		switch strings.Count(strings.TrimPrefix(stripToolPrefix(v.Raw), "v"), ".") {
+		case 0:
+			hi = Version{Major: v.Major + 1}
+		case 1:
+			hi = Version{Major: v.Major, Minor: v.Minor + 1}
+		default:
+			hi = Version{Major: v.Major, Minor: v.Minor, Patch: v.Patch + 1}
+		}
+		r.ors = [][]bound{{{min: &lo, max: &hi}}}
+	}
+	return r, true
 }

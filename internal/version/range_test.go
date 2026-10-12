@@ -298,3 +298,96 @@ func FuzzParseRange(f *testing.F) {
 		}
 	})
 }
+
+func TestVersionRange(t *testing.T) {
+	tests := []struct {
+		spec    string
+		matches []string
+		misses  []string
+	}{
+		{spec: "22", matches: []string{"22.0.0", "22.14.0"}, misses: []string{"21.9.9", "23.0.0"}},
+		{spec: "v22.14", matches: []string{"22.14.0", "22.14.9"}, misses: []string{"22.13.9", "22.15.0"}},
+		{spec: "22.14.0", matches: []string{"22.14.0"}, misses: []string{"22.14.1", "22.13.0"}},
+		{spec: "node@20", matches: []string{"20.1.0"}, misses: []string{"22.0.0"}},
+		{spec: "latest", matches: []string{"0.1.0", "99.0.0"}},
+		{spec: "lts/iron", matches: []string{"20.0.0", "20.19.1"}, misses: []string{"22.0.0"}},
+		{spec: "lts", matches: []string{"20.1.0", "22.0.0"}, misses: []string{"21.0.0", "23.1.0"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.spec, func(t *testing.T) {
+			r, ok := mustParse(t, tt.spec).Range()
+			if !ok {
+				t.Fatalf("Range() ok = false")
+			}
+			for _, m := range tt.matches {
+				if !r.Matches(mustParse(t, m)) {
+					t.Errorf("%s should accept %s", tt.spec, m)
+				}
+			}
+			for _, m := range tt.misses {
+				if r.Matches(mustParse(t, m)) {
+					t.Errorf("%s should not accept %s", tt.spec, m)
+				}
+			}
+		})
+	}
+
+	if _, ok := mustParse(t, "lts/nosuchname").Range(); ok {
+		t.Error("an unknown codename must not produce a range")
+	}
+}
+
+func TestRangeIntersects(t *testing.T) {
+	// A side is a pin when it parses as a version, otherwise a semver range.
+	side := func(t *testing.T, s string) Range {
+		t.Helper()
+		if v, err := Parse(s); err == nil {
+			r, ok := v.Range()
+			if !ok {
+				t.Fatalf("no range for %q", s)
+			}
+			return r
+		}
+		r, err := ParseRange(s)
+		if err != nil {
+			t.Fatalf("ParseRange(%q): %v", s, err)
+		}
+		return r
+	}
+
+	tests := []struct {
+		a, b string
+		want bool
+	}{
+		{"22", "22.14.0", true},
+		{"22.14", "22.14.3", true},
+		{"22.14", "22.15.0", false},
+		{"22", "24", false},
+		{"22.14.0", "22.14.0", true},
+		{"22.14.0", "22.14.1", false},
+		{"lts", "22", true},
+		{"lts", "23", false},
+		{"lts/iron", "22", false},
+		{"lts/jod", "22.14.0", true},
+		{"latest", "18.0.0", true},
+		{"22", ">=24", false},
+		{"24.1.0", ">=24", true},
+		{"22", ">=22.5", true},
+		{"22.1", ">=22.5", false},
+		{"20", "^18 || ^20", true},
+		{">=24", "<24", false},
+		{">=20 <22", "^21", true},
+		{"*", "18", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.a+" vs "+tt.b, func(t *testing.T) {
+			a, b := side(t, tt.a), side(t, tt.b)
+			if got := a.Intersects(b); got != tt.want {
+				t.Errorf("Intersects = %v, want %v", got, tt.want)
+			}
+			if got := b.Intersects(a); got != tt.want {
+				t.Errorf("Intersects is not symmetric: reversed = %v", got)
+			}
+		})
+	}
+}

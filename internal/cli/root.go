@@ -50,6 +50,7 @@ func NewRootCmd() *cobra.Command {
 		newUseCmd(),
 		newListCmd(),
 		newOutdatedCmd(),
+		newCheckCmd(),
 		newWhichCmd(),
 		newRunCmd(),
 		newShimCmd(),

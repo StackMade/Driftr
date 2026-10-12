@@ -199,6 +199,23 @@ func (s Source) String() string {
 	}
 }
 
+// File names the file a project source lives in, or "" for sources that are
+// not a file in the project.
+func (s Source) File() string {
+	switch s {
+	case SourceProject:
+		return config.ProjectConfigFile
+	case SourcePackageJSON, SourcePackageManager, SourceEnginesNode:
+		return "package.json"
+	case SourceNvmrc:
+		return ".nvmrc"
+	case SourceNodeVersion:
+		return ".node-version"
+	default:
+		return ""
+	}
+}
+
 // Resolution holds the result of resolving a tool version.
 type Resolution struct {
 	Tool       string

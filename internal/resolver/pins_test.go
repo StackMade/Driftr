@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stackmade/driftr/internal/config"
 )
 
 func TestProjectPins(t *testing.T) {
@@ -154,4 +156,101 @@ func TestProjectPins_DoesNotRequireInstall(t *testing.T) {
 	if len(pins) != 1 || pins[0].Version != "99.0.0" {
 		t.Fatalf("got %+v, want a single node@99.0.0 pin", pins)
 	}
+}
+
+// ProjectSources keeps every source, not just the winner, in resolution order:
+// nearer directories first, then source order within a directory.
+func TestProjectSources(t *testing.T) {
+	root := t.TempDir()
+	sub := filepath.Join(root, "sub")
+	files := map[string]string{
+		".nvmrc":           "20\n",
+		"sub/.driftr.toml": "[tools]\nnode = \"22.14.0\"\n",
+		"sub/.nvmrc":       "22\n",
+		"sub/package.json": `{"engines": {"node": ">=24"}, "packageManager": "pnpm@9.15.0"}`,
+	}
+	for rel, content := range files {
+		path := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("MkdirAll: %v", err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+	}
+
+	pins, err := ProjectSources(sub)
+	if err != nil {
+		t.Fatalf("ProjectSources() error: %v", err)
+	}
+	want := []Pin{
+		{Tool: "node", Version: "22.14.0", Source: SourceProject, Dir: sub},
+		{Tool: "node", Version: "22", Source: SourceNvmrc, Dir: sub},
+		{Tool: "node", Version: ">=24", Source: SourceEnginesNode, Dir: sub},
+		{Tool: "pnpm", Version: "9.15.0", Source: SourcePackageManager, Dir: sub},
+		{Tool: "node", Version: "20", Source: SourceNvmrc, Dir: root},
+	}
+	if len(pins) != len(want) {
+		t.Fatalf("got %d pins %+v, want %d", len(pins), pins, len(want))
+	}
+	for i, w := range want {
+		g := pins[i]
+		if g.Tool != w.Tool || g.Version != w.Version || g.Source != w.Source || !sameDir(t, g.Dir, w.Dir) {
+			t.Errorf("pin %d = %+v, want %+v", i, g, w)
+		}
+	}
+}
+
+func TestProjectSources_BrokenFile(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".driftr.toml"), []byte("[tools\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if _, err := ProjectSources(dir); err == nil {
+		t.Fatal("ProjectSources() should report an unparseable .driftr.toml")
+	}
+}
+
+// Only the winner matters to install, outdated and prune, so a file behind it
+// that cannot be read must not fail them. driftr check reads every source and
+// reports it.
+func TestPins_UnreadableFileBehindWinner(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads files regardless of their mode")
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".driftr.toml"), []byte("[tools]\nnode = \"22.14.0\"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	nvmrc := filepath.Join(dir, ".nvmrc")
+	if err := os.WriteFile(nvmrc, []byte("20\n"), 0o000); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(nvmrc, 0o644) })
+
+	ver, src, ok, err := pinAt("node", dir, mustLoadProject(t, dir), nil)
+	if err != nil || !ok || ver != "22.14.0" || src != SourceProject {
+		t.Errorf("pinAt() = %q, %v, %v, %v; want the .driftr.toml pin", ver, src, ok, err)
+	}
+
+	pins, err := ProjectPins(dir)
+	if err != nil {
+		t.Fatalf("ProjectPins() error: %v", err)
+	}
+	if len(pins) != 1 || pins[0].Version != "22.14.0" || pins[0].Source != SourceProject {
+		t.Errorf("ProjectPins() = %+v, want the .driftr.toml pin", pins)
+	}
+
+	if _, err := ProjectSources(dir); err == nil {
+		t.Error("ProjectSources() should report the unreadable .nvmrc")
+	}
+}
+
+func mustLoadProject(t *testing.T, dir string) *config.ProjectConfig {
+	t.Helper()
+	cfg, err := config.LoadProject(dir)
+	if err != nil {
+		t.Fatalf("LoadProject: %v", err)
+	}
+	return cfg
 }

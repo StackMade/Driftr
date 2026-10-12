@@ -31,6 +31,7 @@ internal/
     pin_bump.go             driftr pin --bump (shares release fetching with outdated.go)
     list.go                 driftr list / ls
     which.go                driftr which
+    check.go                driftr check
     run.go                  driftr run
     setup.go                driftr setup
     shim_cmd.go             driftr shim (hidden, called by shim scripts)

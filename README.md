@@ -99,6 +99,7 @@ pnpm -v   # resolves automatically
 | `driftr list [tool]` | List installed versions (defaults to node) |
 | `driftr list --remote [tool]` | Browse available remote versions from nodejs.org, the npm registry, or bun's GitHub releases |
 | `driftr outdated` | Compare the versions in use against the newest releases upstream |
+| `driftr check [--exit-code]` | List every file that pins a tool for this directory, mark the one in use, and report pins that disagree or fall outside `engines.node` |
 | `driftr which <tool>` | Show which binary would be executed and why; also takes a bin from a global npm install, e.g. `tsc` |
 | `driftr run --node <ver> -- <cmd>` | Run a command under a specific Node.js version |
 | `driftr setup` | Initialize Driftr, generate shims, and configure your shell PATH |
@@ -159,6 +160,19 @@ major line, the newest release overall, and for node the newest LTS. A tool
 whose release source cannot be reached is reported as `unknown` and does not
 stop the rest of the report. To move the project's pins to those releases, run
 `driftr pin --bump` (see [usage](docs/usage.md)).
+
+### Checking that pins agree (`driftr check`)
+
+```bash
+driftr check                # report, always exit 0
+driftr check --exit-code    # exit 1 when a pin disagrees or cannot be read (CI)
+```
+
+A project can say `20` in `.nvmrc`, `22` in `.driftr.toml` and `>=24` in
+`engines.node`. Driftr uses the first one it finds and nothing tells you the
+others say something else. `driftr check` lists every source per tool, marks the
+winner, and reports each one that disagrees with it, with the file to edit. It
+reads files only and never touches the network.
 
 ## Shell Completions
 
