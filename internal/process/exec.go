@@ -30,10 +30,13 @@ func Exec(binary string, args []string) error {
 // Run executes a binary as a child process and returns the exit code.
 // driftr outlives the child, so it does not die on a signal meant for it, and
 // passes each signal on. The exception is SIGINT and SIGQUIT while driftr is
-// in the terminal's foreground: those come from Ctrl-C and Ctrl-\, which the
-// terminal already delivers to the child, and a second copy could cut short
-// the child's own cleanup. A child killed by a signal reports 128+signal, as
-// a shell would.
+// in the terminal's foreground: those are taken to come from Ctrl-C and
+// Ctrl-\, which the terminal already delivers to the child, and a second copy
+// could cut short the child's own cleanup. A kill -INT aimed at driftr in that
+// state is dropped too: Go does not expose a signal's sender, and putting the
+// child in a process group of its own would break Ctrl-Z. SIGTERM and SIGHUP
+// always get through. A child killed by a signal reports 128+signal, as a
+// shell would.
 func Run(binary string, args []string) (int, error) {
 	cmd := exec.Command(binary, args...)
 	cmd.Stdin = os.Stdin
