@@ -91,7 +91,7 @@ Shims exist for `node`, `npm`, `npx`, `pnpm`, `pnpx`, `yarn`, and `bun`. The `ex
 - Signal handling is handled by the OS
 - Near-zero latency overhead
 
-There are two execution modes:
+There are three execution modes:
 
 1. **Direct exec** (node, pnpm, bun): `syscall.Exec(tool-binary, args, env)`
 2. **Node-wrapped exec** (yarn): `syscall.Exec(node, [yarn.js, args...], env)` — because yarn is a JS script that needs Node.js to run. The Node version is co-resolved from the same config.

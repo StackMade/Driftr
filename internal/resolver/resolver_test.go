@@ -1029,17 +1029,23 @@ func TestResolvePackageBin(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		explicit string
+		pin      string // the node the project resolves to, via DRIFTR_NODE
+		explicit string // driftr run --node
 		bin      string
 		want     string // node version whose bin dir should run it; "" means an error
 	}{
-		{name: "resolved node has the bin", explicit: "20.0.0", bin: "tsc", want: "20.0.0"},
-		{name: "resolved node lacks it, newest owner wins", explicit: "24.0.0", bin: "tsc", want: "22.0.0"},
+		{name: "resolved node has the bin", pin: "20.0.0", bin: "tsc", want: "20.0.0"},
+		{name: "resolved node lacks it, newest owner wins", pin: "24.0.0", bin: "tsc", want: "22.0.0"},
 		{name: "no node resolves, newest owner wins", bin: "tsc", want: "22.0.0"},
-		{name: "no node has the bin", explicit: "24.0.0", bin: "tsserver"},
+		{name: "no node has the bin", pin: "24.0.0", bin: "tsserver"},
+		{name: "explicit node has the bin", explicit: "20.0.0", bin: "tsc", want: "20.0.0"},
+		// run --node 24 must not quietly run node 22's copy.
+		{name: "explicit node lacks it: no fallback", explicit: "24.0.0", bin: "tsc"},
+		{name: "explicit node beats the install on PATH", explicit: "22.0.0", bin: "nest", want: "22.0.0"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("DRIFTR_NODE", tt.pin)
 			rb, err := ResolveBinaryFull(tt.bin, tt.explicit)
 			if tt.want == "" {
 				if err == nil || !strings.Contains(err.Error(), "npm install -g") {
@@ -1072,7 +1078,8 @@ func TestResolvePackageBin_OtherInstallOnPathWins(t *testing.T) {
 	// does not count as somewhere else.
 	t.Setenv("PATH", filepath.Join(dir, "bin")+string(os.PathListSeparator)+elsewhere)
 
-	rb, err := ResolveBinaryFull("nest", "22.0.0")
+	t.Setenv("DRIFTR_NODE", "22.0.0")
+	rb, err := ResolveBinaryFull("nest", "")
 	if err != nil {
 		t.Fatal(err)
 	}
