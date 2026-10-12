@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"syscall"
+	"unsafe"
 )
 
 // Exec replaces the current process with the given binary.
@@ -27,10 +28,12 @@ func Exec(binary string, args []string) error {
 }
 
 // Run executes a binary as a child process and returns the exit code.
-// driftr outlives the child, so it does not die on a signal meant for it:
-// Ctrl-C and Ctrl-\ reach the child from the terminal anyway, and SIGTERM or
-// SIGHUP sent to driftr is passed on. A child killed by a signal reports
-// 128+signal, as a shell would.
+// driftr outlives the child, so it does not die on a signal meant for it, and
+// passes each signal on. The exception is SIGINT and SIGQUIT while driftr is
+// in the terminal's foreground: those come from Ctrl-C and Ctrl-\, which the
+// terminal already delivers to the child, and a second copy could cut short
+// the child's own cleanup. A child killed by a signal reports 128+signal, as
+// a shell would.
 func Run(binary string, args []string) (int, error) {
 	cmd := exec.Command(binary, args...)
 	cmd.Stdin = os.Stdin
@@ -48,11 +51,13 @@ func Run(binary string, args []string) (int, error) {
 		signal.Stop(sigs)
 		close(sigs) // ends the forwarding goroutine; Stop guarantees no more sends
 	}()
+	foreground := inForeground // read once: the goroutine may outlive Run
 	go func() {
 		for sig := range sigs {
-			if sig == syscall.SIGTERM || sig == syscall.SIGHUP {
-				_ = cmd.Process.Signal(sig)
+			if (sig == syscall.SIGINT || sig == syscall.SIGQUIT) && foreground() {
+				continue
 			}
+			_ = cmd.Process.Signal(sig)
 		}
 	}()
 
@@ -68,4 +73,17 @@ func Run(binary string, args []string) (int, error) {
 	}
 
 	return 0, nil
+}
+
+// inForeground reports whether this process group is the foreground of its
+// controlling terminal. It is a variable so tests can fix the answer.
+var inForeground = func() bool {
+	tty, err := os.Open("/dev/tty")
+	if err != nil {
+		return false // no controlling terminal: a signal came from kill or a supervisor
+	}
+	defer tty.Close()
+	var pgrp int32 // pid_t on Linux and macOS
+	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, tty.Fd(), uintptr(syscall.TIOCGPGRP), uintptr(unsafe.Pointer(&pgrp)))
+	return errno == 0 && int(pgrp) == syscall.Getpgrp()
 }

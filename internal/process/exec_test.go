@@ -1,9 +1,12 @@
 package process
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 // The success path of Exec replaces the process, so it can only be observed
@@ -44,6 +47,39 @@ func TestRun(t *testing.T) {
 			}
 			if code != tt.wantCode {
 				t.Errorf("Run() code = %d, want %d", code, tt.wantCode)
+			}
+		})
+	}
+}
+
+func TestRunForwardsSignalsSentToDriftr(t *testing.T) {
+	// The child exits 5 on SIGINT and 0 when left alone.
+	child := []string{"-c", "trap 'exit 5' INT; sleep 1 & wait; exit 0"}
+	for _, tt := range []struct {
+		name       string
+		foreground bool
+		want       int
+	}{
+		// kill -INT <driftr pid> from a supervisor: pass it on.
+		{"not the terminal foreground", false, 5},
+		// Ctrl-C: the terminal already signaled the child, so no second copy.
+		{"terminal foreground", true, 0},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			orig := inForeground
+			inForeground = func() bool { return tt.foreground }
+			t.Cleanup(func() { inForeground = orig })
+
+			go func() {
+				time.Sleep(300 * time.Millisecond)
+				_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
+			}()
+			code, err := Run("/bin/sh", child)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if code != tt.want {
+				t.Errorf("exit code %d, want %d", code, tt.want)
 			}
 		})
 	}
