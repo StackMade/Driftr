@@ -1087,3 +1087,24 @@ func TestResolvePackageBin_OtherInstallOnPathWins(t *testing.T) {
 		t.Errorf("want the install outside driftr run untouched, got %+v", rb)
 	}
 }
+
+func TestResolveTool_ExplicitPartialVersion(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	for _, v := range []string{"20.11.0", "20.12.1", "22.0.0"} {
+		setupFakeInstall(t, home, "node", v)
+	}
+	for spec, want := range map[string]string{"20": "20.12.1", "20.11": "20.11.0", "v22.0.0": "22.0.0"} {
+		res, err := ResolveTool("node", spec, false)
+		if err != nil {
+			t.Errorf("--node %s: %v", spec, err)
+			continue
+		}
+		if res.Version != want || res.Source != SourceExplicit {
+			t.Errorf("--node %s: got %s from %v, want %s", spec, res.Version, res.Source, want)
+		}
+	}
+	if _, err := ResolveTool("node", "18", false); err == nil {
+		t.Error("--node 18 with no 18.x installed should fail")
+	}
+}

@@ -37,6 +37,7 @@ func newRunCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				nodeVersion = res.Version // "20" becomes the 20.x it resolved to
 				if err := os.Setenv(resolver.EnvVarName("node"), res.Version); err != nil {
 					return err
 				}

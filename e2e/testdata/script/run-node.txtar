@@ -23,6 +23,10 @@ stdout 'npm on v20\.0\.0'
 exec driftr run --node 20.0.0 -- hello
 stdout 'hello under v20\.0\.0'
 
+# A partial version picks the newest installed match, as it does everywhere else.
+exec driftr run --node 20 -- sh -c 'node -v'
+stdout '^v20\.0\.0$'
+
 # Even with another node ahead of driftr's shims on PATH, as in a CI image or
 # a shell where Homebrew's node comes first.
 mkdir $WORK/othernode
