@@ -290,3 +290,44 @@ func TestStableExecutable(t *testing.T) {
 		}
 	}
 }
+
+func TestGenerateShims_ReleasesTheOldHomebrewKeg(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		kegPath  []string // under a temp root
+		released bool
+	}{
+		{"old Cellar keg", []string{"Cellar", "driftr", "1.2.1"}, true},
+		{"not a Homebrew keg", []string{"opt", "driftr", "1.2.1"}, false},
+		{"another formula's keg", []string{"Cellar", "node", "22.0.0"}, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			binDir, _ := ShimDir()
+			keg := filepath.Join(append([]string{t.TempDir()}, tt.kegPath...)...)
+			if err := os.MkdirAll(filepath.Join(keg, "bin"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			keepme := filepath.Join(keg, ".keepme")
+			if err := os.WriteFile(keepme, []byte(keg+"/bin/driftr\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			// Shims written by a driftr that baked the versioned keg path.
+			if err := os.MkdirAll(binDir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := writeShim(binDir, "node", filepath.Join(keg, "bin", "driftr")); err != nil {
+				t.Fatal(err)
+			}
+
+			if _, err := GenerateShims("test"); err != nil {
+				t.Fatal(err)
+			}
+
+			_, err := os.Stat(keepme)
+			if released := os.IsNotExist(err); released != tt.released {
+				t.Errorf(".keepme released = %v, want %v", released, tt.released)
+			}
+		})
+	}
+}

@@ -454,9 +454,11 @@ get their shims then, without running `driftr setup`. If the shims cannot be rew
 example because `~/.driftr/bin` is not writable, tools keep running, `driftr` commands print a
 warning, and `driftr doctor` reports the outdated shims until `driftr doctor --fix` succeeds.
 
-Upgrading a Linux Homebrew install from driftr 1.2.1 or earlier: those shims point at the Cellar
-directory the upgrade removed, so `node` fails with `not found` until you run any `driftr`
-command once. Shims written since then point at the stable `bin/driftr` symlink.
+On Linux, driftr 1.2.1 and earlier wrote shims that exec the versioned Homebrew Cellar path,
+which `brew upgrade` normally deletes. The formula marks those older kegs so Homebrew keeps them
+and the old shims keep working; once driftr has rewritten the shims, it removes the mark and the
+next `brew cleanup` frees the old keg. Shims written since then point at the stable `bin/driftr`
+symlink.
 
 The shim dir comes first on `PATH`, so a package shim steps aside when the shell would find the
 same name somewhere else, such as a `nest` installed through Homebrew's own npm or `pnpm add -g`:
