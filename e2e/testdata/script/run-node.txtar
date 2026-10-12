@@ -1,0 +1,63 @@
+# driftr run --node keeps everything the command starts on that version, takes
+# package bins from that version only, and refreshes shims after npm -g.
+
+exec driftr setup
+exec driftr install node@22
+exec driftr default node@$NODE_VERSION
+
+# A second node, hand-made: its npm and a package bin are "env node" scripts,
+# which find node on PATH the way the real ones do.
+mkdir $HOME/.driftr/tools/node/20.0.0/bin
+cp node20 $HOME/.driftr/tools/node/20.0.0/bin/node
+cp npm20 $HOME/.driftr/tools/node/20.0.0/bin/npm
+cp hello $HOME/.driftr/tools/node/20.0.0/bin/hello
+chmod 0755 $HOME/.driftr/tools/node/20.0.0/bin/node
+chmod 0755 $HOME/.driftr/tools/node/20.0.0/bin/npm
+chmod 0755 $HOME/.driftr/tools/node/20.0.0/bin/hello
+
+# Whatever the command spawns finds node 20, not the default.
+exec driftr run --node 20.0.0 -- sh -c 'node -v'
+stdout '^v20\.0\.0$'
+exec driftr run --node 20.0.0 -- npm
+stdout 'npm on v20\.0\.0'
+exec driftr run --node 20.0.0 -- hello
+stdout 'hello under v20\.0\.0'
+
+# Even with another node ahead of driftr's shims on PATH, as in a CI image or
+# a shell where Homebrew's node comes first.
+mkdir $WORK/othernode
+cp node99 $WORK/othernode/node
+chmod 0755 $WORK/othernode/node
+env PATH=$WORK/othernode${:}$PATH
+exec node -v
+stdout 'v99'
+exec driftr run --node 20.0.0 -- sh -c 'node -v'
+stdout '^v20\.0\.0$'
+exec driftr run --node 20.0.0 -- npm
+stdout 'npm on v20\.0\.0'
+
+# A bin only node 22 has is not quietly run under --node 20.
+cp hello $HOME/.driftr/tools/node/$NODE_VERSION/bin/only22
+chmod 0755 $HOME/.driftr/tools/node/$NODE_VERSION/bin/only22
+! exec driftr run --node 20.0.0 -- only22
+stderr 'only22 is not installed under Node.js 20\.0\.0'
+
+# npm -g through run refreshes the shims once npm exits.
+cp hello $HOME/.driftr/tools/node/20.0.0/bin/fresh
+chmod 0755 $HOME/.driftr/tools/node/20.0.0/bin/fresh
+! exists $HOME/.driftr/bin/fresh
+exec driftr run --node 20.0.0 -- npm install -g fresh
+exists $HOME/.driftr/bin/fresh
+
+-- node20 --
+#!/bin/sh
+echo "v20.0.0"
+-- node99 --
+#!/bin/sh
+echo "v99.0.0"
+-- npm20 --
+#!/bin/sh
+echo "npm on $(node -v)"
+-- hello --
+#!/bin/sh
+echo "hello under $(node -v)"

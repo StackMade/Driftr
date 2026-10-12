@@ -57,30 +57,18 @@ func RefreshStaleShims() error {
 // ExecResolved replaces the process with a resolved tool. Called from the
 // fast path in main.go and from the cobra shim command.
 func ExecResolved(tool string, rb *resolver.ResolvedBinary, args []string) error {
-	if rb.PathPrefix != "" {
-		if err := os.Setenv("PATH", rb.PathPrefix+string(os.PathListSeparator)+os.Getenv("PATH")); err != nil {
-			return err
-		}
-	}
-
-	// For tools that need Node.js (e.g. yarn), exec node with the tool script.
-	binary, argv := rb.ToolPath, args
-	if rb.NodePath != "" {
-		binary, argv = rb.NodePath, append([]string{rb.ToolPath}, args...)
+	binary, argv, err := prepareResolved(rb, args)
+	if err != nil {
+		return err
 	}
 
 	if tool == "npm" && isGlobalNpm(args) {
 		// npm -g adds or removes package bins, so it runs as a child: exec
 		// would leave no process behind to refresh the shims afterwards.
-		code, err := process.Run(binary, argv)
+		code, err := runResolved(tool, binary, argv, args)
 		if err != nil {
 			return err
 		}
-		skipped, err := shim.GenerateShims(Version)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "driftr: could not refresh shims: %s. Run 'driftr setup'\n", err)
-		}
-		printSkippedShims(os.Stderr, skipped)
 		if code != 0 {
 			return &ExitError{Code: code}
 		}
@@ -88,6 +76,39 @@ func ExecResolved(tool string, rb *resolver.ResolvedBinary, args []string) error
 	}
 
 	return process.Exec(binary, argv)
+}
+
+// prepareResolved returns the binary and argv that run a resolved tool. For a
+// package bin it puts the bin's node first on PATH, so a "#!/usr/bin/env node"
+// script runs under the node it was installed with.
+func prepareResolved(rb *resolver.ResolvedBinary, args []string) (string, []string, error) {
+	if rb.PathPrefix != "" {
+		if err := os.Setenv("PATH", rb.PathPrefix+string(os.PathListSeparator)+os.Getenv("PATH")); err != nil {
+			return "", nil, err
+		}
+	}
+	// For tools that need Node.js (e.g. yarn), run node with the tool script.
+	if rb.NodePath != "" {
+		return rb.NodePath, append([]string{rb.ToolPath}, args...), nil
+	}
+	return rb.ToolPath, args, nil
+}
+
+// runResolved runs a prepared tool as a child and returns its exit code. After
+// npm -g it regenerates the shims, since that is what adds or removes bins.
+func runResolved(tool, binary string, argv, args []string) (int, error) {
+	code, err := process.Run(binary, argv)
+	if err != nil {
+		return code, err
+	}
+	if tool == "npm" && isGlobalNpm(args) {
+		skipped, err := shim.GenerateShims(Version)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "driftr: could not refresh shims: %s. Run 'driftr setup'\n", err)
+		}
+		printSkippedShims(os.Stderr, skipped)
+	}
+	return code, nil
 }
 
 // printSkippedShims names the package bins that got no shim, so a bin that

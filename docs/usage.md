@@ -361,6 +361,18 @@ driftr run --node 20.11.0 -- node script.js
   the Node.js they run under is affected — the tool's own version still
   resolves normally from project/global config (e.g. `driftr run --node
   20.11.0 -- yarn` runs your pinned/default yarn under Node 20.11.0)
+- Everything the command starts stays on that version: `npm`, `npx` and package bins are
+  `#!/usr/bin/env node` scripts, and the scripts they run look `node` up on `PATH` too, so
+  `driftr run` puts that version's `bin` directory first on `PATH` and sets `DRIFTR_NODE`, the
+  same override `driftr use` sets, for the command. This holds even when another `node` comes
+  before Driftr's shims on `PATH`
+- A bin from a global npm install, such as `tsc`, comes from that version's global packages and
+  never from another version's. A command that is not a Node.js package, such as `make`, runs
+  as it is found on `PATH`
+- `driftr run --node 20 -- npm install -g <package>` installs into Node 20 and refreshes the
+  shims, like `npm install -g` run directly
+- A signal sent to `driftr` reaches the command. Ctrl-C and Ctrl-\ are left to the terminal,
+  which delivers them to the command itself
 
 ## driftr setup
 

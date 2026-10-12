@@ -2,10 +2,11 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
-	"github.com/stackmade/driftr/internal/process"
 	"github.com/stackmade/driftr/internal/resolver"
 )
 
@@ -25,12 +26,35 @@ func newRunCmd() *cobra.Command {
 			tool := args[0]
 			toolArgs := args[1:]
 
-			binPath, err := resolver.ResolveBinary(tool, nodeVersion)
+			if nodeVersion != "" {
+				// npm, npx, yarn and package bins are "#!/usr/bin/env node"
+				// scripts, and whatever they spawn looks node up on PATH too.
+				// Left alone, those lookups find driftr's shim (the project's
+				// node) or whatever node comes first on PATH. The requested
+				// node's bin dir goes first on PATH, and DRIFTR_NODE covers
+				// tools reached through shims, so the whole tree stays on it.
+				res, err := resolver.ResolveTool("node", nodeVersion, verbose)
+				if err != nil {
+					return err
+				}
+				if err := os.Setenv(resolver.EnvVarName("node"), res.Version); err != nil {
+					return err
+				}
+				if err := os.Setenv("PATH", filepath.Dir(res.BinaryPath)+string(os.PathListSeparator)+os.Getenv("PATH")); err != nil {
+					return err
+				}
+			}
+
+			rb, err := resolver.ResolveBinaryFull(tool, nodeVersion)
+			if err != nil {
+				return err
+			}
+			binary, argv, err := prepareResolved(rb, toolArgs)
 			if err != nil {
 				return err
 			}
 
-			exitCode, err := process.Run(binPath, toolArgs)
+			exitCode, err := runResolved(tool, binary, argv, toolArgs)
 			if err != nil {
 				return err
 			}
