@@ -285,9 +285,9 @@ func resolveExplicit(tool, spec string) (*Resolution, error) {
 	}, nil
 }
 
-// resolveEnv resolves the value of a DRIFTR_<TOOL> variable. Unlike an
-// explicit flag it accepts partial specs ("24") and "latest"/"lts", since the
-// value is typed once per shell and often without a patch number.
+// resolveEnv resolves the value of a DRIFTR_<TOOL> variable. Like an explicit
+// flag it accepts partial specs ("24") and "latest"/"lts", since the value is
+// typed once per shell and often without a patch number.
 func resolveEnv(tool, spec, envVar string) (*Resolution, error) {
 	ver, binPath, err := RequireToolInstalled(tool, spec)
 	if err != nil {

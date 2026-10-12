@@ -271,7 +271,11 @@ func FindOutsideDriftr(name string) string {
 	if r, err := filepath.EvalSymlinks(home); err == nil {
 		realHome = r
 	}
-	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+	dirs := filepath.SplitList(os.Getenv("PATH"))
+	if path, set := os.LookupEnv("PATH"); set && path == "" {
+		dirs = []string{""} // a set but empty PATH is one empty entry: the current directory
+	}
+	for _, dir := range dirs {
 		if dir == "" {
 			dir = "."
 		}
