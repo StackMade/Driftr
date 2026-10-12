@@ -229,6 +229,12 @@ func TestFindOutsideDriftr(t *testing.T) {
 	cwd := t.TempDir()
 	writeExec(filepath.Join(cwd, "tools", "nest"))
 	t.Chdir(cwd)
+	t.Setenv("PATH", "")
+	writeExec(filepath.Join(cwd, "nest"))
+	if got := FindOutsideDriftr("nest"); filepath.Base(got) != "nest" || filepath.Base(filepath.Dir(got)) == "tools" {
+		t.Errorf("empty PATH should search the current directory, got %q", got)
+	}
+
 	t.Setenv("PATH", aliasDir+sep+"tools")
 	if got, want := FindOutsideDriftr("nest"), filepath.Join(cwd, "tools", "nest"); got != want {
 		// macOS temp dirs live behind the /var -> /private/var symlink.
