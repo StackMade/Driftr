@@ -68,8 +68,10 @@ func installedMatcher(v version.Version) (match func(version.Version) bool, know
 		return v.Matches, true
 	}
 	if v.LTSCodename == "" {
-		// Node.js LTS lines are the even majors from v4 onwards.
-		return func(iv version.Version) bool { return iv.Major >= 4 && iv.Major%2 == 0 }, true
+		// Only lines known to have entered LTS. Every even major spends
+		// months as Current first, so "even" alone would pick a release
+		// that is not LTS yet.
+		return func(iv version.Version) bool { return version.IsLTSMajor(iv.Major) }, true
 	}
 	major, ok := version.LTSCodenameMajor(v.LTSCodename)
 	if !ok {

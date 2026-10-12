@@ -39,6 +39,18 @@ var ltsCodenameMajor = map[string]int{
 	"krypton":  24,
 }
 
+// IsLTSMajor reports whether a Node.js major line is known to have entered
+// LTS. A line joins this table, under its codename, when it is promoted; until
+// then an offline "lts" alias skips it, the same way an unknown codename does.
+func IsLTSMajor(major int) bool {
+	for _, m := range ltsCodenameMajor {
+		if m == major {
+			return true
+		}
+	}
+	return false
+}
+
 // LTSCodenameMajor returns the major version for a Node.js LTS codename.
 // The lookup is case-insensitive; ok is false for unknown codenames.
 func LTSCodenameMajor(name string) (int, bool) {
