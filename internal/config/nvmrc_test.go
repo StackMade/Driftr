@@ -94,3 +94,40 @@ func FuzzParseVersionFile(f *testing.F) {
 		// TestLoadNvmrc covers it.
 	})
 }
+
+func TestSaveVersionFile(t *testing.T) {
+	tests := []struct {
+		name, in, want string
+	}{
+		{"bare with newline", "22.1.0\n", "24.2.0\n"},
+		{"leading v kept", "v22.1.0\n", "v24.2.0\n"},
+		{"no trailing newline stays without", "22.1.0", "24.2.0"},
+		{"comments and blank lines kept", "# pinned for CI\n\n  v22.1.0  \n", "# pinned for CI\n\n  v24.2.0  \n"},
+		{"CRLF kept", "v22.1.0\r\n", "v24.2.0\r\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), ".nvmrc")
+			if err := os.WriteFile(path, []byte(tt.in), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := SaveVersionFile(path, "24.2.0"); err != nil {
+				t.Fatal(err)
+			}
+			got, _ := os.ReadFile(path)
+			if string(got) != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSaveVersionFile_NoVersion(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".node-version")
+	if err := os.WriteFile(path, []byte("# empty\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveVersionFile(path, "24.2.0"); err == nil {
+		t.Error("expected an error for a file with no version line")
+	}
+}

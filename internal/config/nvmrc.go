@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,4 +48,33 @@ func parseVersionFile(content string) (string, error) {
 	}
 
 	return "", nil
+}
+
+// SaveVersionFile replaces the version in a single-line version file such as
+// .nvmrc or .node-version. Only the version token changes: the line it sits
+// on, comments, blank lines, line endings and a leading "v" stay as they were,
+// so the diff a user commits is exactly the version.
+func SaveVersionFile(path, ver string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read %s: %w", path, err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	// Same line parseVersionFile reads: the first non-empty, non-comment one.
+	for i, line := range lines {
+		token := strings.TrimSpace(line)
+		if token == "" || strings.HasPrefix(token, "#") {
+			continue
+		}
+		start := strings.Index(line, token)
+		prefix := ""
+		if strings.HasPrefix(token, "v") {
+			prefix = "v"
+		}
+		lines[i] = line[:start] + prefix + ver + line[start+len(token):]
+		return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644)
+	}
+
+	return fmt.Errorf("%s holds no version to replace", path)
 }

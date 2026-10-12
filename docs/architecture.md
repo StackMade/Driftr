@@ -28,6 +28,7 @@ internal/
     install.go              driftr install
     default.go              driftr default
     pin.go                  driftr pin
+    pin_bump.go             driftr pin --bump (shares release fetching with outdated.go)
     list.go                 driftr list / ls
     which.go                driftr which
     run.go                  driftr run

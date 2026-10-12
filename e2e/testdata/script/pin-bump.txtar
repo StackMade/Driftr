@@ -1,0 +1,81 @@
+# driftr pin --bump: move existing pins to newer upstream releases, in the file
+# that holds them. The fixture serves one release per tool ($NODE_VERSION is on
+# the 22.x line), so "older" pins are written by hand below. Nothing here needs
+# an install: bumping only edits files.
+
+# --bump takes tool names; a version belongs to plain `driftr pin`.
+! exec driftr pin --bump node@22
+stderr '--bump takes tool names'
+! exec driftr pin --dry-run node@22
+stderr 'only apply to --bump'
+
+# --dry-run reports old -> new and writes nothing.
+cd $WORK/toml
+exec driftr pin --bump --dry-run
+stdout 'node: 22\.1\.0 -> '$NODE_VERSION
+stdout 'pnpm: 9\.0\.0 -> '$PNPM_VERSION
+stdout 'nothing written'
+cmp .driftr.toml $WORK/toml-before.toml
+
+# The real run rewrites .driftr.toml and points at install.
+exec driftr pin --bump
+stdout 'Bumped 2 pin'
+stdout 'driftr install'
+grep 'node = "'$NODE_VERSION'"' .driftr.toml
+grep 'pnpm = "'$PNPM_VERSION'"' .driftr.toml
+
+# A second run has nothing left to do and still exits 0.
+exec driftr pin --bump
+stdout 'Nothing to bump'
+
+# .nvmrc keeps its leading v and trailing newline.
+cd $WORK/nvmrc
+exec driftr pin --bump node
+cmp .nvmrc $WORK/nvmrc-after
+
+# engines.node is a range owned by the package author: reported, never written.
+cd $WORK/engines
+exec driftr pin --bump
+stdout 'engines.node .* not rewritten'
+stdout $NODE_VERSION
+cmp package.json $WORK/engines-before.json
+
+# No 20.x release upstream: same-major leaves it; --major moves the line.
+# A major-only pin keeps its precision.
+cd $WORK/old
+exec driftr pin --bump
+stdout 'no 20\.x release upstream'
+grep 'node = "20"' .driftr.toml
+exec driftr pin --bump --major
+stdout 'node: 20 -> 22'
+grep 'node = "22"' .driftr.toml
+
+-- toml/.driftr.toml --
+[tools]
+node = "22.1.0"
+pnpm = "9.0.0"
+-- toml-before.toml --
+[tools]
+node = "22.1.0"
+pnpm = "9.0.0"
+-- nvmrc/.nvmrc --
+v22.1.0
+-- nvmrc-after --
+v22.99.0
+-- engines/package.json --
+{
+  "name": "app",
+  "engines": {
+    "node": ">=18"
+  }
+}
+-- engines-before.json --
+{
+  "name": "app",
+  "engines": {
+    "node": ">=18"
+  }
+}
+-- old/.driftr.toml --
+[tools]
+node = "20"

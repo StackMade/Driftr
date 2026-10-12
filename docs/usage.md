@@ -200,6 +200,51 @@ This writes the version in the other format and removes the old config.
 - Nested directories inherit the pin until another config overrides it
 - In non-interactive environments (CI), defaults to `.driftr.toml`
 
+**Bumping existing pins:**
+
+```bash
+driftr pin --bump                 # every pinned tool, newest release on the same major line
+driftr pin --bump node pnpm       # only these tools
+driftr pin --bump --major         # allow a newer major line
+driftr pin --bump --dry-run       # print old -> new, write nothing
+```
+
+`--bump` reads the pins the project already has, the same ones `driftr outdated`
+reports, and rewrites each one in the file that holds it: `.driftr.toml`, the
+`driftr` key in `package.json`, `.nvmrc` or `.node-version`. It takes tool names,
+not versions; `driftr pin --bump node@22` is an error, because that is what plain
+`driftr pin node@22` is for.
+
+```
+$ driftr pin --bump
+node: 22.1.0 -> 22.21.1 in .nvmrc
+pnpm: 9.0.0 -> 9.15.9 in .driftr.toml
+✓ Bumped 2 pin(s). Run `driftr install` to install the new versions.
+```
+
+A pin keeps the precision it was written with:
+
+| Pin | `--bump` | `--bump --major` |
+|-----|----------|------------------|
+| `22.14.0` | newest `22.x.y` | newest release overall |
+| `22.14` | newest `22.x` | newest `x.y` overall |
+| `22` | stays `22`, it already floats | newest major, e.g. `24` |
+
+Pre-releases are never a target, and a pin never moves backwards. When upstream
+has no release on the pin's major line, the pin stays and the output says to use
+`--major`.
+
+**What is not rewritten:**
+- `engines.node` is a range owned by the package author. Driftr prints the newest release and leaves the range for you to raise
+- `packageManager` uses the corepack format and can carry an integrity hash. Driftr prints the newer version and suggests `corepack use pnpm@<version>`
+- Aliases such as `lts`, `lts/*`, `lts/iron` and `latest` already float, so they are reported and skipped
+
+**Behavior:**
+- Nothing is installed; run `driftr install` afterwards
+- `.nvmrc` and `.node-version` change only the version: a leading `v`, comments and the trailing newline stay
+- `.driftr.toml` and `package.json` are written the same way `driftr pin` writes them, so comments in `.driftr.toml` do not survive; in `package.json` the other keys keep their order and content, and the `driftr` value is written compact
+- With nothing to bump, the command says so and exits 0. It exits non-zero only when a release source could not be reached
+
 ## driftr use
 
 Switch a tool version for the current shell, without touching any config file.

@@ -94,6 +94,7 @@ pnpm -v   # resolves automatically
 | `driftr prune [--dry-run] [-y] [--tool <name>]` | Remove installed versions that neither the global default nor the current project uses |
 | `driftr default <tool@version>` | Set the global default version for a tool |
 | `driftr pin <tool@version>` | Pin a version to the current project (`.driftr.toml` or `package.json`) |
+| `driftr pin --bump [tool...] [--major] [--dry-run]` | Move the project's existing pins to the newest release on their major line (`--major`: newest overall), in the file that holds each pin |
 | `driftr use <tool@version>` | Print a shell snippet pinning a version for the current shell: `eval "$(driftr use node@24)"` |
 | `driftr list [tool]` | List installed versions (defaults to node) |
 | `driftr list --remote [tool]` | Browse available remote versions from nodejs.org, the npm registry, or bun's GitHub releases |

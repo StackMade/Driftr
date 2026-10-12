@@ -24,10 +24,10 @@ const (
 )
 
 func newPinCmd() *cobra.Command {
-	var migrate bool
+	var migrate, bump, major, dryRun bool
 
 	cmd := &cobra.Command{
-		Use:   "pin <tool@version>",
+		Use:   "pin <tool@version> | --bump [tool...]",
 		Short: "Pin a tool version to the current project",
 		Long: `Pin a tool version to the current project.
 
@@ -35,11 +35,39 @@ The version is stored in .driftr.toml or package.json (driftr key).
 On first use, you'll be asked which format to use. Subsequent pins
 reuse the detected format automatically.
 
+With --bump, the pins the project already has move to the newest release
+on their major line, in whichever file holds them. A pin keeps its precision:
+22.14.0 becomes the newest 22.x.y, while 22 already floats and stays put.
+--major allows a newer major line. Nothing is installed.
+
 Examples:
   driftr pin node@22.14.0
-  driftr pin node@22.14.0 --migrate   # switch storage format`,
-		Args: cobra.ExactArgs(1),
+  driftr pin node@22.14.0 --migrate   # switch storage format
+  driftr pin --bump                   # every pinned tool, same major
+  driftr pin --bump node pnpm --major # these tools, newest overall
+  driftr pin --bump --dry-run         # show old -> new, write nothing`,
+		Args: func(cmd *cobra.Command, args []string) error {
+			if !bump {
+				if major || dryRun {
+					return fmt.Errorf("--major and --dry-run only apply to --bump. Run `driftr pin --bump --major` or `driftr pin --bump --dry-run`")
+				}
+				return cobra.ExactArgs(1)(cmd, args)
+			}
+			if migrate {
+				return fmt.Errorf("--bump and --migrate cannot be combined. Run `driftr pin --bump` first, then `driftr pin <tool@version> --migrate`")
+			}
+			for _, a := range args {
+				if tool, ver, ok := strings.Cut(a, "@"); ok {
+					return fmt.Errorf("--bump takes tool names, not versions: %q. Run `driftr pin %s@%s` to set that version, or `driftr pin --bump %s` to move the pin to the newest release", a, tool, ver, tool)
+				}
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if bump {
+				return runPinBump(cmd.OutOrStdout(), args, major, dryRun)
+			}
+
 			tool, versionSpec := parseToolVersion(args[0])
 
 			versionStr, _, err := resolver.RequireToolInstalled(tool, versionSpec)
@@ -72,6 +100,9 @@ Examples:
 	}
 
 	cmd.Flags().BoolVar(&migrate, "migrate", false, "migrate config to the other storage format")
+	cmd.Flags().BoolVar(&bump, "bump", false, "move existing pins to the newest release on their major line")
+	cmd.Flags().BoolVar(&major, "major", false, "with --bump, allow a newer major line")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "with --bump, show what would change without writing")
 
 	return cmd
 }
