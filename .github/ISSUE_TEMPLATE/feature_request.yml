@@ -3,16 +3,43 @@ description: Suggest an idea or improvement
 labels: ["enhancement"]
 body:
   - type: textarea
-    id: description
+    id: problem
     attributes:
-      label: What would you like?
-      description: A clear description of the feature or improvement.
+      label: What problem does this solve?
+      description: What you are trying to do and where Driftr gets in the way. Describe one real case.
+      placeholder: Every time I switch between projects I have to...
     validations:
       required: true
   - type: textarea
-    id: motivation
+    id: proposal
     attributes:
-      label: Why?
-      description: What problem does this solve or what workflow does it improve?
+      label: What would you like?
+      description: The commands, flags, config keys or output you have in mind.
     validations:
-      required: false
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you use now, or how nvm, fnm, Volta or mise handle it.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - install / uninstall
+        - version resolution and pins
+        - shims
+        - package managers (npm, pnpm, yarn, bun)
+        - PATH setup and doctor
+        - self-update and releases
+        - dependency storage
+        - other
+    validations:
+      required: true
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contributing
+      options:
+        - label: I'd like to open a pull request for this.

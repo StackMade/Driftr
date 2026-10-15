@@ -313,14 +313,20 @@ commits exist.
 
 ## Reporting Bugs
 
-When reporting a bug, include:
+Open an issue with the **Bug Report** template. It asks for:
 
-1. Driftr version (or commit hash)
-2. Operating system and architecture
+1. Driftr version (`driftr --version`)
+2. Operating system, architecture and shell
 3. Steps to reproduce
 4. Expected vs actual behavior
-5. Verbose output (`-v` flag)
+5. The version pin the resolver should have found, if any
+6. `driftr doctor` output
+7. Verbose output: `driftr which <tool> -v` if the wrong version was picked, otherwise the
+   failing command rerun with `-v`
+
+Security vulnerabilities go through a private advisory instead; see
+[SECURITY.md](../SECURITY.md).
 
 ## Questions?
 
-Open a discussion or issue on GitHub. We're happy to help you get started.
+Open an issue with the **Question** template. We're happy to help you get started.

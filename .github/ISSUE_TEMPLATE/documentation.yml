@@ -1,0 +1,24 @@
+name: Documentation
+description: Something in the README or docs/ is wrong, missing or unclear
+labels: ["documentation"]
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Where?
+      description: File, section or URL.
+      placeholder: docs/configuration.md, "Project pins"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's wrong?
+      description: What the docs say, and what actually happens or what you expected to find.
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested fix
+      description: Proposed wording, if you have one.
