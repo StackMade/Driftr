@@ -157,7 +157,8 @@ driftr outdated --exit-code    # exit 1 when something is behind (CI)
 The report shows the version each tool resolves to, the newest release on that
 major line, the newest release overall, and for node the newest LTS. A tool
 whose release source cannot be reached is reported as `unknown` and does not
-stop the rest of the report.
+stop the rest of the report. To move the project's pins to those releases, run
+`driftr pin --bump` (see [usage](docs/usage.md)).
 
 ## Shell Completions
 
