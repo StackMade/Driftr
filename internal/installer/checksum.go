@@ -5,12 +5,17 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 )
+
+// errChecksumMismatch marks an archive whose hash differs from the published
+// one, the only verification failure that proves the cached archive bad.
+var errChecksumMismatch = errors.New("checksum mismatch")
 
 // ShasumsURL returns the URL for the SHASUMS256.txt file for a given Node.js version.
 func ShasumsURL(version string) string {
@@ -98,8 +103,8 @@ func VerifyChecksum(archivePath, version string, verbose bool) error {
 	}
 
 	if subtle.ConstantTimeCompare([]byte(actual), []byte(expected)) != 1 {
-		return fmt.Errorf("checksum mismatch for %s\n  expected: %s\n  got:      %s\nThe download may be corrupted. Delete the cached file and try again:\n  rm %s",
-			filename, expected, actual, archivePath)
+		return fmt.Errorf("%w for %s\n  expected: %s\n  got:      %s\nThe download may be corrupted. Delete the cached file and try again:\n  rm %s",
+			errChecksumMismatch, filename, expected, actual, archivePath)
 	}
 
 	if verbose {

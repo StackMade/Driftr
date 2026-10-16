@@ -77,7 +77,7 @@ exiting quietly.
 **Notes:**
 - Reinstalling an already-installed version is a no-op
 - Downloaded archives and binaries are cached in `~/.driftr/cache/`
-- If checksum verification fails, the cached archive is deleted automatically
+- If the checksum does not match, the cached archive is deleted automatically
 - If extraction fails, the partial installation is cleaned up
 
 ## driftr uninstall

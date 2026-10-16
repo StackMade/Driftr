@@ -191,7 +191,10 @@ func InstallBun(versionStr string, verbose bool) (string, error) {
 	}
 
 	if err := verifyBunChecksum(archivePath, tag, asset, verbose); err != nil {
-		return "", removeCorruptArchive(archivePath, err)
+		if errors.Is(err, errChecksumMismatch) {
+			err = removeCorruptArchive(archivePath, err)
+		}
+		return "", err
 	}
 
 	versionDir, err := platform.ToolVersionDir("bun", resolvedVersion)
@@ -235,8 +238,8 @@ func verifyBunChecksum(archivePath, tag, asset string, verbose bool) error {
 	}
 
 	if subtle.ConstantTimeCompare([]byte(actual), []byte(expected)) != 1 {
-		return fmt.Errorf("checksum mismatch for %s\n  expected: %s\n  got:      %s\nThe download may be corrupted. Delete the cached file and try again:\n  rm %s",
-			asset, expected, actual, archivePath)
+		return fmt.Errorf("%w for %s\n  expected: %s\n  got:      %s\nThe download may be corrupted. Delete the cached file and try again:\n  rm %s",
+			errChecksumMismatch, asset, expected, actual, archivePath)
 	}
 
 	if verbose {

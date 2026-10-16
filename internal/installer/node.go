@@ -2,6 +2,7 @@ package installer
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -15,13 +16,13 @@ import (
 )
 
 // installCleanup tracks resources that need cleanup if the install is
-// interrupted by a signal. All fields are guarded by mu.
+// interrupted by a signal. All fields are guarded by mu. The version dir is
+// never on the list: extraction renames a finished work dir into place, so it
+// is never half-written, and another process may have just installed it.
 type installCleanup struct {
 	mu      sync.Mutex
 	tmpFile string // temp download file (driftr-download-*)
 	tmpDir  string // extraction work dir, as created by os.MkdirTemp
-	version string // version being installed (partial extraction dir)
-	verbose bool
 }
 
 func (c *installCleanup) setTmpFile(path string) {
@@ -57,13 +58,7 @@ func (c *installCleanup) clearTmpDir() {
 	c.tmpDir = ""
 }
 
-func (c *installCleanup) setVersion(v string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.version = v
-}
-
-// run removes any tracked temp files and partial installs.
+// run removes any tracked temp files and work dirs.
 // Safe to call multiple times or concurrently.
 func (c *installCleanup) run() {
 	c.mu.Lock()
@@ -75,16 +70,6 @@ func (c *installCleanup) run() {
 	if c.tmpDir != "" {
 		os.RemoveAll(c.tmpDir)
 		c.tmpDir = ""
-	}
-	if c.version != "" {
-		dir, err := platform.NodeVersionDir(c.version)
-		if err == nil {
-			if c.verbose {
-				fmt.Fprintf(os.Stderr, "  Cleaning up partial install: %s\n", dir)
-			}
-			os.RemoveAll(dir)
-		}
-		c.version = ""
 	}
 }
 
@@ -146,7 +131,7 @@ func Install(versionStr string, verbose bool) (string, error) {
 	}
 
 	// Set up signal-aware cleanup for temp files and partial installs.
-	cleanup := &installCleanup{verbose: verbose}
+	cleanup := &installCleanup{}
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	done := make(chan struct{})
@@ -164,8 +149,6 @@ func Install(versionStr string, verbose bool) (string, error) {
 		close(done)
 	}()
 
-	cleanup.setVersion(resolvedVersion)
-
 	archivePath, err := Download(resolvedVersion, verbose, cleanup)
 	if err != nil {
 		cleanup.run()
@@ -173,8 +156,11 @@ func Install(versionStr string, verbose bool) (string, error) {
 	}
 
 	if err := VerifyChecksum(archivePath, resolvedVersion, verbose); err != nil {
-		// Remove corrupted cached archive so next attempt re-downloads.
-		err = removeCorruptArchive(archivePath, err)
+		// Only a mismatch condemns the archive; a failed SHASUMS fetch says
+		// nothing about it, and re-downloading it would waste the next attempt.
+		if errors.Is(err, errChecksumMismatch) {
+			err = removeCorruptArchive(archivePath, err)
+		}
 		cleanup.run()
 		return "", err
 	}
@@ -183,9 +169,6 @@ func Install(versionStr string, verbose bool) (string, error) {
 		cleanup.run()
 		return "", err
 	}
-
-	// Success — nothing to clean up.
-	cleanup.setVersion("")
 
 	return resolvedVersion, nil
 }

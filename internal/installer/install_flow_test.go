@@ -175,6 +175,50 @@ func TestInstall_ChecksumMismatchRemovesCachedArchive(t *testing.T) {
 	}
 }
 
+// A SHASUMS fetch that fails says nothing about the archive, which must stay
+// cached for the retry. Meanwhile another process finished installing the
+// same version; the failed install must leave that install alone.
+func TestInstall_ChecksumFetchFailureKeepsArchiveAndConcurrentInstall(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	const ver = "99.0.0"
+	bin, err := platform.NodeBinary(ver)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/SHASUMS256.txt") {
+			// Process A completes the install while this one waits on SHASUMS.
+			if err := os.MkdirAll(filepath.Dir(bin), 0o755); err != nil {
+				t.Error(err)
+			}
+			if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755); err != nil {
+				t.Error(err)
+			}
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.Write([]byte("archive bytes"))
+	}))
+	defer srv.Close()
+	swapHTTPClient(t, srv)
+
+	if _, err := Install(ver, false); err == nil || !strings.Contains(err.Error(), "HTTP 503") {
+		t.Fatalf("expected an HTTP 503 error, got: %v", err)
+	}
+
+	if _, err := os.Stat(bin); err != nil {
+		t.Errorf("concurrently completed install was deleted: %v", err)
+	}
+	cacheDir, err := platform.CacheDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(cacheDir, ArchiveFilename(ver))); err != nil {
+		t.Errorf("good archive dropped from the cache: %v", err)
+	}
+}
+
 // An archive that passes its checksum but unpacks to the wrong layout must
 // leave no version directory: a half-written one would look installed to the
 // resolver.

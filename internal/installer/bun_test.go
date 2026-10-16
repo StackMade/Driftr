@@ -206,6 +206,15 @@ func TestInstallBun_MissingChecksums(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "refusing to install unverified package") {
 		t.Fatalf("expected refusal to install unverified, got: %v", err)
 	}
+
+	// The archive was never shown to be bad, so the retry reuses it.
+	cacheDir, err := platform.CacheDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(cacheDir, "bun-v1.2.3-"+f.asset)); err != nil {
+		t.Errorf("unverified archive dropped from the cache: %v", err)
+	}
 }
 
 func TestInstallBun_ChecksumMissingForAsset(t *testing.T) {

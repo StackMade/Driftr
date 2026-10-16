@@ -25,38 +25,18 @@ func TestInstallCleanup_RemovesTmpFile(t *testing.T) {
 	}
 }
 
-func TestInstallCleanup_RemovesVersionDir(t *testing.T) {
-	// Point HOME to a temp dir so platform.NodeVersionDir resolves there.
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-
-	// Create a fake version directory structure under ~/.driftr/tools/node/99.0.0.
-	versionDir := filepath.Join(home, ".driftr", "tools", "node", "99.0.0")
-	binDir := filepath.Join(versionDir, "bin")
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(binDir, "node"), []byte("fake"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	cleanup := &installCleanup{version: "99.0.0"}
-	cleanup.run()
-
-	if _, err := os.Stat(versionDir); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("version directory should have been removed: %s", versionDir)
-	}
-}
-
 // The extraction work dir is named by os.MkdirTemp, so its suffix is random
 // and cleanup can only remove the directory Extract told it about. An earlier
 // version reconstructed the name from the pid and therefore never matched.
-func TestInstallCleanup_RemovesRegisteredTmpDir(t *testing.T) {
+// The version dir itself stays: extraction renames a finished work dir into
+// place, so it is never partial, and it may be another process's install.
+func TestInstallCleanup_RemovesRegisteredTmpDirKeepsVersionDir(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
 	toolsDir := filepath.Join(home, ".driftr", "tools", "node")
-	if err := os.MkdirAll(toolsDir, 0o755); err != nil {
+	versionDir := filepath.Join(toolsDir, "99.0.0")
+	if err := os.MkdirAll(versionDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	tmpDir, err := os.MkdirTemp(toolsDir, "99.0.0.tmp-")
@@ -67,12 +47,15 @@ func TestInstallCleanup_RemovesRegisteredTmpDir(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cleanup := &installCleanup{version: "99.0.0"}
+	cleanup := &installCleanup{}
 	cleanup.setTmpDir(tmpDir)
 	cleanup.run()
 
 	if _, err := os.Stat(tmpDir); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("extraction work dir should have been removed: %s", tmpDir)
+	}
+	if _, err := os.Stat(versionDir); err != nil {
+		t.Errorf("version dir should have been kept: %v", err)
 	}
 }
 
@@ -90,37 +73,6 @@ func TestInstallCleanup_ClearTmpDirPreventsRemoval(t *testing.T) {
 
 	if _, err := os.Stat(tmpDir); err != nil {
 		t.Errorf("cleared work dir should have survived: %v", err)
-	}
-}
-
-func TestInstallCleanup_RemovesBothTmpFileAndVersionDir(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-
-	// Create temp file.
-	tmpFile, err := os.CreateTemp(t.TempDir(), "driftr-download-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	tmpPath := tmpFile.Name()
-	tmpFile.Close()
-
-	// Create version dir.
-	versionDir := filepath.Join(home, ".driftr", "tools", "node", "99.0.0")
-	if err := os.MkdirAll(versionDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	cleanup := &installCleanup{}
-	cleanup.setTmpFile(tmpPath)
-	cleanup.setVersion("99.0.0")
-	cleanup.run()
-
-	if _, err := os.Stat(tmpPath); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("temp file should have been removed")
-	}
-	if _, err := os.Stat(versionDir); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("version directory should have been removed")
 	}
 }
 
