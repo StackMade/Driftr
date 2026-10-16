@@ -251,5 +251,6 @@ Driftr uses minimal external dependencies:
 |---------|---------|
 | `github.com/spf13/cobra` | CLI framework |
 | `github.com/BurntSushi/toml` | TOML config parsing |
+| `golang.org/x/sys/windows` | Windows only: console mode and the user `Path` in the registry |
 
 Everything else uses the Go standard library: `net/http` for downloads, `crypto/sha256` for checksums, `archive/tar` + `compress/gzip` for extraction, `syscall` for exec.

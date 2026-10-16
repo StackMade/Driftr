@@ -33,7 +33,7 @@ Driftr is a new project. It doesn't have Volta's years of polish or fnm's commun
 - **Shim-based** -- `node`, `npm`, `npx`, `pnpm`, `pnpx`, `yarn`, and `bun` just work, resolved per-project or globally
 - **Global packages** -- bins from `npm install -g` (`tsc`, `nest`, `corepack`) get shims and run under the Node.js version that installed them
 - **Fast** -- near-zero overhead via `syscall.Exec` process replacement
-- **Minimal** -- 2 external dependencies (cobra + toml), everything else is Go stdlib
+- **Minimal** -- 2 external dependencies (cobra + toml), plus golang.org/x/sys on Windows; everything else is Go stdlib
 - **Deterministic** -- explicit resolution chain: `DRIFTR_<TOOL>` (one shell, via `driftr use`) > project config > `package.json` (`driftr` key, then `packageManager` field for npm/pnpm/yarn/bun) > `.nvmrc` / `.node-version` (node) > `package.json` `engines.node` (node) > global default. Each directory is checked for every source before moving to its parent; the closest directory with a pin wins, except that `engines.node` only applies when no explicit node pin exists anywhere up the tree.
 - **nvm-compatible pins** -- `.nvmrc` and `.node-version` are read as they are, including the `lts`, `lts/*` and `lts/<codename>` aliases
 - **Secure** -- SHA256 and SHA-512 SRI checksum verification on every download
@@ -250,7 +250,7 @@ Shims in `~/.driftr/bin/` intercept calls to `node`, `npm`, `npx`, `pnpm`, `pnpx
 | Language | Go | Shell | Rust | Rust | Rust |
 | Mechanism | Shims | Shell function | Shims | PATH via shell hook | PATH via shell hook (shims optional) |
 | Cost model | ~5ms per tool call, nothing at shell startup | 200-500ms per shell startup | per tool call | per prompt / directory change | per prompt / directory change |
-| Direct dependencies | **2** (cobra, toml) | 0 (shell) | 12 | 27 | 79 |
+| Direct dependencies | **2** (cobra, toml; 3 on Windows) | 0 (shell) | 12 | 27 | 79 |
 | Tools managed | node, npm, npx, pnpm, pnpx, yarn, bun | node + its bundled npm | node, npm, yarn; pnpm experimental (`VOLTA_FEATURE_PNPM=1`) | node only | node, pnpm, yarn, bun + hundreds of others |
 | Reads `.nvmrc` / `.node-version` | Yes | Yes | No | Yes | Yes |
 | Reads `engines.node` | Yes (installed versions) | No | No | Yes (default on) | No |
