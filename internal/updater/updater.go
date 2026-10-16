@@ -3,6 +3,7 @@ package updater
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -165,8 +166,38 @@ func fetchLatestVersion() (string, error) {
 	return strings.TrimPrefix(release.TagName, "v"), nil
 }
 
+// downloadIdleTimeout aborts a release download that receives no data for
+// this long. httpClient's Timeout would count the body read too and cut off a
+// slow but steady connection.
+var downloadIdleTimeout = 60 * time.Second
+
+// idleReader pushes the idle deadline back on every read that returns data.
+type idleReader struct {
+	r     io.Reader
+	timer *time.Timer
+}
+
+func (i *idleReader) Read(p []byte) (int, error) {
+	n, err := i.r.Read(p)
+	if n > 0 {
+		i.timer.Reset(downloadIdleTimeout)
+	}
+	return n, err
+}
+
 func downloadFile(url, dest string) error {
-	resp, err := httpClient.Get(url)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	idle := time.AfterFunc(downloadIdleTimeout, cancel)
+	defer idle.Stop()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	client := *httpClient
+	client.Timeout = 0
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -181,7 +212,7 @@ func downloadFile(url, dest string) error {
 		return err
 	}
 
-	limited := io.LimitReader(resp.Body, maxUpdaterDownloadBytes)
+	limited := io.LimitReader(&idleReader{r: resp.Body, timer: idle}, maxUpdaterDownloadBytes)
 	if ioutil.IsTerminal(os.Stderr) {
 		pw := &ioutil.ProgressWriter{Dest: f, Total: resp.ContentLength}
 		_, err = io.Copy(pw, limited)

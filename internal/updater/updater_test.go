@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // makeTarGz builds a tar.gz archive with the given file entries.
@@ -234,6 +235,45 @@ func TestDownloadFile_Success(t *testing.T) {
 	}
 	if !bytes.Equal(got, content) {
 		t.Errorf("content mismatch: got %q", got)
+	}
+}
+
+// A download slower than the client timeout still finishes as long as data
+// keeps coming; one that stops sending is cut off by the idle timeout.
+func TestDownloadFile_IdleTimeout(t *testing.T) {
+	origTimeout, origIdle := httpClient.Timeout, downloadIdleTimeout
+	t.Cleanup(func() { httpClient.Timeout, downloadIdleTimeout = origTimeout, origIdle })
+	httpClient.Timeout = 100 * time.Millisecond
+	downloadIdleTimeout = 300 * time.Millisecond
+
+	chunks := func(n int, pause time.Duration) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			for i := 0; i < n; i++ {
+				w.Write([]byte("x"))
+				w.(http.Flusher).Flush()
+				select {
+				case <-time.After(pause):
+				case <-r.Context().Done():
+					return
+				}
+			}
+		}
+	}
+
+	slow := httptest.NewServer(chunks(6, 50*time.Millisecond))
+	defer slow.Close()
+	if err := downloadFile(slow.URL, filepath.Join(t.TempDir(), "out")); err != nil {
+		t.Fatalf("slow but steady download failed: %v", err)
+	}
+
+	stalled := httptest.NewServer(chunks(2, 2*time.Second))
+	defer stalled.Close()
+	start := time.Now()
+	if err := downloadFile(stalled.URL, filepath.Join(t.TempDir(), "out")); err == nil {
+		t.Fatal("stalled download succeeded, want an error")
+	}
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("stalled download took %s, want it cut off near the idle timeout", d)
 	}
 }
 
