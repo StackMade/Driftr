@@ -55,6 +55,27 @@ func TestUpdate_AlreadyCurrent(t *testing.T) {
 	}
 }
 
+func TestUpdate_NeverDowngrades(t *testing.T) {
+	fakeRelease(t, "v1.2.3", nil)
+
+	version, err := Update("1.10.0", false)
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+	if version != "" {
+		t.Errorf("Update() = %q, want \"\" when the running build is newer than the release", version)
+	}
+}
+
+func TestUpdate_RefusesDevBuild(t *testing.T) {
+	fakeRelease(t, "v1.2.3", nil)
+
+	_, err := Update("dev", false)
+	if err == nil || !strings.Contains(err.Error(), "not a release build") || !strings.Contains(err.Error(), "install.sh") {
+		t.Fatalf("Update() error = %v, want a refusal naming the installer", err)
+	}
+}
+
 func TestUpdate_APIUnreachable(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "boom", http.StatusInternalServerError)

@@ -664,6 +664,9 @@ Update Driftr to the latest version.
 driftr self-update
 ```
 
+It only updates when the latest release is newer than the running version, so a build ahead of
+the release is never downgraded. A development build (`dev`) is refused; install a release instead.
+
 After a successful update, automatically migrates PATH configuration if it was placed in an
 interactive-only file (e.g. `.zshrc`) to the universal target (`.zshenv` for zsh). Prints a
 note about any stale entries in old rc files — safe to remove manually.

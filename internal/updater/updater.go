@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/stackmade/driftr/internal/ioutil"
+	"github.com/stackmade/driftr/internal/version"
 )
 
 const (
@@ -66,6 +67,13 @@ type githubRelease struct {
 // Update checks for a newer version and replaces the current binary.
 // Returns the new version string, or empty string if already up to date.
 func Update(currentVersion string, verbose bool) (string, error) {
+	// Only a release build can be compared with a release: replacing a dev
+	// build would silently swap it for whatever was last published.
+	current, ok := releaseVersion(currentVersion)
+	if !ok {
+		return "", fmt.Errorf("driftr %s is not a release build, so self-update cannot tell whether a release is newer. Install a release with `curl -fsSL https://raw.githubusercontent.com/StackMade/driftr/main/install.sh | sh`", currentVersion)
+	}
+
 	fmt.Println("Checking for updates...")
 
 	latest, err := fetchLatestVersion()
@@ -77,7 +85,12 @@ func Update(currentVersion string, verbose bool) (string, error) {
 		fmt.Printf("  Current: %s, Latest: %s\n", currentVersion, latest)
 	}
 
-	if latest == currentVersion {
+	newest, ok := releaseVersion(latest)
+	if !ok {
+		return "", fmt.Errorf("latest release tag %q is not a version", latest)
+	}
+	// Equal or older: never downgrade a build that is ahead of the release.
+	if !isNewer(newest, current) {
 		return "", nil
 	}
 
@@ -283,4 +296,25 @@ func replaceBinary(newPath, oldPath string) error {
 		return nil
 	}
 	return nil
+}
+
+// releaseVersion parses an exact X.Y.Z version; ok is false for anything else,
+// such as "dev" or a snapshot build.
+func releaseVersion(s string) (version.Version, bool) {
+	v, err := version.Parse(s)
+	if err != nil || v.Latest || v.LTS || v.IsPartial() {
+		return version.Version{}, false
+	}
+	return v, true
+}
+
+// isNewer reports whether a is a strictly higher version than b.
+func isNewer(a, b version.Version) bool {
+	if a.Major != b.Major {
+		return a.Major > b.Major
+	}
+	if a.Minor != b.Minor {
+		return a.Minor > b.Minor
+	}
+	return a.Patch > b.Patch
 }

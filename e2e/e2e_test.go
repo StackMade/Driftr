@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/rogpeppe/go-internal/testscript"
@@ -94,7 +95,12 @@ func run(m *testing.M) int {
 	// than testscript-registered commands backed by the test process.
 	updatableBin = filepath.Join(tmp, "driftr-updatable")
 	for _, out := range []string{driftrBin, updatableBin} {
-		if err := buildDriftr(out, buildFlags); err != nil {
+		flags := buildFlags
+		if out == updatableBin {
+			// self-update refuses a dev build, so this one claims a release.
+			flags = append(slices.Clone(buildFlags), "-ldflags", "-X github.com/stackmade/driftr/internal/cli.Version=1.0.0")
+		}
+		if err := buildDriftr(out, flags); err != nil {
 			fmt.Fprintf(os.Stderr, "e2e: build %s: %v\n", filepath.Base(out), err)
 			return 1
 		}
