@@ -9,6 +9,7 @@
 package pathsetup
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -40,6 +41,15 @@ type Result struct {
 // because they won't cover non-interactive shells.
 func (r Result) NeedsFix() bool {
 	return !r.InTarget
+}
+
+// errModifyDisabled is what Apply and ApplyGuard return when
+// DRIFTR_NO_MODIFY_PATH is set: the user keeps PATH themselves, e.g. in
+// dotfiles they manage, and driftr only says what to add.
+var errModifyDisabled = errors.New("DRIFTR_NO_MODIFY_PATH is set, so driftr leaves PATH to you")
+
+func modifyDisabled() bool {
+	return os.Getenv("DRIFTR_NO_MODIFY_PATH") != ""
 }
 
 // DetectShell returns the user's shell based on $SHELL, defaulting to unknown.

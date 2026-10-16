@@ -536,3 +536,26 @@ func TestRootOwnedRcFiles(t *testing.T) {
 		t.Errorf(".zshenv changed: %q", got)
 	}
 }
+
+func TestApply_NoModifyPath(t *testing.T) {
+	home := t.TempDir()
+	testutil.SetHome(t, home)
+	t.Setenv("SHELL", "/bin/zsh")
+	t.Setenv("ZDOTDIR", "")
+	t.Setenv("DRIFTR_NO_MODIFY_PATH", "1")
+	binDir := filepath.Join(home, ".driftr", "bin")
+
+	r, err := Detect(binDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wrote, _, err := Apply(r); wrote || err == nil {
+		t.Errorf("Apply() = %v, %v; want a refusal", wrote, err)
+	}
+	if wrote, _, err := ApplyGuard(ShellZsh, binDir); wrote || err == nil {
+		t.Errorf("ApplyGuard() = %v, %v; want a refusal", wrote, err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".zshenv")); !os.IsNotExist(err) {
+		t.Errorf(".zshenv written anyway: %v", err)
+	}
+}

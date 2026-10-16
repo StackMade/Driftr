@@ -48,6 +48,9 @@ func Apply(r Result) (wrote bool, target string, err error) {
 	if !r.NeedsFix() {
 		return false, "", nil
 	}
+	if modifyDisabled() {
+		return false, "", errModifyDisabled
+	}
 	k, _, err := registry.CreateKey(registry.CURRENT_USER, userEnvKey, registry.QUERY_VALUE|registry.SET_VALUE)
 	if err != nil {
 		return false, "", fmt.Errorf("open %s: %w", targetName, err)

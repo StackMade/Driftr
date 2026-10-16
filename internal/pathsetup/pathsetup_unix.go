@@ -72,6 +72,9 @@ func Apply(r Result) (wrote bool, target string, err error) {
 	if !r.NeedsFix() {
 		return false, "", nil
 	}
+	if modifyDisabled() {
+		return false, "", errModifyDisabled
+	}
 
 	if err = os.MkdirAll(filepath.Dir(r.Target), 0o755); err != nil {
 		return false, "", fmt.Errorf("create profile dir: %w", err)
@@ -158,6 +161,9 @@ func ApplyGuard(shell Shell, binDir string) (wrote bool, file string, err error)
 	}
 	if mentioned {
 		return false, "", nil // already present — nothing to do
+	}
+	if modifyDisabled() {
+		return false, "", errModifyDisabled
 	}
 
 	if err = os.MkdirAll(filepath.Dir(guard), 0o755); err != nil {
