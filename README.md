@@ -34,7 +34,7 @@ Driftr is a new project. It doesn't have Volta's years of polish or fnm's commun
 - **Global packages** -- bins from `npm install -g` (`tsc`, `nest`, `corepack`) get shims and run under the Node.js version that installed them
 - **Fast** -- near-zero overhead via `syscall.Exec` process replacement
 - **Minimal** -- 2 external dependencies (cobra + toml), everything else is Go stdlib
-- **Deterministic** -- explicit resolution chain: `DRIFTR_<TOOL>` (one shell, via `driftr use`) > project config > `package.json` (`driftr` key, then `packageManager` field for npm/pnpm/yarn/bun) > `.nvmrc` / `.node-version` (node) > `package.json` `engines.node` (node) > global default
+- **Deterministic** -- explicit resolution chain: `DRIFTR_<TOOL>` (one shell, via `driftr use`) > project config > `package.json` (`driftr` key, then `packageManager` field for npm/pnpm/yarn/bun) > `.nvmrc` / `.node-version` (node) > `package.json` `engines.node` (node) > global default. Each directory is checked for every source before moving to its parent; the closest directory with a pin wins.
 - **nvm-compatible pins** -- `.nvmrc` and `.node-version` are read as they are, including the `lts`, `lts/*` and `lts/<codename>` aliases
 - **Secure** -- SHA256 and SHA-512 SRI checksum verification on every download
 - **Simple** -- a handful of commands cover the entire workflow
@@ -207,6 +207,8 @@ flowchart TD
     C1 & C1b & C2 & C3 & C3b & C4 & C5 & C6 & C7 --> D["syscall.Exec\nreplaces process with real node"]
 ```
 
+The project sources (3 to 7) are read per directory: each directory is checked for every source before moving to its parent; the closest directory with a pin wins.
+
 Shims in `~/.driftr/bin/` intercept calls to `node`, `npm`, `npx`, `pnpm`, `pnpx`, `yarn`, and `bun`. The resolver determines the correct version, and `syscall.Exec` replaces the process with the real binary. Standalone tools (node, bun) are exec'd directly. Tools that need Node.js (pnpm, yarn, and a pinned npm) are exec'd as `node <tool-script>`. With no npm pinned, `npm` and `npx` run the copy bundled with the resolved Node.js.
 
 ## Documentation
@@ -234,6 +236,7 @@ Shims in `~/.driftr/bin/` intercept calls to `node`, `npm`, `npx`, `pnpm`, `pnpx
     config.toml     global default settings
     projects        projects recorded by pin/install, checked by prune
   cache/            downloaded archives + binaries
+  stores/pnpm/      shared pnpm store, used after driftr node optimize
 ```
 
 ## How Driftr Compares

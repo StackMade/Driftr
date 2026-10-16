@@ -749,6 +749,9 @@ When you run a tool (`node`, `npm`, `npx`, `pnpm`, `pnpx`, `yarn`, or `bun`), Dr
 | 8 | `package.json` `engines.node` (node only) | Found in current or parent directory |
 | 9 | Global default | Set via `driftr default` |
 
+Rows 3 to 8 are not a ranking across the whole tree. Each directory is checked for every source before moving to its parent; the closest directory with a pin wins. A `.nvmrc` in the current
+directory wins over a `.driftr.toml` in a parent directory.
+
 If no version is configured at any level, Driftr prints an actionable error.
 
 **Tool resolution:**

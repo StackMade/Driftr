@@ -125,7 +125,7 @@ This creates the following structure:
   cache/         downloaded archives + binaries
 ```
 
-`driftr node optimize` later adds `stores/pnpm/`, the shared pnpm store.
+`stores/pnpm/` appears later, once `driftr node optimize` points pnpm's shared store there.
 
 ## PATH Configuration
 

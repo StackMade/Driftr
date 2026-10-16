@@ -118,14 +118,15 @@ The resolver follows a strict priority order:
 2. **Environment** -- `DRIFTR_NODE`, `DRIFTR_NPM`, `DRIFTR_PNPM`, `DRIFTR_YARN` or `DRIFTR_BUN`, set for one shell by `driftr use`
 3. **Project** -- `.driftr.toml` found by walking up from `cwd`
 4. **package.json** -- `driftr` key in `package.json`, same walk-up
-5. **`.nvmrc`** -- node only, found by walking up from `cwd`
-6. **`.node-version`** -- node only, found by walking up from `cwd`
-7. **`engines.node`** -- node only, the standard `engines` object in `package.json`, same walk-up
-8. **Global** -- `~/.driftr/config/config.toml`
+5. **`packageManager`** -- npm, pnpm, yarn and bun only, the standard `packageManager` field in `package.json` (`"pnpm@9.15.0"`), same walk-up
+6. **`.nvmrc`** -- node only, found by walking up from `cwd`
+7. **`.node-version`** -- node only, found by walking up from `cwd`
+8. **`engines.node`** -- node only, the standard `engines` object in `package.json`, same walk-up
+9. **Global** -- `~/.driftr/config/config.toml`
 
 The variable name is `DRIFTR_` plus the tool name in upper case, and only for tools Driftr knows, so an unrelated `DRIFTR_*` in the environment cannot steer resolution. Its value goes through the same partial-version matching as `driftr pin`, against installed versions only.
 
-In each directory, `.driftr.toml` is checked before `package.json`, then `.nvmrc`, then `.node-version`, then `engines.node` (the last three node only). The closest config to the working directory wins, regardless of format.
+In each directory, `.driftr.toml` is checked before the `driftr` key in `package.json`, then the `packageManager` field (npm, pnpm, yarn and bun only), then `.nvmrc`, then `.node-version`, then `engines.node` (the last three node only). Each directory is checked for every source before moving to its parent; the closest directory with a pin wins. The closest config to the working directory wins, regardless of format.
 
 `engines.node` holds a semver range rather than one version. Driftr matches it against the versions already installed and takes the newest one that fits. It makes no network call to do so, which keeps the shim path offline. See [Configuration](configuration.md#enginesnode) for the supported syntax.
 

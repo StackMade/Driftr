@@ -6,7 +6,7 @@ Driftr uses configuration at two levels: global (`config.toml`) and per-project 
 
 **Location:** `~/.driftr/config/config.toml`
 
-This file stores your global default tool versions. It is created and managed by `driftr default`.
+This file stores your global default tool versions and the `auto_install` setting. `driftr default` creates it and writes the defaults; `auto_install` has no command, so set it by editing the file.
 
 ### Format
 
@@ -43,7 +43,18 @@ driftr default node@22.14.0
 driftr default pnpm@9.15.0
 ```
 
-The config file will contain both tool defaults.
+The config file will contain both tool defaults:
+
+```toml
+[default]
+node = "22.14.0"
+
+[default.tools]
+node = "22.14.0"
+pnpm = "9.15.0"
+```
+
+`driftr default` writes every tool, node included, under `[default.tools]`, and for node also keeps `[default] node` in step. When reading, `[default.tools]` wins: `[default] node` is used only when `[default.tools]` has no `node` entry, which is how config files written by older versions still work. If you edit the file by hand, change both or drop `[default] node`.
 
 ## Project Configuration
 
@@ -102,7 +113,7 @@ This format is useful when you want to keep all project tooling config in `packa
 driftr pin node@22.14.0 --migrate
 ```
 
-This writes the version in the new format and removes the old config (deletes `.driftr.toml` or removes the `driftr` key from `package.json`).
+This writes the version in the new format and removes the old config (deletes `.driftr.toml` or removes the `driftr` key from `package.json`). Only the tool you name is written; pins for other tools in the old config are not carried over, so pin them again afterwards.
 
 ### Directory Walk Behavior
 
@@ -114,6 +125,8 @@ A `DRIFTR_<TOOL>` variable in the environment (see [Environment Variables](#envi
 4. `.nvmrc` (node only)
 5. `.node-version` (node only)
 6. `package.json` (`engines.node`, node only)
+
+Each directory is checked for every source before moving to its parent; the closest directory with a pin wins.
 
 ```
 /home/user/my-project/packages/core/   <- cwd, no config
@@ -183,6 +196,11 @@ git commit -m "Pin Node.js version with Driftr"
 | `DRIFTR_BUN_MIRROR` | `https://github.com/oven-sh/bun/releases/download` | Alternative host for bun release assets. Must serve `bun-v<version>/bun-<os>-<arch>.zip` and `bun-v<version>/SHASUMS256.txt`. |
 | `DRIFTR_UPDATE_API` | `https://api.github.com/repos/stackmade/driftr` | Alternative source for the Driftr release index used by `driftr self-update`. `/releases/latest` is appended, and the answer must carry a `tag_name`. |
 | `DRIFTR_UPDATE_MIRROR` | `https://github.com/stackmade/driftr/releases/download` | Alternative host for Driftr's own release assets. `/v<version>` is appended, and the directory must hold `driftr_<version>_<os>_<arch>.tar.gz` and `checksums.txt`. |
+| `NO_COLOR` | unset | Any non-empty value turns off colored output. Color is also off when output is not a terminal. |
+| `SHELL` | set by your login | Picks the rc file `driftr setup`, `driftr doctor --fix` and `driftr self-update` write the PATH line to: `.zshenv` for zsh, `.bash_profile` for bash, `conf.d/driftr.fish` for fish, `.profile` for anything else. Also sets the syntax `driftr use` prints, unless `--shell` is given. |
+| `ZDOTDIR` | `$HOME` | zsh only: the directory holding `.zshenv` and `.zshrc`, for the PATH line and the precedence guard. |
+| `XDG_CONFIG_HOME` | `$HOME/.config` | fish only: the base for `fish/conf.d/driftr.fish` and `fish/config.fish`. |
+| `NVM_DIR` | unset | Read by `driftr doctor`: when it holds an `nvm.sh`, doctor warns that nvm may conflict with the shims. |
 
 ```bash
 DRIFTR_NODE_MIRROR=https://npmmirror.com/mirrors/node driftr install node@22
@@ -205,6 +223,7 @@ Driftr stores all data under `~/.driftr/`:
     pnpx                      shell script -> driftr shim pnpx
     yarn                      shell script -> driftr shim yarn
     bun                       shell script -> driftr shim bun
+    <bin>                     one per bin a global npm install added (tsc, nest, ...)
   tools/
     node/
       22.14.0/
@@ -215,7 +234,8 @@ Driftr stores all data under `~/.driftr/`:
         node_modules/
     pnpm/
       9.15.0/
-        bin/pnpm, pnpx (symlink)
+        bin/pnpm.cjs, pnpx.cjs    run with node by the pnpm and pnpx shims
+        dist/
     yarn/
       1.22.22/
         bin/yarn.js
@@ -230,9 +250,11 @@ Driftr stores all data under `~/.driftr/`:
   cache/
     node-v22.14.0-*.tar.gz    cached Node.js archives
     npm-10.9.2.tgz            cached npm tarballs
-    pnpm-9.15.0-*             cached pnpm binaries
+    pnpm-9.15.0.tgz           cached pnpm tarballs
     yarn-1.22.22.tgz          cached yarn tarballs
     bun-v1.2.3-bun-*.zip      cached bun release zips
+  stores/
+    pnpm/                     shared pnpm store, used once driftr node optimize points pnpm here
 ```
 
 ### Cache
@@ -243,9 +265,3 @@ Downloaded archives are cached in `~/.driftr/cache/`. Subsequent installs of the
 rm ~/.driftr/cache/node-v22.14.0-*.tar.gz
 driftr install node@22.14.0
 ```
-
-## Future Compatibility
-
-The configuration format is designed for extension. Future versions may add:
-
-- Mirror configuration for custom download sources
