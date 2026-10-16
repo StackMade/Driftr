@@ -101,6 +101,9 @@ func runPinBump(w io.Writer, tools []string, allowMajor, dryRun bool) error {
 		fmt.Fprintf(w, "%s: %s -> %s in %s\n", p.Tool, p.Version, ioutil.Bold(to), shown)
 		changed++
 	}
+	if changed > 0 && !dryRun {
+		recordProject(all)
+	}
 
 	switch {
 	case changed > 0 && dryRun:

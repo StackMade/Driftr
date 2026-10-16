@@ -16,13 +16,16 @@ stdout 'node: 22\.1\.0 -> '$NODE_VERSION
 stdout 'pnpm: 9\.0\.0 -> '$PNPM_VERSION
 stdout 'nothing written'
 cmp .driftr.toml $WORK/toml-before.toml
+! exists $HOME/.driftr/config/projects
 
-# The real run rewrites .driftr.toml and points at install.
+# The real run rewrites .driftr.toml, points at install, and records the
+# project so prune keeps the bumped versions.
 exec driftr pin --bump
 stdout 'Bumped 2 pin'
 stdout 'driftr install'
 grep 'node = "'$NODE_VERSION'"' .driftr.toml
 grep 'pnpm = "'$PNPM_VERSION'"' .driftr.toml
+grep $WORK/toml $HOME/.driftr/config/projects
 
 # A second run has nothing left to do and still exits 0.
 exec driftr pin --bump
