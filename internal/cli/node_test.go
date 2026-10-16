@@ -16,15 +16,19 @@ type stubRunner struct {
 	calls   []string
 	outputs map[string]string
 	missing map[string]bool
+	failing map[string]bool // command names whose every Run fails
 }
 
 func newStubRunner() *stubRunner {
-	return &stubRunner{outputs: map[string]string{}, missing: map[string]bool{}}
+	return &stubRunner{outputs: map[string]string{}, missing: map[string]bool{}, failing: map[string]bool{}}
 }
 
 func (s *stubRunner) Run(name string, args ...string) (string, error) {
 	key := strings.TrimSpace(name + " " + strings.Join(args, " "))
 	s.calls = append(s.calls, key)
+	if s.failing[name] {
+		return "", errors.New(name + ": not configured")
+	}
 	return s.outputs[key], nil
 }
 
@@ -99,7 +103,7 @@ func TestRunNodeClean_DryRunMutatesNothing(t *testing.T) {
 
 	s := newStubRunner()
 	var buf bytes.Buffer
-	if err := runNodeClean(nodeenv.NewPnpm(s), dir, false, &buf); err != nil {
+	if err := runNodeClean(s, dir, false, &buf); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "node_modules")); err != nil {
@@ -115,6 +119,7 @@ func TestRunNodeClean_DryRunMutatesNothing(t *testing.T) {
 
 func TestRunNodeClean_ExecuteRemovesAndPrunes(t *testing.T) {
 	dir := t.TempDir()
+	writePnpmLock(t, dir)
 	nm := filepath.Join(dir, "node_modules", "pkg")
 	if err := os.MkdirAll(nm, 0o755); err != nil {
 		t.Fatal(err)
@@ -124,7 +129,7 @@ func TestRunNodeClean_ExecuteRemovesAndPrunes(t *testing.T) {
 	}
 
 	s := newStubRunner()
-	if err := runNodeClean(nodeenv.NewPnpm(s), dir, true, &bytes.Buffer{}); err != nil {
+	if err := runNodeClean(s, dir, true, &bytes.Buffer{}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "node_modules")); !os.IsNotExist(err) {
@@ -145,9 +150,10 @@ func TestRunNodeClean_ExecuteRemovesEmptyNodeModules(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "node_modules"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	writePnpmLock(t, dir)
 
 	s := newStubRunner()
-	if err := runNodeClean(nodeenv.NewPnpm(s), dir, true, &bytes.Buffer{}); err != nil {
+	if err := runNodeClean(s, dir, true, &bytes.Buffer{}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "node_modules")); !os.IsNotExist(err) {
@@ -155,6 +161,59 @@ func TestRunNodeClean_ExecuteRemovesEmptyNodeModules(t *testing.T) {
 	}
 	if !s.called("pnpm install") {
 		t.Errorf("expected reinstall after removing empty node_modules, got %v", s.calls)
+	}
+}
+
+func writePnpmLock(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, "pnpm-lock.yaml"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRunNodeClean_ReinstallsWithProjectManager(t *testing.T) {
+	// An npm project must be reinstalled with npm, not pnpm, and a pnpm that
+	// cannot run must not fail the clean.
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "node_modules", "pkg"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "package-lock.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	s := newStubRunner()
+	s.failing["pnpm"] = true
+	if err := runNodeClean(s, dir, true, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	if !s.called("npm install") {
+		t.Errorf("expected npm install, got %v", s.calls)
+	}
+	if s.called("pnpm install") {
+		t.Errorf("pnpm install must not run in an npm project, got %v", s.calls)
+	}
+}
+
+func TestRunNodeClean_ManagerCannotRunRemovesNothing(t *testing.T) {
+	dir := t.TempDir()
+	nm := filepath.Join(dir, "node_modules", "pkg")
+	if err := os.MkdirAll(nm, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writePnpmLock(t, dir)
+
+	s := newStubRunner()
+	s.failing["pnpm"] = true
+	err := runNodeClean(s, dir, true, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "driftr install pnpm") {
+		t.Fatalf("expected an error naming `driftr install pnpm`, got: %v", err)
+	}
+	if _, err := os.Stat(nm); err != nil {
+		t.Errorf("node_modules must survive when the reinstall cannot run: %v", err)
+	}
+	if s.called("pnpm install") {
+		t.Errorf("no install should run, got %v", s.calls)
 	}
 }
 

@@ -137,6 +137,10 @@ driftr node clean --yes # remove node_modules, reinstall, prune orphaned package
 `optimize` is idempotent — already-correct settings are left untouched — and
 requires pnpm (run `corepack enable` first if it is missing).
 
+`clean --yes` reinstalls with the project's own package manager (from
+`packageManager` or the lockfile, npm when neither is present) and checks that
+it runs before removing anything.
+
 ### Remote version listing flags
 
 ```bash
