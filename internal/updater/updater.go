@@ -2,6 +2,7 @@ package updater
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -12,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -97,7 +99,7 @@ func Update(currentVersion string, verbose bool) (string, error) {
 
 	fmt.Printf("Updating driftr v%s → v%s...\n", currentVersion, latest)
 
-	archiveName := fmt.Sprintf("driftr_%s_%s_%s.tar.gz", latest, runtime.GOOS, runtime.GOARCH)
+	archiveName := assetName(latest)
 	baseURL := fmt.Sprintf("%s/v%s", releaseBase(), latest)
 
 	tmpDir, err := os.MkdirTemp("", "driftr-update-*")
@@ -145,6 +147,15 @@ func Update(currentVersion string, verbose bool) (string, error) {
 	}
 
 	return latest, nil
+}
+
+// assetName returns the name of the release archive for this platform.
+func assetName(version string) string {
+	ext := "tar.gz"
+	if runtime.GOOS == "windows" {
+		ext = "zip"
+	}
+	return fmt.Sprintf("driftr_%s_%s_%s.%s", version, runtime.GOOS, runtime.GOARCH, ext)
 }
 
 func fetchLatestVersion() (string, error) {
@@ -272,6 +283,9 @@ func verifyChecksum(archivePath, checksumsPath string) error {
 }
 
 func extractBinary(archivePath, destPath string) error {
+	if strings.HasSuffix(archivePath, ".zip") {
+		return extractZipBinary(archivePath, destPath)
+	}
 	f, err := os.Open(archivePath)
 	if err != nil {
 		return err
@@ -295,25 +309,68 @@ func extractBinary(archivePath, destPath string) error {
 		}
 
 		if filepath.Base(hdr.Name) == "driftr" && hdr.Typeflag == tar.TypeReg {
-			out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
-			if err != nil {
-				return err
-			}
-			if _, err := io.Copy(out, tr); err != nil {
-				out.Close()
-				return err
-			}
-			// A failed close means a truncated binary on disk.
-			if err := out.Close(); err != nil {
-				return err
-			}
-			return nil
+			return writeBinary(destPath, tr)
 		}
 	}
 	return fmt.Errorf("driftr binary not found in archive")
 }
 
+// extractZipBinary copies driftr.exe out of a Windows release zip.
+func extractZipBinary(archivePath, destPath string) error {
+	zr, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return err
+	}
+	defer zr.Close()
+	for _, f := range zr.File {
+		if path.Base(f.Name) != "driftr.exe" || !f.Mode().IsRegular() {
+			continue
+		}
+		src, err := f.Open()
+		if err != nil {
+			return err
+		}
+		defer src.Close()
+		return writeBinary(destPath, src)
+	}
+	return fmt.Errorf("driftr binary not found in archive")
+}
+
+func writeBinary(destPath string, r io.Reader) error {
+	out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, r); err != nil {
+		out.Close()
+		return err
+	}
+	// A failed close means a truncated binary on disk.
+	return out.Close()
+}
+
+// replaceBinary puts the binary at newPath in place of oldPath. Windows will
+// not overwrite a running .exe but lets it be renamed, so there the old one
+// is moved to oldPath.old first; the next update deletes that copy.
 func replaceBinary(newPath, oldPath string) error {
+	if runtime.GOOS != "windows" {
+		return swapIn(newPath, oldPath)
+	}
+	aside := oldPath + ".old"
+	os.Remove(aside)
+	if err := os.Rename(oldPath, aside); err != nil {
+		return fmt.Errorf("cannot move the running binary aside: %w", err)
+	}
+	if err := swapIn(newPath, oldPath); err != nil {
+		if restoreErr := os.Rename(aside, oldPath); restoreErr != nil {
+			return fmt.Errorf("%w; restoring %s from %s also failed: %w", err, oldPath, aside, restoreErr)
+		}
+		return err
+	}
+	return nil
+}
+
+func swapIn(newPath, oldPath string) error {
 	if err := os.Rename(newPath, oldPath); err != nil {
 		tmpPath := oldPath + ".driftr-update"
 		if err2 := ioutil.CopyFile(newPath, tmpPath); err2 != nil {

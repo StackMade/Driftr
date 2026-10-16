@@ -2,6 +2,7 @@ package updater
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
@@ -15,6 +16,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func makeTarGz(t *testing.T, files map[string][]byte) []byte {
@@ -142,8 +146,39 @@ func TestExtractBinary_Found(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm()&0o100 == 0 {
+	if !platform.IsExecutable(info) {
 		t.Errorf("extracted binary is not executable: %v", info.Mode())
+	}
+}
+
+// Windows releases are zips holding driftr.exe.
+func TestExtractBinary_Zip(t *testing.T) {
+	dir := t.TempDir()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for name, data := range map[string]string{"README.md": "readme", "driftr.exe": "MZ driftr"} {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write([]byte(data)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	archive := filepath.Join(dir, "driftr_2.0.0_windows_amd64.zip")
+	if err := os.WriteFile(archive, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	dest := filepath.Join(dir, "driftr-new")
+	if err := extractBinary(archive, dest); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(dest); string(got) != "MZ driftr" {
+		t.Errorf("extracted %q, want driftr.exe", got)
 	}
 }
 
@@ -197,6 +232,7 @@ func TestReplaceBinary_Success(t *testing.T) {
 }
 
 func TestReplaceBinary_TargetDirReadOnly(t *testing.T) {
+	testutil.SkipOnWindows(t, "directory permission bits")
 	if os.Getuid() == 0 {
 		t.Skip("running as root; permission checks do not apply")
 	}
@@ -392,6 +428,7 @@ func TestRedirectGuardRejectsPlaintext(t *testing.T) {
 }
 
 func TestReplaceBinary_FallbackFailureLeavesNoTempFile(t *testing.T) {
+	testutil.SkipOnWindows(t, "the target is moved aside first, so a directory there is no obstacle")
 	dir := t.TempDir()
 	newPath := filepath.Join(dir, "new")
 	oldPath := filepath.Join(dir, "driftr")

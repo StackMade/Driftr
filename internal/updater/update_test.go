@@ -33,7 +33,11 @@ func fakeRelease(t *testing.T, tag string, assets map[string][]byte) {
 }
 
 func archiveName(version string) string {
-	return fmt.Sprintf("driftr_%s_%s_%s.tar.gz", version, runtime.GOOS, runtime.GOARCH)
+	ext := "tar.gz"
+	if runtime.GOOS == "windows" {
+		ext = "zip"
+	}
+	return fmt.Sprintf("driftr_%s_%s_%s.%s", version, runtime.GOOS, runtime.GOARCH, ext)
 }
 
 func TestUpdate_AlreadyCurrent(t *testing.T) {
