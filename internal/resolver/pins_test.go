@@ -236,6 +236,42 @@ func TestProjectSources_BrokenFile(t *testing.T) {
 	}
 }
 
+// A broken file above the point where every tool is pinned is never read by
+// the resolver, so it must not fail check. While a tool is still unpinned the
+// resolver reads it for that tool, and so does ProjectSources.
+func TestProjectSources_BrokenFileAboveEveryPin(t *testing.T) {
+	root := t.TempDir()
+	sub := filepath.Join(root, "sub")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "package.json"), []byte("{not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	toml := filepath.Join(sub, ".driftr.toml")
+	if err := os.WriteFile(toml, []byte("[tools]\nnode = \"22.14.0\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ProjectSources(sub); err == nil {
+		t.Error("ProjectSources() should fail while npm, pnpm, yarn and bun still read the broken file")
+	}
+
+	all := "[tools]\nnode = \"22.14.0\"\nnpm = \"10.9.0\"\npnpm = \"9.15.0\"\nyarn = \"1.22.22\"\nbun = \"1.2.3\"\n"
+	if err := os.WriteFile(toml, []byte(all), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pins, err := ProjectSources(sub)
+	if err != nil {
+		t.Fatalf("ProjectSources() error: %v", err)
+	}
+	if len(pins) != 5 {
+		t.Errorf("got %+v, want the five .driftr.toml pins", pins)
+	}
+	if _, err := ProjectPins(sub); err != nil {
+		t.Errorf("ProjectPins() error: %v", err)
+	}
+}
+
 // Only the winner matters to install, outdated and prune, so a file behind it
 // that cannot be read must not fail them. driftr check reads every source and
 // reports it.

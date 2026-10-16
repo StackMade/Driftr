@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 
@@ -122,27 +123,24 @@ func ProjectSources(dir string) ([]Pin, error) {
 	}
 
 	var pins, engines []Pin
+	decided := map[string]bool{} // tools with a pin engines.node cannot override
 	current := absDir
 	for depth := 0; depth < maxResolveDepth; depth++ {
-		cfg, err := config.LoadProject(current)
+		found, err := sourcesAt(current)
 		if err != nil {
-			return nil, err
-		}
-		pkg, err := config.LoadPackageJSON(current)
-		if err != nil {
-			return nil, err
-		}
-		for _, tool := range installableTools {
-			found, err := pinsAt(tool, current, cfg, pkg, false)
-			if err != nil {
+			if len(decided) < len(installableTools) {
 				return nil, err
 			}
-			for _, p := range found {
-				if p.Source == SourceEnginesNode {
-					engines = append(engines, p)
-				} else {
-					pins = append(pins, p)
-				}
+			// Every tool is pinned below here, so the resolver never reads
+			// this directory: warn and keep listing the sources above it.
+			fmt.Fprintf(os.Stderr, "warning: %v; ignoring %s, every tool is pinned below it\n", err, current)
+		}
+		for _, p := range found {
+			if p.Source == SourceEnginesNode {
+				engines = append(engines, p)
+			} else {
+				pins = append(pins, p)
+				decided[p.Tool] = true
 			}
 		}
 
@@ -155,6 +153,27 @@ func ProjectSources(dir string) ([]Pin, error) {
 	// engines.node only counts when no explicit pin exists anywhere up the
 	// tree, so it ranks behind every other node source.
 	return append(pins, engines...), nil
+}
+
+// sourcesAt returns every pin in a single directory, for every tool.
+func sourcesAt(dir string) ([]Pin, error) {
+	cfg, err := config.LoadProject(dir)
+	if err != nil {
+		return nil, err
+	}
+	pkg, err := config.LoadPackageJSON(dir)
+	if err != nil {
+		return nil, err
+	}
+	var pins []Pin
+	for _, tool := range installableTools {
+		found, err := pinsAt(tool, dir, cfg, pkg, false)
+		if err != nil {
+			return nil, err
+		}
+		pins = append(pins, found...)
+	}
+	return pins, nil
 }
 
 // pinAt returns the version pinned for a tool in a single directory: the first

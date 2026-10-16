@@ -58,7 +58,8 @@ func runCheck(w io.Writer, cwd string, exitCode bool) error {
 
 	pins, err := resolver.ProjectSources(cwd)
 	if err != nil {
-		// The resolver stops on the same error, so no pin below it means anything.
+		// The file sits where the resolver still looks for some tool, so that
+		// tool fails the same way in the shim.
 		fmt.Fprintln(w, ioutil.Failure(err.Error()))
 		fmt.Fprintln(w, "    "+ioutil.Dim("Fix the file, then run `driftr check` again."))
 		return fail()
