@@ -22,14 +22,16 @@ The script:
 Pin a specific version:
 
 ```bash
-DRIFTR_VERSION=0.1.0 curl -fsSL https://raw.githubusercontent.com/StackMade/driftr/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/StackMade/driftr/main/install.sh | DRIFTR_VERSION=1.4.0 sh
 ```
 
 Override the install directory:
 
 ```bash
-DRIFTR_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/StackMade/driftr/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/StackMade/driftr/main/install.sh | DRIFTR_INSTALL_DIR=/usr/local/bin sh
 ```
+
+The variable goes after the pipe: it has to be set for `sh`, which runs the script, not for `curl`.
 
 ### Using wget
 
@@ -44,36 +46,19 @@ brew tap StackMade/driftr
 brew install driftr
 ```
 
-### Required post-install steps
+### Post-install step
 
-Homebrew places the `driftr` binary in `/opt/homebrew/bin/driftr` (Apple Silicon) or `/usr/local/bin/driftr` (Intel). Two additional steps are required before Driftr works:
-
-**Step 1 — Create shims and data directories:**
+Homebrew places the `driftr` binary in `/opt/homebrew/bin/driftr` (Apple Silicon) or `/usr/local/bin/driftr` (Intel). Run setup once before using it:
 
 ```bash
 driftr setup
 ```
 
-**Step 2 — Configure PATH ordering:**
+This creates the shims and data directories and adds `~/.driftr/bin` to `PATH` in the file every invocation of your shell reads (see [PATH Configuration](#path-configuration) for which file). Restart your shell afterwards and run `driftr doctor` to verify.
 
-Driftr's shims (`node`, `npm`, `pnpm`, `yarn`) live in `~/.driftr/bin/`. For version pinning to work, this directory must appear **before** Homebrew paths in `PATH`.
+**Why PATH ordering matters:** Driftr's shims (`node`, `npm`, `npx`, `pnpm`, `pnpx`, `yarn`, `bun`) live in `~/.driftr/bin/`. For version pinning to work, this directory must appear **before** Homebrew paths in `PATH`.
 
-On macOS, `/usr/libexec/path_helper` runs at login shell startup (often together with `brew shellenv` in `~/.zprofile`) and pushes `/opt/homebrew/bin` to the front, which causes Homebrew's system `node` (if installed) to shadow Driftr's shims. To fix this, add the PATH export to a file sourced *after* `path_helper`:
-
-**Zsh** — add to both `~/.zshenv` (covers scripts, cron, IDE terminals) and `~/.zshrc` (sourced last in interactive sessions, so the shim dir wins over `path_helper`):
-
-```bash
-echo 'export PATH="$HOME/.driftr/bin:$PATH"' >> ~/.zshenv
-echo 'export PATH="$HOME/.driftr/bin:$PATH"' >> ~/.zshrc
-```
-
-**Bash** — add to `~/.bash_profile`:
-
-```bash
-echo 'export PATH="$HOME/.driftr/bin:$PATH"' >> ~/.bash_profile
-```
-
-Or let Driftr do it for you: `driftr setup` and `driftr doctor --fix` both configure the universal file *and*, when they detect that another install (Homebrew, Volta, …) is shadowing the shims, append a PATH precedence guard to your interactive rc (`~/.zshrc`, `~/.bashrc`, or fish `config.fish`) so the shims win. Run `driftr doctor` to verify your setup.
+On macOS, `/usr/libexec/path_helper` runs at login shell startup (often together with `brew shellenv` in `~/.zprofile`) and pushes `/opt/homebrew/bin` to the front, which causes Homebrew's system `node` (if installed) to shadow Driftr's shims. `driftr setup` and `driftr doctor --fix` both check for this once `~/.driftr/bin` is on `PATH`: when another install (Homebrew, Volta, …) shadows a shim, they append a PATH precedence guard to your interactive rc file (`~/.zshrc`, `~/.bashrc`, or fish `config.fish`), which is read last, so the shims win. If Homebrew's `node` still wins after you restart the shell, run `driftr doctor --fix`.
 
 ### Upgrading
 
@@ -124,7 +109,7 @@ go install github.com/stackmade/driftr/cmd/driftr@latest
 
 ## Initial Setup
 
-After installing the binary, run setup to create directories and shim scripts:
+After installing the binary, run setup to create directories and shim scripts and to put the shims on your `PATH`:
 
 ```bash
 driftr setup
@@ -140,9 +125,20 @@ This creates the following structure:
   cache/         downloaded archives + binaries
 ```
 
+`driftr node optimize` later adds `stores/pnpm/`, the shared pnpm store.
+
 ## PATH Configuration
 
-Add the shim directory to the **beginning** of your `PATH` so Driftr's shims take priority over any system-installed Node.js.
+The shim directory has to come at the **beginning** of your `PATH` so Driftr's shims take priority over any system-installed Node.js. `driftr setup` writes that line for you, and so do `install.sh` and `driftr doctor --fix`. It goes into the file every invocation of your shell reads, picked from `$SHELL`:
+
+| Shell | File |
+|-------|------|
+| zsh | `~/.zshenv` (`$ZDOTDIR/.zshenv` when `ZDOTDIR` is set) |
+| bash | `~/.bash_profile` |
+| fish | `~/.config/fish/conf.d/driftr.fish` (under `$XDG_CONFIG_HOME` when set) |
+| anything else | `~/.profile` |
+
+The rest of this section is the manual fallback, for when you'd rather edit the files yourself or setup could not write them.
 
 ### Zsh (~/.zshenv)
 
@@ -156,8 +152,8 @@ shells on macOS, though:
 
 > **macOS note:** Login shells invoke `/usr/libexec/path_helper`, which reorders PATH and pushes
 > Homebrew (`/opt/homebrew/bin`) to the front. To guarantee Driftr wins, also add the export to
-> `~/.zshrc` (sourced last in interactive sessions). This matches what `install.sh` and
-> `driftr doctor --fix` configure automatically:
+> `~/.zshrc` (sourced last in interactive sessions). `install.sh` does this on macOS; `driftr setup`
+> and `driftr doctor --fix` do it when they find a shim shadowed:
 >
 > ```bash
 > echo 'export PATH="$HOME/.driftr/bin:$PATH"' >> ~/.zshrc

@@ -4,8 +4,9 @@
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/StackMade/driftr/main/install.sh | sh
 #
-# Environment variables:
-#   DRIFTR_VERSION     — pin a specific version (e.g. "0.1.0"), default: latest
+# Environment variables (set them for sh, after the pipe:
+#   curl -fsSL .../install.sh | DRIFTR_VERSION=1.4.0 sh):
+#   DRIFTR_VERSION     — pin a specific version (e.g. "1.4.0"), default: latest
 #   DRIFTR_INSTALL_DIR — override install directory, default: ~/.driftr/bin
 
 set -eu
