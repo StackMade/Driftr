@@ -140,31 +140,31 @@ func TestCommands(t *testing.T) {
 
 func TestLogo(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
-	if got := Logo("v1.0.0", "tag"); got != "" {
+	if got := Logo("v1.0.0", "tag", "https://example.test"); got != "" {
 		t.Errorf("Logo() without color = %q, want empty so plain help is unchanged", got)
 	}
 
 	forceColor(t)
 	t.Setenv("COLORFGBG", "")
 	t.Setenv("COLORTERM", "")
-	got := Logo("v1.0.0", "tag")
-	for _, want := range []string{"38;5;155m█", "39m█", "v1.0.0", "tag"} {
+	got := Logo("v1.0.0", "tag", "https://example.test")
+	for _, want := range []string{"38;5;155m█", "39m█", "v1.0.0", "tag", "\033]8;;https://example.test\033\\", "https://example.test\033[0m\033]8;;\033\\"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("Logo() missing %q:\n%s", want, got)
 		}
 	}
-	if lines := strings.Count(got, "\n"); lines != 9 {
-		t.Errorf("Logo() has %d lines, want 9 (a blank line, then 8)", lines)
+	if lines := strings.Count(got, "\n"); lines != 10 {
+		t.Errorf("Logo() has %d lines, want 10 (a blank line, 8 beside the signet, the address)", lines)
 	}
 
 	t.Setenv("COLORTERM", "truecolor")
-	if got := Logo("v1.0.0", "tag"); !strings.Contains(got, "38;2;184;255;61m█") || !regexp.MustCompile(`38;2;24\d;24\d;2\d\dm█`).MatchString(got) {
+	if got := Logo("v1.0.0", "tag", "https://example.test"); !strings.Contains(got, "38;2;184;255;61m█") || !regexp.MustCompile(`38;2;24\d;24\d;2\d\dm█`).MatchString(got) {
 		t.Errorf("Logo() with COLORTERM=truecolor lacks the brand green-to-light gradient:\n%s", got)
 	}
 
 	// A light background drops the gradient, whose light end would vanish.
 	t.Setenv("COLORFGBG", "0;15")
-	if got := Logo("v1.0.0", "tag"); regexp.MustCompile(`38;2;24\d;24\d;2\d\dm█`).MatchString(got) {
+	if got := Logo("v1.0.0", "tag", "https://example.test"); regexp.MustCompile(`38;2;24\d;24\d;2\d\dm█`).MatchString(got) {
 		t.Errorf("Logo() on a light background still uses the light neutral:\n%s", got)
 	}
 }

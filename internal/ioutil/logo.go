@@ -155,9 +155,17 @@ func wordmarkLine(i int) string {
 	return b.String()
 }
 
+// hyperlink wraps text in an OSC 8 link, which iTerm2, Ghostty, kitty,
+// WezTerm and VS Code make clickable. Terminals without OSC 8 skip the
+// sequence, and the text still shows the whole URL.
+func hyperlink(url, text string) string {
+	return "\033]8;;" + url + "\033\\" + text + "\033]8;;\033\\"
+}
+
 // Logo returns the signet beside the wordmark, with the version and tagline
-// under it, or "" when color is off: piped help stays plain and unchanged.
-func Logo(version, tagline string) string {
+// under it and the maker's address below, or "" when color is off: piped help
+// stays plain and unchanged.
+func Logo(version, tagline, url string) string {
 	if !colorEnabled() {
 		return ""
 	}
@@ -173,5 +181,13 @@ func Logo(version, tagline string) string {
 		}
 		b.WriteString("\n")
 	}
+	// Under the tagline, in the wordmark's column. The brand green is too
+	// pale to read on a light background, so that case takes the darker one.
+	green := brandGreen
+	if lightBackground() {
+		green = shadowLight
+	}
+	b.WriteString(strings.Repeat(" ", 2+len(signet[0])+3))
+	b.WriteString(Dim("by StackMade  ·  ") + hyperlink(url, colorize(url, "4;"+fg(green))) + "\n")
 	return b.String()
 }

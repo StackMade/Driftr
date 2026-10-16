@@ -68,7 +68,7 @@ func setColorHelp(cmd *cobra.Command) {
 	help := cmd.HelpFunc()
 	cmd.SetHelpFunc(func(c *cobra.Command, args []string) {
 		if c == cmd {
-			if logo := ioutil.Logo("v"+Version, "JavaScript toolchain versions, per project"); logo != "" {
+			if logo := ioutil.Logo("v"+Version, "JavaScript toolchain versions, per project", "https://stackmade.pl"); logo != "" {
 				fmt.Fprintln(c.OutOrStdout(), logo)
 			}
 		}
