@@ -51,7 +51,7 @@ func runNodeOptimize(p *nodeenv.Pnpm, storeDir string, install bool, w io.Writer
 	}
 
 	if !p.Installed() {
-		return fmt.Errorf("pnpm not found. Install pnpm (e.g. via 'corepack enable'), then re-run 'driftr node optimize'")
+		return fmt.Errorf("pnpm not found. Install pnpm (e.g. via `corepack enable`), then re-run `driftr node optimize`")
 	}
 
 	targets := []struct{ key, value string }{

@@ -2,6 +2,7 @@ package ioutil
 
 import (
 	"os"
+	"regexp"
 	"sync"
 )
 
@@ -14,7 +15,10 @@ func colorEnabled() bool {
 	if os.Getenv("NO_COLOR") != "" {
 		return false
 	}
-	ttyOnce.Do(func() { isTTY = IsTerminal(os.Stdout) })
+	// One switch for both streams: helpers do not know where their string
+	// goes, and warnings go to stderr. Checking stdout alone wrote escape
+	// codes into `driftr ... 2>log`.
+	ttyOnce.Do(func() { isTTY = IsTerminal(os.Stdout) && IsTerminal(os.Stderr) })
 	return isTTY
 }
 
@@ -72,14 +76,28 @@ func Cyan(s string) string {
 func Title(s string) string { return Bold(Cyan(s)) }
 
 // Success prefixes a green check mark.
-func Success(s string) string { return Green("✓ ") + s }
+func Success(s string) string { return Green("✓ ") + Commands(s) }
 
 // Warn prefixes a yellow warning sign, matching Success/Failure which color
 // only the marker and leave the message in the default weight.
-func Warn(s string) string { return Yellow("⚠ ") + s }
+func Warn(s string) string { return Yellow("⚠ ") + Commands(s) }
 
 // Failure prefixes a red cross.
-func Failure(s string) string { return Red("✗ ") + s }
+func Failure(s string) string { return Red("✗ ") + Commands(s) }
+
+var backticked = regexp.MustCompile("`([^`\n]+)`")
+
+// Commands colors every `backticked` span, the form messages use for the
+// command to run next, and drops the backticks. Without color the text is
+// returned as is, so logs and CI output keep the backticks.
+func Commands(s string) string {
+	if !colorEnabled() {
+		return s
+	}
+	return backticked.ReplaceAllStringFunc(s, func(m string) string {
+		return Bold(Cyan(m[1 : len(m)-1]))
+	})
+}
 
 // Bullet prefixes a dim bullet for secondary/no-op lines.
 func Bullet(s string) string { return Dim("• " + s) }

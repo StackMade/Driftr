@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/stackmade/driftr/internal/cli"
+	"github.com/stackmade/driftr/internal/ioutil"
 	"github.com/stackmade/driftr/internal/resolver"
 )
 
@@ -27,7 +28,7 @@ func main() {
 			if errors.As(err, &exitErr) {
 				os.Exit(exitErr.Code)
 			}
-			fmt.Fprintf(os.Stderr, "driftr: %s\n", err)
+			fmt.Fprintf(os.Stderr, "driftr: %s\n", ioutil.Commands(err.Error()))
 			os.Exit(1)
 		}
 		return

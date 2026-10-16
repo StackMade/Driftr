@@ -83,7 +83,7 @@ func ExtractZipToBin(archivePath, destDir, prefix, binName string) error {
 	// A valid archive always contains the platform-prefixed directory. No
 	// matches means a wrong or corrupted archive, not a partial install.
 	if !matched {
-		return fmt.Errorf("archive has unexpected layout: no entries under %q. Run 'driftr cache clean' and retry", prefix)
+		return fmt.Errorf("archive has unexpected layout: no entries under %q. Run `driftr cache clean` and retry", prefix)
 	}
 
 	binRel := path.Join("bin", binName)

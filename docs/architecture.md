@@ -25,6 +25,7 @@ cmd/driftr/
 internal/
   cli/                      cobra command definitions
     root.go                 root command, global flags, --version
+    help.go                 colored --help template (cobra's default plus color)
     install.go              driftr install (one tool, or every project pin)
     uninstall.go            driftr uninstall, warns when the version is a default or pinned
     prune.go                driftr prune
@@ -96,7 +97,7 @@ internal/
     diskusage.go            directory sizes for node_modules and the store
 
   ioutil/                   terminal and file helpers
-    color.go                colored output, off for NO_COLOR or non-terminal output
+    color.go                colored output and command highlighting, off for NO_COLOR or non-terminal output
     terminal.go             TTY detection (terminal_darwin.go, terminal_linux.go per OS)
     progress.go             download progress on stderr
     copy.go                 file copy and atomic write, used for shims

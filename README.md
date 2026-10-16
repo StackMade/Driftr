@@ -116,7 +116,7 @@ pnpm -v   # resolves automatically
 
 All commands support `-v` / `--verbose` for detailed output including resolver tracing and checksum details. `driftr --version` prints the installed version.
 
-Output is colorized when writing to a terminal. Color is disabled automatically when output is piped/redirected, or when the [`NO_COLOR`](https://no-color.org/) environment variable is set.
+Output is colorized when writing to a terminal: headings, command and flag names in `--help`, the `Error:` prefix, and the command each message suggests running next. Color is disabled automatically when stdout or stderr is piped/redirected, or when the [`NO_COLOR`](https://no-color.org/) environment variable is set.
 
 ### Shared dependency storage (`driftr node`)
 

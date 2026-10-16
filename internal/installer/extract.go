@@ -50,7 +50,7 @@ func checkSymlinks(dir string) error {
 			return err
 		}
 		if resolvesOutside(dir, filepath.ToSlash(rel)) {
-			return fmt.Errorf("archive entry %s is a symlink pointing outside the install directory. Run 'driftr cache clean' and retry", rel)
+			return fmt.Errorf("archive entry %s is a symlink pointing outside the install directory. Run `driftr cache clean` and retry", rel)
 		}
 		return nil
 	})
@@ -123,7 +123,7 @@ func extractToRoot(root *os.Root, relPath string, hdr *tar.Header, tr *tar.Reade
 
 	case tar.TypeSymlink:
 		if symlinkEscapes(relPath, hdr.Linkname) {
-			return fmt.Errorf("archive entry %s is a symlink pointing outside the install directory (%s). Run 'driftr cache clean' and retry", relPath, hdr.Linkname)
+			return fmt.Errorf("archive entry %s is a symlink pointing outside the install directory (%s). Run `driftr cache clean` and retry", relPath, hdr.Linkname)
 		}
 		if dir := filepath.Dir(relPath); dir != "." {
 			if err := root.MkdirAll(dir, 0o755); err != nil {
@@ -248,7 +248,7 @@ func Extract(archivePath, version string, verbose bool, cleanup *installCleanup)
 	if !matched {
 		root.Close()
 		os.RemoveAll(tmpDir)
-		return fmt.Errorf("archive has unexpected layout: no entries under %q. Run 'driftr cache clean' and retry", prefix)
+		return fmt.Errorf("archive has unexpected layout: no entries under %q. Run `driftr cache clean` and retry", prefix)
 	}
 
 	// Verify the node binary exists after extraction.

@@ -196,7 +196,7 @@ git commit -m "Pin Node.js version with Driftr"
 | `DRIFTR_BUN_MIRROR` | `https://github.com/oven-sh/bun/releases/download` | Alternative host for bun release assets. Must serve `bun-v<version>/bun-<os>-<arch>.zip` and `bun-v<version>/SHASUMS256.txt`. |
 | `DRIFTR_UPDATE_API` | `https://api.github.com/repos/stackmade/driftr` | Alternative source for the Driftr release index used by `driftr self-update`. `/releases/latest` is appended, and the answer must carry a `tag_name`. |
 | `DRIFTR_UPDATE_MIRROR` | `https://github.com/stackmade/driftr/releases/download` | Alternative host for Driftr's own release assets. `/v<version>` is appended, and the directory must hold `driftr_<version>_<os>_<arch>.tar.gz` and `checksums.txt`. |
-| `NO_COLOR` | unset | Any non-empty value turns off colored output. Color is also off when output is not a terminal. |
+| `NO_COLOR` | unset | Any non-empty value turns off colored output. Color is also off when stdout or stderr is not a terminal. |
 | `SHELL` | set by your login | Picks the rc file `driftr setup`, `driftr doctor --fix` and `driftr self-update` write the PATH line to: `.zshenv` for zsh, `.bash_profile` for bash, `conf.d/driftr.fish` for fish, `.profile` for anything else. Also sets the syntax `driftr use` prints, unless `--shell` is given. |
 | `ZDOTDIR` | `$HOME` | zsh only: the directory holding `.zshenv` and `.zshrc`, for the PATH line and the precedence guard. |
 | `XDG_CONFIG_HOME` | `$HOME/.config` | fish only: the base for `fish/conf.d/driftr.fish` and `fish/config.fish`. |

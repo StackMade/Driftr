@@ -102,3 +102,37 @@ func TestColorDisabled_NonTTY(t *testing.T) {
 		t.Error("Dim() should not emit ANSI codes when stdout is not a TTY")
 	}
 }
+
+// forceColor makes colorEnabled report true for the rest of the test.
+func forceColor(t *testing.T) {
+	t.Helper()
+	resetColorCache()
+	t.Cleanup(resetColorCache)
+	ttyOnce.Do(func() {})
+	isTTY = true
+	prev, prevOK := os.LookupEnv("NO_COLOR")
+	os.Unsetenv("NO_COLOR")
+	t.Cleanup(func() {
+		if prevOK {
+			os.Setenv("NO_COLOR", prev)
+		}
+	})
+}
+
+func TestCommands(t *testing.T) {
+	msg := "node 22 is not installed. Run `driftr install node@22` or `driftr list`"
+
+	t.Setenv("NO_COLOR", "1")
+	if got := Commands(msg); got != msg {
+		t.Errorf("without color Commands() = %q, want the text unchanged", got)
+	}
+
+	forceColor(t)
+	want := "node 22 is not installed. Run " + Bold(Cyan("driftr install node@22")) + " or " + Bold(Cyan("driftr list"))
+	if got := Commands(msg); got != want {
+		t.Errorf("Commands() = %q, want %q", got, want)
+	}
+	if got := Warn("Run `driftr doctor`"); !strings.Contains(got, Bold(Cyan("driftr doctor"))) {
+		t.Errorf("Warn() does not highlight the command: %q", got)
+	}
+}

@@ -32,7 +32,7 @@ func newInstallCmd() *cobra.Command {
 				// bare tool name ("driftr install pnpm") has no "@" and means
 				// "install the newest release".
 				if strings.Contains(raw, "@") {
-					return fmt.Errorf("version required after '@'. Use 'driftr install %s' for the latest, or '%s@<version>'", tool, tool)
+					return fmt.Errorf("version required after '@'. Use `driftr install %s` for the latest, or `driftr install %s@<version>`", tool, tool)
 				}
 				versionSpec = "latest"
 			}

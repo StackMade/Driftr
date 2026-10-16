@@ -101,7 +101,7 @@ func newUninstallCmd() *cobra.Command {
 // warns: the removal itself already succeeded.
 func refreshShims() {
 	if _, err := shim.GenerateShims(Version); err != nil {
-		fmt.Fprintln(os.Stderr, ioutil.Warn(fmt.Sprintf("Could not refresh shims: %s. Run 'driftr setup'", err)))
+		fmt.Fprintln(os.Stderr, ioutil.Warn(fmt.Sprintf("Could not refresh shims: %s. Run `driftr setup`", err)))
 	}
 }
 
@@ -152,6 +152,6 @@ func warnIfPinned(dir, tool, versionStr string) {
 
 func printPinWarning(file, tool, versionStr string) {
 	fmt.Println(ioutil.Warn(fmt.Sprintf(
-		"%s@%s is pinned in %s — uninstalling will break that project until you run 'driftr install %s@%s' or update the pin",
+		"%s@%s is pinned in %s — uninstalling will break that project until you run `driftr install %s@%s` or update the pin",
 		tool, versionStr, file, tool, versionStr)))
 }

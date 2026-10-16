@@ -60,13 +60,14 @@ func NewRootCmd() *cobra.Command {
 		newUpdateCmd(),
 		newNodeCmd(),
 	)
+	setColorHelp(root)
 
 	return root
 }
 
 func Execute() {
 	if err := RefreshStaleShims(); err != nil {
-		fmt.Fprintln(os.Stderr, ioutil.Warn(fmt.Sprintf("Could not update the shims for this driftr version: %s. Run 'driftr doctor'", err)))
+		fmt.Fprintln(os.Stderr, ioutil.Warn(fmt.Sprintf("Could not update the shims for this driftr version: %s. Run `driftr doctor`", err)))
 	}
 	root := NewRootCmd()
 	if err := root.Execute(); err != nil {
@@ -74,7 +75,7 @@ func Execute() {
 		if errors.As(err, &exitErr) {
 			os.Exit(exitErr.Code)
 		}
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fmt.Fprintf(os.Stderr, "%s %s\n", ioutil.Red("Error:"), ioutil.Commands(err.Error()))
 		os.Exit(1)
 	}
 }

@@ -104,7 +104,7 @@ func runResolved(tool, binary string, argv, args []string) (int, error) {
 	if tool == "npm" && isGlobalNpm(args) {
 		skipped, err := shim.GenerateShims(Version)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "driftr: could not refresh shims: %s. Run 'driftr setup'\n", err)
+			fmt.Fprintln(os.Stderr, ioutil.Commands(fmt.Sprintf("driftr: could not refresh shims: %s. Run `driftr setup`", err)))
 		}
 		printSkippedShims(os.Stderr, skipped)
 	}
