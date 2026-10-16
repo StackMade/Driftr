@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -369,7 +370,11 @@ func checkConflictingManagers(binDir string) int {
 		}
 	}
 
-	for _, manager := range conflictingBinaries {
+	managers := conflictingBinaries
+	if runtime.GOOS == "windows" {
+		managers = append(managers, "nvm") // nvm-windows is a program, not a shell function
+	}
+	for _, manager := range managers {
 		path, err := exec.LookPath(manager)
 		if err != nil {
 			continue

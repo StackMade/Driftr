@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -57,7 +58,11 @@ func configureSetupPath(w io.Writer, binDir string) {
 		fmt.Fprintln(w, ioutil.Success(fmt.Sprintf("PATH already configured in %s", r.Target)))
 		printStaleNote(w, r)
 		applyShadowGuard(w, binDir)
-		fmt.Fprintln(w, ioutil.Dim(fmt.Sprintf("Restart your shell or run: source %s", r.Target)))
+		if runtime.GOOS == "windows" {
+			fmt.Fprintln(w, ioutil.Dim("Open a new terminal if this one does not find the shims."))
+		} else {
+			fmt.Fprintln(w, ioutil.Dim(fmt.Sprintf("Restart your shell or run: source %s", r.Target)))
+		}
 		return
 	}
 
@@ -70,7 +75,11 @@ func configureSetupPath(w io.Writer, binDir string) {
 	fmt.Fprintln(w, ioutil.Success(fmt.Sprintf("Added %s to PATH in %s", binDir, file)))
 	printStaleNote(w, r)
 	applyShadowGuard(w, binDir)
-	fmt.Fprintln(w, ioutil.Dim("Restart your shell to start using driftr."))
+	if runtime.GOOS == "windows" {
+		fmt.Fprintln(w, ioutil.Dim("Open a new terminal to start using driftr."))
+	} else {
+		fmt.Fprintln(w, ioutil.Dim("Restart your shell to start using driftr."))
+	}
 }
 
 // applyShadowGuard adds a PATH precedence guard to the interactive rc file when
@@ -97,6 +106,14 @@ func printStaleNote(w io.Writer, r pathsetup.Result) {
 // manualPathInstructions prints shell-agnostic fallback guidance when driftr
 // can't determine or write the rc file (e.g. unknown shell).
 func manualPathInstructions(w io.Writer, binDir string) {
+	if runtime.GOOS == "windows" {
+		fmt.Fprintln(w, "Add the shim directory to your user PATH, e.g. from PowerShell:")
+		fmt.Fprintln(w)
+		fmt.Fprintf(w, "  %s\n", ioutil.Bold(fmt.Sprintf(`[Environment]::SetEnvironmentVariable("Path", "%s;" + [Environment]::GetEnvironmentVariable("Path", "User"), "User")`, binDir)))
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, ioutil.Dim("Then open a new terminal."))
+		return
+	}
 	fmt.Fprintln(w, "Add the following to your shell profile so the shims are found:")
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "  %s\n", ioutil.Bold(fmt.Sprintf("export PATH=\"%s:$PATH\"", binDir)))
