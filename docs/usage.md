@@ -52,8 +52,9 @@ With no argument, `driftr install` reads the pins for the current directory and
 installs each one. It reads the same sources resolution reads, walking up
 through parent directories: `.driftr.toml`, the `driftr` key in `package.json`,
 the standard `packageManager` field (npm, pnpm, yarn and bun), `.nvmrc`, `.node-version`,
-and `engines.node`. The first source that names a tool wins, and each tool is
-looked up separately, so a repo can pin Node.js in `.nvmrc` and pnpm in
+and `engines.node`. The first source that names a tool wins, except that
+`engines.node` counts only when no other source pins Node.js anywhere up the
+tree. Each tool is looked up separately, so a repo can pin Node.js in `.nvmrc` and pnpm in
 `packageManager`.
 
 An `engines.node` range does not name one version, so Driftr installs the major
@@ -400,8 +401,8 @@ pnpm  9.15.0
 **Which sources are listed:** every source in the [resolution order](#resolution-order) that
 lives in a file, in the current directory and each parent, in the order the resolver reads
 them. The first one, marked `>`, is the one in use. Sources in a parent directory are listed
-too: a `package.json` with only `engines.node` in a subdirectory wins over a `.driftr.toml`
-further up, and this is where you see it.
+too. `engines.node` ranges come last, since they count only when no other source pins Node.js
+anywhere up the tree.
 
 **When two pins agree:** when at least one version satisfies both. `22` and `22.14.0`
 agree, `22.14` and `22.15.0` do not. `lts` agrees with any line known to be LTS,
@@ -752,7 +753,7 @@ When you run a tool (`node`, `npm`, `npx`, `pnpm`, `pnpx`, `yarn`, or `bun`), Dr
 | 5 | `package.json` `packageManager` field (npm/pnpm/yarn/bun only) | Found in current or parent directory |
 | 6 | `.nvmrc` (node only) | Found in current or parent directory; `lts`, `lts/*` and `lts/<codename>` resolve against installed versions |
 | 7 | `.node-version` (node only) | Found in current or parent directory; same LTS aliases as `.nvmrc` |
-| 8 | `package.json` `engines.node` (node only) | Found in current or parent directory |
+| 8 | `package.json` `engines.node` (node only) | Nearest one, used only when 3-7 pin node in no directory up the tree |
 | 9 | Global default | Set via `driftr default` |
 
 Rows 3 to 8 are not a ranking across the whole tree. Each directory is checked for every source before moving to its parent; the closest directory with a pin wins. A `.nvmrc` in the current

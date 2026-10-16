@@ -56,6 +56,30 @@ func TestProjectPins(t *testing.T) {
 			want:  []Pin{{Tool: "node", Version: "22.14.0", Source: SourcePackageJSON}},
 		},
 		{
+			name: "explicit pin in a parent beats engines.node below",
+			files: map[string]string{
+				".driftr.toml":     "[tools]\nnode = \"20.11.0\"\n",
+				"sub/package.json": `{"engines": {"node": ">=18"}}`,
+			},
+			want: []Pin{{Tool: "node", Version: "20.11.0", Source: SourceProject, Dir: "."}},
+		},
+		{
+			name: "nearest engines.node wins when nothing pins node",
+			files: map[string]string{
+				"package.json":     `{"engines": {"node": ">=20"}}`,
+				"sub/package.json": `{"engines": {"node": ">=18"}}`,
+			},
+			want: []Pin{{Tool: "node", Version: "18", Source: SourceEnginesNode}},
+		},
+		{
+			name: "unparseable engines.node behind an explicit parent pin is never read",
+			files: map[string]string{
+				".nvmrc":           "20.11.0\n",
+				"sub/package.json": `{"engines": {"node": "18 - 20"}}`,
+			},
+			want: []Pin{{Tool: "node", Version: "20.11.0", Source: SourceNvmrc, Dir: "."}},
+		},
+		{
 			name:  "no pins",
 			files: map[string]string{"sub/README.md": "nothing here"},
 			want:  nil,
@@ -159,7 +183,8 @@ func TestProjectPins_DoesNotRequireInstall(t *testing.T) {
 }
 
 // ProjectSources keeps every source, not just the winner, in resolution order:
-// nearer directories first, then source order within a directory.
+// nearer directories first, then source order within a directory, and
+// engines.node behind every explicit pin.
 func TestProjectSources(t *testing.T) {
 	root := t.TempDir()
 	sub := filepath.Join(root, "sub")
@@ -186,9 +211,9 @@ func TestProjectSources(t *testing.T) {
 	want := []Pin{
 		{Tool: "node", Version: "22.14.0", Source: SourceProject, Dir: sub},
 		{Tool: "node", Version: "22", Source: SourceNvmrc, Dir: sub},
-		{Tool: "node", Version: ">=24", Source: SourceEnginesNode, Dir: sub},
 		{Tool: "pnpm", Version: "9.15.0", Source: SourcePackageManager, Dir: sub},
 		{Tool: "node", Version: "20", Source: SourceNvmrc, Dir: root},
+		{Tool: "node", Version: ">=24", Source: SourceEnginesNode, Dir: sub},
 	}
 	if len(pins) != len(want) {
 		t.Fatalf("got %d pins %+v, want %d", len(pins), pins, len(want))

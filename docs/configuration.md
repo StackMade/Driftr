@@ -134,7 +134,7 @@ Each directory is checked for every source before moving to its parent; the clos
 /home/user/my-project/                 <- .driftr.toml found! uses this
 ```
 
-If multiple config files exist in the same directory, the priority order above applies. `.nvmrc` and `.node-version` are only used for Node.js version resolution. The `packageManager` field is read for npm, pnpm, yarn and bun only (not node, which has no equivalent standard field); it is read-only, Driftr never writes it.
+If multiple config files exist in the same directory, the priority order above applies. `engines.node` is the exception to "closest wins": it is used only when no `.driftr.toml`, `driftr` key, `.nvmrc` or `.node-version` pins node in any directory up the tree, so a root `.nvmrc` beats the `engines.node` of a package below it. `.nvmrc` and `.node-version` are only used for Node.js version resolution. The `packageManager` field is read for npm, pnpm, yarn and bun only (not node, which has no equivalent standard field); it is read-only, Driftr never writes it.
 
 **Partial pins.** Every source takes a full version (`22.14.0`, `v22.14.0`) or a partial one (`22`, `22.14`). A partial pin, `latest` or an LTS alias picks the newest installed version that matches, so `.nvmrc` containing `22` runs your newest installed 22.x. In `.nvmrc` and `.node-version`, nvm's `node` and `stable` aliases mean `latest`. When nothing installed matches, the not-installed error names the pin as written (`driftr install node@22`), and auto-install fetches the newest release of that line.
 
@@ -148,7 +148,7 @@ This means:
 
 ### engines.node
 
-The last project-level source is the standard `engines` object:
+The last project-level source is the standard `engines` object. It is a fallback, read only when nothing else pins node in the current directory or any parent; then the nearest `engines.node` wins:
 
 ```json
 {

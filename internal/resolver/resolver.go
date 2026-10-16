@@ -345,6 +345,7 @@ func resolveFromProject(tool, dir string, verbose bool) (*Resolution, error) {
 
 	current := absDir
 	depth := 0
+	var enginesText, enginesDir string
 	for {
 		if depth >= maxResolveDepth {
 			if verbose {
@@ -430,14 +431,15 @@ func resolveFromProject(tool, dir string, verbose bool) (*Resolution, error) {
 				}
 			}
 
-			// Last project source: the standard "engines".node range, matched
-			// against installed versions only.
-			if pkg != nil {
+			// The standard "engines".node range is only a fallback: an explicit
+			// pin anywhere up the tree beats it, so remember the nearest one
+			// and keep walking.
+			if pkg != nil && enginesText == "" {
 				if rangeText := pkg.EnginesNode(); rangeText != "" {
 					if verbose {
-						fmt.Printf("  [resolve]   Checking: %s (engines.node = %s)\n", pkgPath, rangeText)
+						fmt.Printf("  [resolve]   Found: %s (engines.node = %s), used if nothing above pins node\n", pkgPath, rangeText)
 					}
-					return resolveEnginesNode(rangeText, current)
+					enginesText, enginesDir = rangeText, current
 				}
 			}
 		}
@@ -450,6 +452,9 @@ func resolveFromProject(tool, dir string, verbose bool) (*Resolution, error) {
 		current = parent
 	}
 
+	if enginesText != "" {
+		return resolveEnginesNode(enginesText, enginesDir)
+	}
 	return nil, nil
 }
 

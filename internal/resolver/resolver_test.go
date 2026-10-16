@@ -962,6 +962,44 @@ func TestResolveFromProject_EnginesNodeLosesToDriftrKey(t *testing.T) {
 		t.Errorf("got %v %s, want SourcePackageJSON 18.20.4", res.Source, res.Version)
 	}
 }
+
+// engines.node is a fallback: an explicit pin anywhere up the tree beats it,
+// as in a monorepo package or a dependency running its postinstall.
+func TestResolveFromProject_ParentPinBeatsNearerEnginesNode(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	setupFakeInstall(t, home, "node", "20.11.0")
+	setupFakeInstall(t, home, "node", "24.1.0")
+
+	root := t.TempDir()
+	pkgDir := filepath.Join(root, "packages", "web")
+	if err := os.MkdirAll(pkgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(root, ".nvmrc"), []byte("20.11.0\n"), 0o644)
+	os.WriteFile(filepath.Join(pkgDir, "package.json"), []byte(`{"engines":{"node":">=18"}}`), 0o644)
+	t.Chdir(pkgDir)
+
+	res, err := ResolveTool("node", "", false)
+	if err != nil {
+		t.Fatalf("ResolveTool() error: %v", err)
+	}
+	if res.Version != "20.11.0" || res.Source != SourceNvmrc {
+		t.Errorf("got %s from %v, want 20.11.0 from .nvmrc", res.Version, res.Source)
+	}
+
+	// Without the parent pin, the nearest engines.node decides.
+	os.Remove(filepath.Join(root, ".nvmrc"))
+	os.WriteFile(filepath.Join(root, "package.json"), []byte(`{"engines":{"node":"<21"}}`), 0o644)
+	res, err = ResolveTool("node", "", false)
+	if err != nil {
+		t.Fatalf("ResolveTool() error: %v", err)
+	}
+	if res.Version != "24.1.0" || res.Source != SourceEnginesNode {
+		t.Errorf("got %s from %v, want 24.1.0 from the nearest engines.node", res.Version, res.Source)
+	}
+}
+
 func TestResolveFromProject_NoEnginesNodeFallsThroughToGlobal(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

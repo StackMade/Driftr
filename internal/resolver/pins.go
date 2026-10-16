@@ -28,7 +28,8 @@ var installableTools = []string{"node", "npm", "pnpm", "yarn", "bun"}
 //
 // Per tool the first source found wins; the walk continues for tools that are
 // still unpinned, so a repo may pin node in .nvmrc and pnpm in packageManager
-// at different levels.
+// at different levels. engines.node is the exception, as in the resolver: the
+// nearest one wins only when no explicit node pin exists anywhere up the tree.
 func ProjectPins(dir string) ([]Pin, error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -36,8 +37,9 @@ func ProjectPins(dir string) ([]Pin, error) {
 	}
 
 	found := make(map[string]Pin, len(installableTools))
+	decided := 0 // tools pinned by something a farther directory cannot override
 	current := absDir
-	for depth := 0; depth < maxResolveDepth && len(found) < len(installableTools); depth++ {
+	for depth := 0; depth < maxResolveDepth && decided < len(installableTools); depth++ {
 		cfg, err := config.LoadProject(current)
 		if err != nil {
 			return nil, err
@@ -48,15 +50,20 @@ func ProjectPins(dir string) ([]Pin, error) {
 		}
 
 		for _, tool := range installableTools {
-			if _, ok := found[tool]; ok {
+			prev, seen := found[tool]
+			if seen && prev.Source != SourceEnginesNode {
 				continue
 			}
 			ver, source, ok, err := pinAt(tool, current, cfg, pkg)
 			if err != nil {
 				return nil, err
 			}
-			if ok {
-				found[tool] = Pin{Tool: tool, Version: ver, Source: source, Dir: current}
+			if !ok || (seen && source == SourceEnginesNode) {
+				continue // the nearest engines.node stays the fallback
+			}
+			found[tool] = Pin{Tool: tool, Version: ver, Source: source, Dir: current}
+			if source != SourceEnginesNode {
+				decided++
 			}
 		}
 
@@ -69,9 +76,16 @@ func ProjectPins(dir string) ([]Pin, error) {
 
 	pins := make([]Pin, 0, len(found))
 	for _, tool := range installableTools {
-		if p, ok := found[tool]; ok {
-			pins = append(pins, p)
+		p, ok := found[tool]
+		if !ok {
+			continue
 		}
+		if p.Source == SourceEnginesNode {
+			if p, err = enginesPin(p); err != nil {
+				return nil, err
+			}
+		}
+		pins = append(pins, p)
 	}
 	return pins, nil
 }
@@ -100,14 +114,14 @@ func ResolvePin(tool, spec string) (string, bool, error) {
 // containing dir, across the same directory walk the resolver makes. Per tool
 // the pins come in resolution order, so the first one is the one that wins;
 // the rest are what the resolver never gets to. engines.node is returned as
-// its range text, not converted to a version.
+// its range text, not converted to a version, after every explicit node pin.
 func ProjectSources(dir string) ([]Pin, error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
 	}
 
-	var pins []Pin
+	var pins, engines []Pin
 	current := absDir
 	for depth := 0; depth < maxResolveDepth; depth++ {
 		cfg, err := config.LoadProject(current)
@@ -123,7 +137,13 @@ func ProjectSources(dir string) ([]Pin, error) {
 			if err != nil {
 				return nil, err
 			}
-			pins = append(pins, found...)
+			for _, p := range found {
+				if p.Source == SourceEnginesNode {
+					engines = append(engines, p)
+				} else {
+					pins = append(pins, p)
+				}
+			}
 		}
 
 		parent := filepath.Dir(current)
@@ -132,32 +152,34 @@ func ProjectSources(dir string) ([]Pin, error) {
 		}
 		current = parent
 	}
-	return pins, nil
+	// engines.node only counts when no explicit pin exists anywhere up the
+	// tree, so it ranks behind every other node source.
+	return append(pins, engines...), nil
 }
 
 // pinAt returns the version pinned for a tool in a single directory: the first
-// source in resolution order.
+// source in resolution order. engines.node comes back as its range text.
 func pinAt(tool, dir string, cfg *config.ProjectConfig, pkg *config.PackageJSON) (string, Source, bool, error) {
 	pins, err := pinsAt(tool, dir, cfg, pkg, true)
 	if err != nil || len(pins) == 0 {
 		return "", 0, false, err
 	}
-	p := pins[0]
-	if p.Source != SourceEnginesNode {
-		return p.Version, p.Source, true, nil
-	}
+	return pins[0].Version, pins[0].Source, true, nil
+}
 
-	// engines.node holds a range, not a version. Install the lower-bound
-	// major, the oldest release the project accepts. Anything newer that
-	// is already installed still satisfies the range.
+// enginesPin turns an engines.node pin into a version to install: the
+// lower-bound major, the oldest release the project accepts. Anything newer
+// that is already installed still satisfies the range.
+func enginesPin(p Pin) (Pin, error) {
 	rng, err := version.ParseRange(p.Version)
 	if err != nil {
-		return "", 0, false, fmt.Errorf("cannot use engines.node from %s: %w", filepath.Join(dir, "package.json"), err)
+		return Pin{}, fmt.Errorf("cannot use engines.node from %s: %w", filepath.Join(p.Dir, "package.json"), err)
 	}
+	p.Version = "lts"
 	if major, ok := rng.LowerBoundMajor(); ok {
-		return strconv.Itoa(major), SourceEnginesNode, true, nil
+		p.Version = strconv.Itoa(major)
 	}
-	return "lts", SourceEnginesNode, true, nil
+	return p, nil
 }
 
 // pinsAt returns every source pinning a tool in a single directory, in
