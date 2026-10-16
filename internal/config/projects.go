@@ -13,7 +13,8 @@ import (
 )
 
 // LoadProjects returns the project directories driftr has recorded, in the
-// order they were added. A missing registry is not an error: it returns nil.
+// order they were added, each once. A missing registry is not an error: it
+// returns nil.
 func LoadProjects() ([]string, error) {
 	path, err := platform.ProjectsRegistryPath()
 	if err != nil {
@@ -29,8 +30,12 @@ func LoadProjects() ([]string, error) {
 
 	var dirs []string
 	for _, line := range strings.Split(string(data), "\n") {
-		if line = strings.TrimSpace(line); line != "" {
-			dirs = append(dirs, line)
+		if line = strings.TrimSpace(line); line == "" {
+			continue
+		}
+		// Concurrent AddProject calls can each append the same directory.
+		if dir := filepath.Clean(line); !slices.Contains(dirs, dir) {
+			dirs = append(dirs, dir)
 		}
 	}
 	return dirs, nil
@@ -38,6 +43,8 @@ func LoadProjects() ([]string, error) {
 
 // AddProject records dir in the registry. A directory already listed is left
 // alone, so recording on every pin and install keeps the file the same size.
+// It appends in a single O_APPEND write instead of rewriting the file, so
+// concurrent driftr processes cannot drop each other's projects.
 func AddProject(dir string) error {
 	dirs, err := LoadProjects()
 	if err != nil {
@@ -47,7 +54,25 @@ func AddProject(dir string) error {
 	if slices.Contains(dirs, dir) {
 		return nil
 	}
-	return saveProjects(append(dirs, dir))
+	path, err := platform.ProjectsRegistryPath()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return fmt.Errorf("failed to write project registry: %w", err)
+	}
+	_, err = f.WriteString(dir + "\n")
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		return fmt.Errorf("failed to write project registry: %w", err)
+	}
+	return nil
 }
 
 // RemoveProjects drops every directory in gone from the registry. It re-reads
