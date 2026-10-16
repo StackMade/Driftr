@@ -203,7 +203,10 @@ configure_path() {
         fi
         mkdir -p "$fish_conf_dir"
         # shellcheck disable=SC2016  # $PATH must stay literal; fish expands it at runtime
-        printf '# Driftr\nset -gx PATH %s $PATH\n' "$INSTALL_DIR" >> "$fish_profile"
+        # Single-quoted so a path with spaces stays one entry; fish only
+        # treats \ and ' specially inside single quotes, so escape those.
+        fish_dir=$(printf '%s' "$INSTALL_DIR" | sed "s/[\\\\']/\\\\&/g")
+        printf "# Driftr\nset -gx PATH '%s' \$PATH\n" "$fish_dir" >> "$fish_profile"
         log "Added ${INSTALL_DIR} to PATH in ${fish_profile}"
         return
     fi
