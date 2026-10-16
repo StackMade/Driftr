@@ -114,6 +114,65 @@ jobs:
           ./driftr.exe --help | Out-Null
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
+  install-ps1-smoke:
+    # install.ps1 against a release zip built from this commit, then real
+    # Node.js from nodejs.org through the shims: npm, npm -g and a package bin.
+    name: install.ps1 smoke test
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: true
+      - name: Install from a local release and run node through the shims
+        shell: pwsh
+        run: |
+          $v = '0.0.0'
+          $rel = "$env:RUNNER_TEMP\rel\v$v"
+          $zip = "$rel\driftr_${v}_windows_amd64.zip"
+          New-Item -ItemType Directory -Force $rel | Out-Null
+          go build -ldflags "-X github.com/stackmade/driftr/internal/cli.Version=$v" -o "$env:RUNNER_TEMP\pkg\driftr.exe" ./cmd/driftr/
+          Compress-Archive "$env:RUNNER_TEMP\pkg\driftr.exe" $zip
+          $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower()
+          "$hash  driftr_${v}_windows_amd64.zip" | Set-Content -Encoding ascii "$rel\checksums.txt"
+          $server = Start-Process python -ArgumentList '-m', 'http.server', '8765', '--directory', "$env:RUNNER_TEMP\rel" -PassThru
+          for ($i = 0; $i -lt 30; $i++) {
+            try { Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8765/ | Out-Null; break } catch { Start-Sleep 1 }
+          }
+
+          $env:DRIFTR_VERSION = $v
+          $env:DRIFTR_UPDATE_MIRROR = 'http://127.0.0.1:8765'
+          ./install.ps1
+          # Again, now that driftr.exe exists and must be replaced.
+          ./install.ps1
+          $server | Stop-Process
+
+          $bin = "$env:USERPROFILE\.driftr\bin"
+          $userPath = (Get-Item HKCU:\Environment).GetValue('Path', '', 'DoNotExpandEnvironmentNames')
+          if ($userPath -notlike "*$bin*") { throw "user Path lacks $bin`: $userPath" }
+          $env:Path = "$bin;$env:Path"
+
+          driftr --version
+          driftr install node@22
+          if ($LASTEXITCODE -ne 0) { throw 'driftr install failed' }
+          driftr default node@22
+          $nodeVersion = node -v
+          if ($nodeVersion -notlike 'v22.*') { throw "node -v printed $nodeVersion" }
+          # A .exe shim passes arguments through untouched; cmd.exe would not.
+          $argv = node -e "console.log(process.argv.slice(1).join('|'))" -- 'a b' '"q"' 'c&d' '100%'
+          if ($argv -ne 'a b|"q"|c&d|100%') { throw "arguments reached node as: $argv" }
+          npm -v
+          if ($LASTEXITCODE -ne 0) { throw 'npm failed' }
+          npm install -g cowsay@1.6.0
+          if ($LASTEXITCODE -ne 0) { throw 'npm install -g failed' }
+          if (-not (Test-Path "$bin\cowsay.exe")) { throw 'no shim for the cowsay package bin' }
+          $said = cowsay hello | Out-String
+          if ($said -notlike '*hello*') { throw "cowsay printed: $said" }
+          driftr doctor
+
   test:
     # Covers both the unit tests and the e2e suite in e2e/, which drives a real
     # driftr binary against an in-process fake of nodejs.org, the npm registry

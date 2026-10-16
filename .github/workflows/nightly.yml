@@ -69,7 +69,7 @@ jobs:
       - name: Create nightly release
         if: steps.newcommits.outputs.skip != 'true'
         run: |
-          gh release create nightly dist/*.tar.gz dist/checksums.txt \
+          gh release create nightly dist/*.tar.gz dist/*.zip dist/checksums.txt \
             --title "Nightly $(date -u +%Y-%m-%d)" \
             --notes "Automated nightly build from \`$(git rev-parse --short HEAD)\` on main.
 

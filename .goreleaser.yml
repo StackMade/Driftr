@@ -8,6 +8,7 @@ builds:
     goos:
       - linux
       - darwin
+      - windows
     goarch:
       - amd64
       - arm64
@@ -18,7 +19,12 @@ builds:
       - -X github.com/stackmade/driftr/internal/cli.Date={{.Date}}
 
 archives:
-  - format: tar.gz
+  - formats: [tar.gz]
+    # Windows has no tar in older releases and no execute bit to keep, and
+    # self-update looks for driftr.exe in a zip there.
+    format_overrides:
+      - goos: windows
+        formats: [zip]
     name_template: >-
       driftr_{{ .Version }}_{{ .Os }}_{{ .Arch }}
 
