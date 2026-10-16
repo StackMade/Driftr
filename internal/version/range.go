@@ -140,9 +140,9 @@ func parseComparator(s string) (bound, error) {
 		}
 		return bound{max: hi}, nil
 	case "^":
-		return bound{min: &lo, max: caretMax(lo, s)}, nil
+		return bound{min: &lo, max: caretMax(lo, hi)}, nil
 	case "~":
-		if strings.Count(s, ".") == 0 { // "~18" behaves like "^18"
+		if hi != nil { // "~18", "~18.x" and "~18.2" stop where the partial does
 			return bound{min: &lo, max: hi}, nil
 		}
 		return bound{min: &lo, max: &Version{Major: lo.Major, Minor: lo.Minor + 1}}, nil
@@ -151,15 +151,14 @@ func parseComparator(s string) (bound, error) {
 }
 
 // caretMax implements npm's caret rule: the leftmost non-zero component is
-// what stays pinned.
-func caretMax(lo Version, raw string) *Version {
-	parts := strings.Count(raw, ".") + 1
+// what stays pinned, counting only the components written as numbers. hi is
+// parsePartial's upper bound: nil when all three were numbers, a major bound
+// when only the major was ("^0", "^0.x").
+func caretMax(lo Version, hi *Version) *Version {
 	switch {
-	case lo.Major != 0:
+	case lo.Major != 0 || (hi != nil && hi.Major != lo.Major): // "^1.2.3", "^0.x" → <(major+1).0.0
 		return &Version{Major: lo.Major + 1}
-	case parts == 1: // "^0" → <1.0.0
-		return &Version{Major: 1}
-	case lo.Minor != 0 || parts == 2: // "^0.2.3" and "^0.0" → <0.(minor+1).0
+	case lo.Minor != 0 || hi != nil: // "^0.2.3", "^0.0", "^0.0.x" → <0.(minor+1).0
 		return &Version{Major: 0, Minor: lo.Minor + 1}
 	default: // "^0.0.3" → <0.0.4
 		return &Version{Patch: lo.Patch + 1}
