@@ -269,6 +269,7 @@ func TestProjectSources_BrokenFileAboveEveryPin(t *testing.T) {
 
 // Install, outdated and prune need only the winner; driftr check reports unreadable files.
 func TestPins_UnreadableFileBehindWinner(t *testing.T) {
+	testutil.SkipOnWindows(t, "a file mode cannot make a file unreadable")
 	if os.Geteuid() == 0 {
 		t.Skip("root reads files regardless of their mode")
 	}

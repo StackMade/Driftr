@@ -72,7 +72,7 @@ func TestRemoveProjects_DropsOnlyGone(t *testing.T) {
 		}
 	}
 
-	if err := RemoveProjects([]string{"/work/gone", "/work/never-listed"}); err != nil {
+	if err := RemoveProjects(fromSlash("/work/gone", "/work/never-listed")); err != nil {
 		t.Fatal(err)
 	}
 
