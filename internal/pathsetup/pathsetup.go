@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/stackmade/driftr/internal/platform"
 )
 
 // Shell is the detected user shell.
@@ -82,7 +84,7 @@ func binDirNeedles(binDir string) []string {
 	if escaped := fishEscaper.Replace(binDir); escaped != binDir {
 		needles = append(needles, escaped)
 	}
-	home, err := os.UserHomeDir()
+	home, err := platform.HomeDir()
 	if err != nil || home == "" {
 		return needles
 	}
@@ -141,7 +143,7 @@ func Apply(r Result) (wrote bool, target string, err error) {
 // guarantees coverage in non-interactive shells, while the guard guarantees
 // precedence in interactive ones. Returns "" for shells where no guard applies.
 func GuardProfile(shell Shell) (string, error) {
-	home, err := os.UserHomeDir()
+	home, err := platform.HomeDir()
 	if err != nil {
 		return "", fmt.Errorf("home dir: %w", err)
 	}
@@ -247,7 +249,7 @@ func DetectShell() Shell {
 // coverage is not truly universal — it depends on the terminal launching a
 // login shell, which most macOS and Linux terminal emulators do.
 func TargetProfile(shell Shell) (string, error) {
-	home, err := os.UserHomeDir()
+	home, err := platform.HomeDir()
 	if err != nil {
 		return "", fmt.Errorf("home dir: %w", err)
 	}
@@ -276,7 +278,7 @@ func TargetProfile(shell Shell) (string, error) {
 
 // StaleCandidates returns rc files that may contain legacy PATH entries.
 func StaleCandidates(shell Shell) ([]string, error) {
-	home, err := os.UserHomeDir()
+	home, err := platform.HomeDir()
 	if err != nil {
 		return nil, err
 	}

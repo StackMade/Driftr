@@ -9,9 +9,17 @@ import (
 	"strings"
 )
 
+// HomeDir returns the user's home directory: the parent of ~/.driftr and of
+// the shell rc files driftr edits.
+func HomeDir() (string, error) {
+	// TODO(windows): os.UserHomeDir reads USERPROFILE on Windows and ignores
+	// HOME. Decide which one wins there when both are set.
+	return os.UserHomeDir()
+}
+
 // DriftrHome returns the root directory for Driftr storage (~/.driftr).
 func DriftrHome() (string, error) {
-	home, err := os.UserHomeDir()
+	home, err := HomeDir()
 	if err != nil {
 		return "", fmt.Errorf("cannot determine home directory: %w", err)
 	}
