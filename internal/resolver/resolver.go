@@ -616,13 +616,13 @@ func ResolveBinaryFull(tool string, explicit string) (*ResolvedBinary, error) {
 	// npx and pnpx have no version of their own: they follow npm and pnpm.
 	resolveTool := entry.Parent
 
-	// Tools that need Node.js (npm, yarn, pnpm) resolve their own version
-	// independently of `explicit` — explicit always pins Node.js, per the
-	// --node flag it comes from.
+	// `explicit` always pins Node.js, per the --node flag it comes from.
+	// Every other tool (npm, yarn, pnpm, bun) resolves its own version
+	// independently of it.
 	standaloneNeedsNode := entry.NeedsNode && resolveTool != "node"
 
 	toolExplicit := explicit
-	if standaloneNeedsNode {
+	if resolveTool != "node" {
 		toolExplicit = ""
 	}
 

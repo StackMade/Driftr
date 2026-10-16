@@ -392,6 +392,15 @@ func TestResolveBinaryFull_BunNeedsNoNode(t *testing.T) {
 	if !strings.Contains(rb.ToolPath, filepath.Join("bun", "1.2.3")) {
 		t.Errorf("ToolPath = %q, want bun 1.2.3", rb.ToolPath)
 	}
+
+	// `driftr run --node 22 -- bun`: the node version is not bun's version.
+	rb, err = ResolveBinaryFull("bun", "22")
+	if err != nil {
+		t.Fatalf("ResolveBinaryFull(bun, 22) error: %v", err)
+	}
+	if !strings.Contains(rb.ToolPath, filepath.Join("bun", "1.2.3")) {
+		t.Errorf("ToolPath = %q, want bun 1.2.3 (own version unaffected by explicit)", rb.ToolPath)
+	}
 }
 
 func TestResolveTool_DriftrKeyBeatsPackageManagerField(t *testing.T) {

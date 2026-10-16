@@ -491,7 +491,8 @@ driftr run --node 20.11.0 -- node script.js
   pinned, which need Node.js to execute but have their own independently pinned
   version, only the Node.js they run under is affected — the tool's own version
   still resolves normally from project/global config (e.g. `driftr run --node
-  20.11.0 -- yarn` runs your pinned/default yarn under Node 20.11.0)
+  20.11.0 -- yarn` runs your pinned/default yarn under Node 20.11.0). `bun` does not run on
+  Node.js, so `--node` leaves its version alone
 - Everything the command starts stays on that version: `npm`, `npx` and package bins are
   `#!/usr/bin/env node` scripts, and the scripts they run look `node` up on `PATH` too, so
   `driftr run` puts that version's `bin` directory first on `PATH` and sets `DRIFTR_NODE`, the
