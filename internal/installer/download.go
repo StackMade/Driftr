@@ -1,6 +1,7 @@
 package installer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -28,6 +29,8 @@ func nodeDistBase() string {
 const maxNodeDownloadBytes = 500 * 1024 * 1024 // 500 MB
 
 // httpClient is the shared HTTP client for all installer network operations.
+// Its Timeout bounds small metadata fetches. Archive downloads drop it, since
+// it counts the body read too, and use downloadIdleTimeout instead.
 var httpClient = &http.Client{
 	Timeout: 120 * time.Second,
 	CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -39,6 +42,25 @@ var httpClient = &http.Client{
 		}
 		return nil
 	},
+}
+
+// downloadIdleTimeout aborts an archive download that receives no data for
+// this long. A slow but steady download runs as long as it needs.
+var downloadIdleTimeout = 60 * time.Second
+
+// idleTimeoutReader pushes the idle deadline back on every read that
+// returns data.
+type idleTimeoutReader struct {
+	r     io.Reader
+	timer *time.Timer
+}
+
+func (i *idleTimeoutReader) Read(p []byte) (int, error) {
+	n, err := i.r.Read(p)
+	if n > 0 {
+		i.timer.Reset(downloadIdleTimeout)
+	}
+	return n, err
 }
 
 // DownloadURL returns the download URL for a given Node.js version.
@@ -107,9 +129,26 @@ func fetchToCache(url, filename string, maxBytes int64, verbose bool, cleanup *i
 		fmt.Printf("  Downloading: %s\n", url)
 	}
 
-	resp, err := httpClient.Get(url)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	idle := time.AfterFunc(downloadIdleTimeout, cancel)
+	defer idle.Stop()
+	stalled := func(err error) error {
+		if ctx.Err() != nil {
+			return fmt.Errorf("no data received for %s: %w", downloadIdleTimeout, err)
+		}
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return "", fmt.Errorf("download failed: %w", err)
+	}
+	client := *httpClient
+	client.Timeout = 0
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("download failed: %w", stalled(err))
 	}
 	defer resp.Body.Close()
 
@@ -131,7 +170,7 @@ func fetchToCache(url, filename string, maxBytes int64, verbose bool, cleanup *i
 		cleanup.setTmpFile(tmpPath)
 	}
 
-	limited := io.LimitReader(resp.Body, maxBytes)
+	limited := io.LimitReader(&idleTimeoutReader{r: resp.Body, timer: idle}, maxBytes)
 	if ioutil.IsTerminal(os.Stderr) {
 		pw := &ioutil.ProgressWriter{Dest: tmpFile, Total: resp.ContentLength}
 		_, err = io.Copy(pw, limited)
@@ -149,7 +188,7 @@ func fetchToCache(url, filename string, maxBytes int64, verbose bool, cleanup *i
 		if cleanup != nil {
 			cleanup.clearTmpFile()
 		}
-		return "", fmt.Errorf("download interrupted: %w", err)
+		return "", fmt.Errorf("download interrupted: %w", stalled(err))
 	}
 
 	if err := os.Rename(tmpPath, destPath); err != nil {

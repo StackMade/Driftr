@@ -106,7 +106,7 @@ type hostRewriteTransport struct {
 }
 
 func (t *hostRewriteTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	cloned, err := http.NewRequest(req.Method, t.target+req.URL.Path, req.Body)
+	cloned, err := http.NewRequestWithContext(req.Context(), req.Method, t.target+req.URL.Path, req.Body)
 	if err != nil {
 		return nil, err
 	}

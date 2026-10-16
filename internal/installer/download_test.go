@@ -6,8 +6,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stackmade/driftr/internal/platform"
 )
@@ -157,5 +159,56 @@ func TestNodeDistBase_EnvOverride(t *testing.T) {
 	}
 	if got := DownloadURL("22.0.0"); !strings.HasPrefix(got, "http://127.0.0.1:9123/v22.0.0/") {
 		t.Errorf("DownloadURL did not use mirror: %q", got)
+	}
+}
+
+// slowServer sends n bytes, one every gap; when stall is set it then hangs
+// until the test ends.
+func slowServer(t *testing.T, n int, gap time.Duration, stall bool) *httptest.Server {
+	t.Helper()
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !stall {
+			w.Header().Set("Content-Length", strconv.Itoa(n))
+		}
+		w.WriteHeader(http.StatusOK)
+		for range n {
+			w.Write([]byte("x"))
+			w.(http.Flusher).Flush()
+			time.Sleep(gap)
+		}
+		if stall {
+			<-release
+		}
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(release) }) // runs first, unblocking srv.Close
+	return srv
+}
+
+// The client Timeout counts the body read, so it used to kill a node archive
+// on any link slower than ~450 KB/s. A steady download must outlive it.
+func TestFetchToCache_SlowSteadyDownloadOutlivesClientTimeout(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	srv := slowServer(t, 40, 20*time.Millisecond, false)
+	swapHTTPClient(t, srv)
+	httpClient.Timeout = 300 * time.Millisecond
+
+	if _, err := fetchToCache(srv.URL+"/a", "a.bin", 1<<20, false, nil); err != nil {
+		t.Fatalf("steady download aborted: %v", err)
+	}
+}
+
+func TestFetchToCache_StalledDownloadTimesOut(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	srv := slowServer(t, 10, 0, true)
+	swapHTTPClient(t, srv)
+	orig := downloadIdleTimeout
+	downloadIdleTimeout = 200 * time.Millisecond
+	t.Cleanup(func() { downloadIdleTimeout = orig })
+
+	_, err := fetchToCache(srv.URL+"/a", "a.bin", 1<<20, false, nil)
+	if err == nil || !strings.Contains(err.Error(), "no data received") {
+		t.Fatalf("expected idle timeout error, got %v", err)
 	}
 }
