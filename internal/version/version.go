@@ -91,7 +91,7 @@ func Parse(s string) (Version, error) {
 
 	parts := strings.SplitN(s, ".", 3)
 
-	major, err := strconv.Atoi(parts[0])
+	major, err := parseComponent(parts[0])
 	if err != nil {
 		return Version{}, fmt.Errorf("invalid major version %q: %w", parts[0], err)
 	}
@@ -99,7 +99,7 @@ func Parse(s string) (Version, error) {
 	v := Version{Major: major, Raw: raw}
 
 	if len(parts) >= 2 {
-		minor, err := strconv.Atoi(parts[1])
+		minor, err := parseComponent(parts[1])
 		if err != nil {
 			return Version{}, fmt.Errorf("invalid minor version %q: %w", parts[1], err)
 		}
@@ -107,7 +107,7 @@ func Parse(s string) (Version, error) {
 	}
 
 	if len(parts) == 3 {
-		patch, err := strconv.Atoi(parts[2])
+		patch, err := parseComponent(parts[2])
 		if err != nil {
 			return Version{}, fmt.Errorf("invalid patch version %q: %w", parts[2], err)
 		}
@@ -115,6 +115,15 @@ func Parse(s string) (Version, error) {
 	}
 
 	return v, nil
+}
+
+// parseComponent parses one numeric version component. Only digits are
+// accepted: strconv.Atoi alone would let "-1" and "+22" through.
+func parseComponent(s string) (int, error) {
+	if s == "" || strings.Trim(s, "0123456789") != "" {
+		return 0, fmt.Errorf("not a non-negative number")
+	}
+	return strconv.Atoi(s)
 }
 
 // IsPartial returns true if the version was specified without all three components.

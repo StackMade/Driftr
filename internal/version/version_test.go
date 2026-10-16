@@ -51,6 +51,11 @@ func TestParse_Invalid(t *testing.T) {
 		"24.abc",
 		"24.0.abc",
 		"node@",
+		"-1",
+		"22.-1",
+		"22.0.-1",
+		"+22",
+		"22.+1",
 	}
 
 	for _, input := range tests {
