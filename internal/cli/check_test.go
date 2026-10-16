@@ -7,6 +7,23 @@ import (
 	"github.com/stackmade/driftr/internal/resolver"
 )
 
+func TestWinnerIndex(t *testing.T) {
+	pins := []resolver.Pin{
+		{Tool: "node", Version: "lts/mithril", Source: resolver.SourceNvmrc},
+		{Tool: "node", Version: "20.11.0", Source: resolver.SourceNodeVersion},
+	}
+	if got := winnerIndex(pins); got != 1 {
+		t.Errorf("winnerIndex() = %d, want 1: the resolver skips the unknown codename", got)
+	}
+	if got := winnerIndex(pins[:1]); got != -1 {
+		t.Errorf("winnerIndex() = %d, want -1 when every source is skipped", got)
+	}
+	pins[0].Source = resolver.SourceProject
+	if got := winnerIndex(pins); got != 0 {
+		t.Errorf("winnerIndex() = %d, want 0: .driftr.toml is never skipped", got)
+	}
+}
+
 func TestCheckToolPins(t *testing.T) {
 	const cwd = "/proj"
 	pin := func(ver string, src resolver.Source) resolver.Pin {
@@ -96,6 +113,14 @@ func TestCheckToolPins(t *testing.T) {
 			name: "unknown codename",
 			pins: []resolver.Pin{nvmrc("lts/nosuchname"), toml("20")},
 			want: []string{"an LTS codename this driftr does not know"},
+		},
+		{
+			name: "the resolver skips an unknown codename, the next source wins",
+			pins: []resolver.Pin{nvmrc("lts/mithril"), pin("20.11.0", resolver.SourceNodeVersion), engines(">=24")},
+			want: []string{
+				"an LTS codename this driftr does not know",
+				`node 20.11.0 from .node-version is outside package.json (engines.node) ">=24"`,
+			},
 		},
 	}
 

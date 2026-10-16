@@ -36,6 +36,13 @@ stdout '^node  22 \(resolves to '$NODE_VERSION'\)'
 stdout 'node 22 from \.driftr\.toml resolves to '$NODE_VERSION', which is outside package\.json \(engines\.node\) ">=24"'
 stdout 'driftr pin node@24'
 
+# The resolver skips an LTS codename it does not know, so .node-version is
+# the pin in use and is what engines.node is checked against.
+cd $WORK/codename
+! exec driftr check --exit-code
+stdout '> \.node-version\s+20\.11\.0'
+stdout 'node 20\.11\.0 from \.node-version is outside package\.json \(engines\.node\) ">=24"'
+
 # A file the resolver cannot read is a problem too.
 cd $WORK/broken
 exec driftr check
@@ -58,6 +65,12 @@ node = "22.99.0"
 [tools]
 node = "22"
 -- engines/package.json --
+{"engines": {"node": ">=24"}}
+-- codename/.nvmrc --
+lts/mithril
+-- codename/.node-version --
+20.11.0
+-- codename/package.json --
 {"engines": {"node": ">=24"}}
 -- broken/.driftr.toml --
 [tools
