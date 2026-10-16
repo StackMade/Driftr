@@ -284,6 +284,14 @@ the detection is wrong or when you are writing the line into a script:
 driftr use node@24 --shell fish
 ```
 
+In PowerShell, which Windows uses when `$SHELL` is not set, the snippet is
+`$env:DRIFTR_NODE = '24.1.0'`, applied with `Invoke-Expression`:
+
+```powershell
+driftr use node@24 | Invoke-Expression
+driftr use --unset node | Invoke-Expression
+```
+
 **A shell function, if you type this often:**
 
 ```bash

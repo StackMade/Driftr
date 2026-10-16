@@ -75,6 +75,45 @@ rm -rf ~/.driftr
 
 ---
 
+## Windows
+
+From PowerShell (5.1 or later):
+
+```powershell
+irm https://raw.githubusercontent.com/StackMade/driftr/main/install.ps1 | iex
+```
+
+The script follows the same steps as `install.sh`: it downloads `driftr_<version>_windows_<arch>.zip`,
+checks it against `checksums.txt`, installs `driftr.exe` to `%USERPROFILE%\.driftr\bin`, and runs
+`driftr setup`. Open a new terminal afterwards; `driftr doctor` checks the result.
+
+`DRIFTR_VERSION` and `DRIFTR_INSTALL_DIR` work as they do for `install.sh`. Set them in the same
+PowerShell session first:
+
+```powershell
+$env:DRIFTR_VERSION = '1.6.0'
+irm https://raw.githubusercontent.com/StackMade/driftr/main/install.ps1 | iex
+```
+
+### How Windows differs
+
+- **Shims are executables.** `%USERPROFILE%\.driftr\bin` holds `node.exe`, `npm.exe`, `npx.exe` and
+  the rest, each a hard link to (or, across volumes, a copy of) `driftr.exe`. driftr picks the tool
+  from the name it was started under. A `.cmd` shim would make `cmd.exe` parse every argument a
+  second time and ask "Terminate batch job (Y/N)?" on Ctrl-C.
+- **PATH lives in the registry.** `driftr setup` puts the shim directory first in your user `Path`
+  (`HKCU\Environment`), which cmd, PowerShell and Git Bash all start from. Windows lists the system
+  `Path` before the user one, so a Node.js installed for all users still comes first: uninstall it,
+  or, as an administrator, move its directory after driftr's. `driftr doctor` reports which tool is
+  shadowed and by what.
+- **The home directory is `%USERPROFILE%`**, never `%HOME%`, so cmd, PowerShell and Git Bash share
+  one `.driftr` directory even when Git Bash sets `HOME` elsewhere.
+- **Global npm packages** install into the Node.js version's own directory, as on other platforms.
+  npm writes `tsc.cmd` there; driftr gives it a `tsc.exe` shim that runs the script the `.cmd`
+  names under that version's `node.exe`.
+
+---
+
 ## Building from Source
 
 Driftr is written in Go. You need Go 1.27 or later to build it.
@@ -83,7 +122,7 @@ Driftr is written in Go. You need Go 1.27 or later to build it.
 
 - [Go](https://go.dev/dl/) 1.27+
 - Git
-- macOS or Linux (Windows support is planned)
+- macOS, Linux or Windows
 
 ### Clone and Build
 
@@ -234,3 +273,6 @@ To remove Driftr:
    ```
 
 3. Remove the `PATH` entry from your shell profile.
+
+On Windows, delete `%USERPROFILE%\.driftr` and remove its `bin` directory from your user `Path`
+(Settings, then "Edit environment variables for your account").

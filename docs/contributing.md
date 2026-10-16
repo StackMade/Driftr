@@ -115,15 +115,16 @@ internal/
   installer/         tool installers (node, npm, pnpm, yarn, bun) + npm registry client
   resolver/          generic version resolution chain, project pin collection
   shim/              shim script generation (node, npm, npx, pnpm, pnpx, yarn, bun, package bins)
-  process/           process execution (syscall.Exec)
+  process/           process execution (syscall.Exec; a child process on Windows)
   platform/          OS/architecture abstraction, tool binary map
   version/           semver parsing with tool@ prefix support, engines.node ranges
-  pathsetup/         shell rc file detection and PATH line writing
+  pathsetup/         shell rc files, or the user Path in the Windows registry
   nodeenv/           package manager detection and pnpm calls for driftr node
   ioutil/            color, TTY detection, progress, atomic file writes
   updater/           self-update mechanism
 e2e/                 testscript e2e suite (testdata/script/*.txtar)
 test/fixture/        fake nodejs.org, npm registry and bun releases
+test/fakebin/        stand-in node.exe, bun.exe and driftr.exe for the Windows fixture
 docs/                documentation
 test_path_e2e.sh     per-shell PATH bootstrap suite
 Dockerfile           throwaway image for trying driftr out, nothing publishes it
@@ -278,6 +279,13 @@ Three things catch people out:
 - `stdin` resolves its file against the current directory, so after a `cd` write
   `stdin $WORK/answer.txt`.
 
+The suite also runs on Windows in CI. There, binaries end in `.exe`, so write
+`exists $HOME/.driftr/bin/node$exe`; paths use `\`, so match a separator with `[/\\]` and
+put a path into a regular expression as `${WORK@R}`. Windows cannot run the fixture's shell
+scripts: its archives carry `test/fakebin` instead, a small program that acts as `node.exe`,
+`bun.exe` or `driftr.exe` by its own name. A script whose stand-ins are shell scripts starts
+with `[windows] skip '<why>'`.
+
 Code that only runs on a terminal, such as prompts or the `driftr use` eval hint, is
 tested in `internal/cli/tty_test.go` against a real pseudo-terminal from `openPTY`
 (`pty_darwin_test.go`, `pty_linux_test.go`).
@@ -298,7 +306,6 @@ Adding a version or a package to the fixture means editing `test/fixture/fixture
 
 ### Larger Features
 
-- Windows support (`.cmd` shims, `.zip` extraction)
 - yarn berry (3+/4+) support
 
 ## Release Process (maintainers)
