@@ -137,7 +137,7 @@ func SavePackageJSONTool(dir, tool, version string) error {
 		return fmt.Errorf("failed to update %s: %w", path, err)
 	}
 
-	return os.WriteFile(path, out, 0o644)
+	return replaceFile(path, out)
 }
 
 // RemoveDriftrFromPackageJSON removes the driftr key from package.json.
@@ -163,7 +163,7 @@ func RemoveDriftrFromPackageJSON(dir string) error {
 		return fmt.Errorf("failed to update %s: %w", path, err)
 	}
 
-	return os.WriteFile(path, out, 0o644)
+	return replaceFile(path, out)
 }
 
 // patchTopLevelKey modifies a top-level key in a JSON object, preserving key order.

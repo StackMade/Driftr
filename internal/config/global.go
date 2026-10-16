@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -83,16 +84,12 @@ func SaveGlobal(cfg *GlobalConfig) error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	f, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("failed to create global config: %w", err)
-	}
-	defer f.Close()
-
-	enc := toml.NewEncoder(f)
-	if err := enc.Encode(cfg); err != nil {
+	var buf bytes.Buffer
+	if err := toml.NewEncoder(&buf).Encode(cfg); err != nil {
 		return fmt.Errorf("failed to write global config: %w", err)
 	}
-
+	if err := replaceFile(path, buf.Bytes()); err != nil {
+		return fmt.Errorf("failed to write global config: %w", err)
+	}
 	return nil
 }

@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stackmade/driftr/internal/platform"
 )
 
 func writeProjectConfig(t *testing.T, dir, content string) {
@@ -115,5 +117,82 @@ func TestLoadProject_EmptyNode(t *testing.T) {
 	}
 	if got := cfg.Tools.GetTool("node"); got != "" {
 		t.Errorf("Tools.GetTool(node) = %q, want empty", got)
+	}
+}
+
+// Shims read these files while pin and default write them. Writing in place
+// truncated the file first, so a concurrent read could see it empty or half
+// written; a replace by rename never shows either. A replaced file is a new
+// inode, which is what these checks look for.
+func TestSaves_ReplaceTheFileAtomically(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	dir := t.TempDir()
+	writeProjectConfig(t, dir, "[tools]\nnode = \"20.0.0\"\n")
+	writePackageJSON(t, dir, `{"name": "x"}`)
+	if err := SaveGlobal(&GlobalConfig{}); err != nil {
+		t.Fatal(err)
+	}
+	globalPath, err := platform.GlobalConfigPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tt := range []struct {
+		path string
+		save func() error
+	}{
+		{filepath.Join(dir, ProjectConfigFile), func() error {
+			return SaveProject(dir, &ProjectConfig{Tools: ToolsConfig{"node": "22.0.0"}})
+		}},
+		{filepath.Join(dir, "package.json"), func() error { return SavePackageJSONTool(dir, "node", "22.0.0") }},
+		{filepath.Join(dir, "package.json"), func() error { return RemoveDriftrFromPackageJSON(dir) }},
+		{globalPath, func() error { return SaveGlobal(&GlobalConfig{Default: DefaultConfig{Node: "22.0.0"}}) }},
+	} {
+		before, err := os.Stat(tt.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := tt.save(); err != nil {
+			t.Fatal(err)
+		}
+		after, err := os.Stat(tt.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if os.SameFile(before, after) {
+			t.Errorf("%s was rewritten in place", tt.path)
+		}
+	}
+}
+
+// package.json keeps its mode, and a symlinked one stays a symlink.
+func TestSavePackageJSONTool_KeepsModeAndSymlink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(t.TempDir(), "package.json")
+	if err := os.WriteFile(target, []byte(`{"name": "x"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "package.json")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := SavePackageJSONTool(dir, "node", "22.0.0"); err != nil {
+		t.Fatal(err)
+	}
+
+	if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("symlink replaced by a file: %v", err)
+	}
+	info, err := os.Stat(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Errorf("mode = %v, want 0600", info.Mode().Perm())
+	}
+	pkg, err := LoadPackageJSON(dir)
+	if err != nil || pkg == nil || pkg.Driftr.GetTool("node") != "22.0.0" {
+		t.Errorf("pin not written through the symlink: %+v, %v", pkg, err)
 	}
 }

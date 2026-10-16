@@ -1,12 +1,15 @@
 package config
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/stackmade/driftr/internal/ioutil"
 )
 
 const ProjectConfigFile = ".driftr.toml"
@@ -61,16 +64,26 @@ func LoadProject(dir string) (*ProjectConfig, error) {
 func SaveProject(dir string, cfg *ProjectConfig) error {
 	path := filepath.Join(dir, ProjectConfigFile)
 
-	f, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("failed to create project config: %w", err)
-	}
-	defer f.Close()
-
-	enc := toml.NewEncoder(f)
-	if err := enc.Encode(cfg); err != nil {
+	var buf bytes.Buffer
+	if err := toml.NewEncoder(&buf).Encode(cfg); err != nil {
 		return fmt.Errorf("failed to write project config: %w", err)
 	}
-
+	if err := replaceFile(path, buf.Bytes()); err != nil {
+		return fmt.Errorf("failed to write project config: %w", err)
+	}
 	return nil
+}
+
+// replaceFile writes data to path in one rename, so a shim resolving a
+// version meanwhile never reads an empty or half-written config. It keeps the
+// mode of the file it replaces, and writes through a symlink, not over it.
+func replaceFile(path string, data []byte) error {
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		path = real
+	}
+	mode := os.FileMode(0o644)
+	if info, err := os.Stat(path); err == nil {
+		mode = info.Mode().Perm()
+	}
+	return ioutil.WriteFileAtomic(path, data, mode)
 }
