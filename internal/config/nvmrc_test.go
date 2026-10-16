@@ -25,6 +25,11 @@ func TestLoadNvmrc(t *testing.T) {
 		{"bare lts", "lts\n", "lts"},
 		{"empty file", "", ""},
 		{"only comments", "# nothing\n", ""},
+		{"trailing comment", "22.14.0 # ci\n", "22.14.0"},
+		{"trailing comment without space", "v22.14.0#ci\n", "22.14.0"},
+		{"byte order mark", "\ufeff22.14.0\n", "22.14.0"},
+		{"byte order mark before comment", "\ufeff# pinned\n22.14.0\n", "22.14.0"},
+		{"lts with trailing comment", "lts/iron # ci\n", "lts/iron"},
 	}
 
 	for _, tt := range tests {
@@ -64,7 +69,7 @@ func FuzzParseVersionFile(f *testing.F) {
 		"# my project\n22.14.0\n", "lts/*\n", "lts/hydrogen\n", "LTS/iron\n",
 		"lts\n", "", "# nothing\n", "\n\n\n", "   ", "#", "v", "vv22",
 		"\x00\n22.14.0", "\r\n22.14.0\r\n", "22.14.0\n\n# trailing",
-		"ltsvv", "\t lts/jod \t", "２２.１４.０",
+		"ltsvv", "\t lts/jod \t", "22.14.0 # ci", "\ufeffv#", "２２.１４.０",
 		strings.Repeat("#\n", 500) + "22.14.0",
 		strings.Repeat("2", 4000),
 	}
@@ -89,9 +94,9 @@ func FuzzParseVersionFile(f *testing.F) {
 		if strings.Contains(got, "\n") {
 			t.Errorf("parseVersionFile(%q) = %q, want a single line", content, got)
 		}
-		// Comment skipping is not asserted here: it is a property of the input
-		// line, not of the result ("v#" is not a comment and yields "#").
-		// TestLoadNvmrc covers it.
+		if strings.Contains(got, "#") {
+			t.Errorf("parseVersionFile(%q) = %q, want no comment", content, got)
+		}
 	})
 }
 
@@ -104,6 +109,8 @@ func TestSaveVersionFile(t *testing.T) {
 		{"no trailing newline stays without", "22.1.0", "24.2.0"},
 		{"comments and blank lines kept", "# pinned for CI\n\n  v22.1.0  \n", "# pinned for CI\n\n  v24.2.0  \n"},
 		{"CRLF kept", "v22.1.0\r\n", "v24.2.0\r\n"},
+		{"trailing comment kept", "22.1.0 # ci\n", "24.2.0 # ci\n"},
+		{"byte order mark kept", "\ufeffv22.1.0\n", "\ufeffv24.2.0\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -119,6 +126,19 @@ func TestSaveVersionFile(t *testing.T) {
 				t.Errorf("got %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestLoadNodeVersion_CommentAndBOM guards that .node-version is read like
+// .nvmrc: both go through parseVersionFile.
+func TestLoadNodeVersion_CommentAndBOM(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".node-version"), []byte("\ufeff22.14.0 # ci\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := LoadNodeVersion(dir)
+	if err != nil || got != "22.14.0" {
+		t.Errorf("LoadNodeVersion() = %q, %v, want 22.14.0", got, err)
 	}
 }
 

@@ -29,10 +29,10 @@ func LoadNvmrc(dir string) (string, error) {
 // LTS aliases ("lts", "lts/*", "lts/hydrogen") are returned verbatim for the
 // resolver to interpret.
 func parseVersionFile(content string) (string, error) {
-	// Take the first non-empty, non-comment line.
+	// Take the first line that holds a version, not just a comment.
 	for _, line := range strings.Split(content, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
+		line = versionToken(line)
+		if line == "" {
 			continue
 		}
 
@@ -50,6 +50,14 @@ func parseVersionFile(content string) (string, error) {
 	return "", nil
 }
 
+// versionToken returns the version a line of a version file holds: the line
+// without a UTF-8 byte order mark, a trailing "# comment" or surrounding
+// space. "" means the line holds no version.
+func versionToken(line string) string {
+	line, _, _ = strings.Cut(strings.TrimPrefix(line, "\ufeff"), "#")
+	return strings.TrimSpace(line)
+}
+
 // SaveVersionFile replaces the version in a single-line version file such as
 // .nvmrc or .node-version. Only the version token changes: the line it sits
 // on, comments, blank lines, line endings and a leading "v" stay as they were,
@@ -61,10 +69,10 @@ func SaveVersionFile(path, ver string) error {
 	}
 
 	lines := strings.Split(string(data), "\n")
-	// Same line parseVersionFile reads: the first non-empty, non-comment one.
+	// Same line parseVersionFile reads: the first one holding a version.
 	for i, line := range lines {
-		token := strings.TrimSpace(line)
-		if token == "" || strings.HasPrefix(token, "#") {
+		token := versionToken(line)
+		if token == "" {
 			continue
 		}
 		start := strings.Index(line, token)
