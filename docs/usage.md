@@ -482,6 +482,7 @@ driftr run --node 20.11.0 -- node script.js
 
 **Behavior:**
 - The global default and project pin are not changed
+- Driftr's flags end at the command name, so `--` is optional: in `driftr run node -v`, `-v` goes to node
 - `--node` takes a full version, a partial one (`20`), `latest`, `lts` or `lts/<codename>`, and
   picks the newest installed match without a network call
 - The `--` separator is required between flags and the command

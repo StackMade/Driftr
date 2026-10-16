@@ -65,6 +65,8 @@ func newRunCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&nodeVersion, "node", "", "Node.js version to use")
+	// Flags stop at the command: in `driftr run node -v`, -v belongs to node.
+	cmd.Flags().SetInterspersed(false)
 
 	return cmd
 }

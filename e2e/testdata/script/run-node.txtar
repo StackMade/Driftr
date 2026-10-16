@@ -23,6 +23,12 @@ stdout 'npm on v20\.0\.0'
 exec driftr run --node 20.0.0 -- hello
 stdout 'hello under v20\.0\.0'
 
+# Without --, flags after the command belong to it, not to driftr: -v is
+# node's version flag here, not driftr's --verbose.
+exec driftr run --node 20.0.0 node -v
+stdout '^v20\.0\.0$'
+! stdout 'resolve'
+
 # A partial version picks the newest installed match, as it does everywhere else.
 exec driftr run --node 20 -- sh -c 'node -v'
 stdout '^v20\.0\.0$'
