@@ -17,13 +17,13 @@ func TestToolBinary_KnownTools(t *testing.T) {
 		version    string
 		wantSuffix string
 	}{
-		{"node", "22.14.0", "tools/node/22.14.0/bin/node"},
+		{"node", "22.14.0", "tools/node/22.14.0/bin/" + ExeName("node")},
 		{"npm", "10.9.2", "tools/npm/10.9.2/bin/npm-cli.js"},
 		{"npx", "10.9.2", "tools/npm/10.9.2/bin/npx-cli.js"},
 		{"pnpm", "9.15.0", "tools/pnpm/9.15.0/bin/pnpm.cjs"},
 		{"pnpx", "9.15.0", "tools/pnpm/9.15.0/bin/pnpx.cjs"},
 		{"yarn", "1.22.22", "tools/yarn/1.22.22/bin/yarn.js"},
-		{"bun", "1.2.3", "tools/bun/1.2.3/bin/bun"},
+		{"bun", "1.2.3", "tools/bun/1.2.3/bin/" + ExeName("bun")},
 	}
 
 	for _, tt := range tests {
@@ -32,7 +32,7 @@ func TestToolBinary_KnownTools(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ToolBinary(%q, %q) error: %v", tt.tool, tt.version, err)
 			}
-			if !pathEndsWith(path, tt.wantSuffix) {
+			if !pathEndsWith(path, filepath.FromSlash(tt.wantSuffix)) {
 				t.Errorf("ToolBinary(%q, %q) = %q, want suffix %q", tt.tool, tt.version, path, tt.wantSuffix)
 			}
 		})
@@ -169,7 +169,7 @@ func TestNodePackageBins(t *testing.T) {
 			if err := os.MkdirAll(filepath.Join(dir, "bin"), 0o755); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(filepath.Join(dir, "bin", n), nil, 0o755); err != nil {
+			if err := os.WriteFile(filepath.Join(dir, "bin", PackageBinFile(n)), nil, 0o755); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -203,7 +203,7 @@ func TestFindOutsideDriftr(t *testing.T) {
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		if err := os.WriteFile(ExeName(p), []byte("#!/bin/sh\n"), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -215,7 +215,7 @@ func TestFindOutsideDriftr(t *testing.T) {
 		t.Fatal(err)
 	}
 	fileLinks := t.TempDir()
-	if err := os.Symlink(filepath.Join(bin, "nest"), filepath.Join(fileLinks, "nest")); err != nil {
+	if err := os.Symlink(filepath.Join(bin, ExeName("nest")), filepath.Join(fileLinks, ExeName("nest"))); err != nil {
 		t.Fatal(err)
 	}
 	sep := string(os.PathListSeparator)
@@ -231,12 +231,12 @@ func TestFindOutsideDriftr(t *testing.T) {
 	t.Chdir(cwd)
 	t.Setenv("PATH", "")
 	writeExec(filepath.Join(cwd, "nest"))
-	if got := FindOutsideDriftr("nest"); filepath.Base(got) != "nest" || filepath.Base(filepath.Dir(got)) == "tools" {
+	if got := FindOutsideDriftr("nest"); filepath.Base(got) != ExeName("nest") || filepath.Base(filepath.Dir(got)) == "tools" {
 		t.Errorf("empty PATH should search the current directory, got %q", got)
 	}
 
 	t.Setenv("PATH", aliasDir+sep+"tools")
-	if got, want := FindOutsideDriftr("nest"), filepath.Join(cwd, "tools", "nest"); got != want {
+	if got, want := FindOutsideDriftr("nest"), filepath.Join(cwd, "tools", ExeName("nest")); got != want {
 		// macOS temp dirs live behind the /var -> /private/var symlink.
 		if real, _ := filepath.EvalSymlinks(got); real != want {
 			if rw, _ := filepath.EvalSymlinks(want); real != rw {

@@ -33,7 +33,7 @@ func newBunFixture(t *testing.T, versions ...string) *bunFixture {
 
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
-	hdr := &zip.FileHeader{Name: strings.TrimSuffix(asset, ".zip") + "/bun", Method: zip.Deflate}
+	hdr := &zip.FileHeader{Name: strings.TrimSuffix(asset, ".zip") + "/" + platform.ExeName("bun"), Method: zip.Deflate}
 	hdr.SetMode(0o755)
 	w, err := zw.CreateHeader(hdr)
 	if err != nil {
@@ -120,7 +120,7 @@ func TestInstallBun_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bun binary not installed: %v", err)
 	}
-	if info.Mode().Perm()&0o111 == 0 {
+	if !platform.IsExecutable(info) {
 		t.Error("bun binary is not executable")
 	}
 

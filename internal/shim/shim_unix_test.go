@@ -1,3 +1,5 @@
+//go:build !windows
+
 package shim
 
 import (
@@ -9,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func TestWriteShim_Content(t *testing.T) {
@@ -103,7 +106,7 @@ func TestWriteShim_AllTools(t *testing.T) {
 }
 
 func TestGenerateShims(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	if _, err := GenerateShims("test"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -145,7 +148,7 @@ func TestShimTools_ReturnsCopy(t *testing.T) {
 }
 
 func TestGenerateShims_PackageBins(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	// The developer's own tsc must not count as "already on PATH".
 	t.Setenv("PATH", t.TempDir())
 	binDir, _ := ShimDir()
@@ -185,7 +188,7 @@ func TestGenerateShims_PackageBins(t *testing.T) {
 }
 
 func TestGenerateShims_NeverOverwritesAForeignFile(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	binDir, _ := ShimDir()
 	nodeDir, _ := platform.NodeVersionDir("22.0.0")
 	if err := os.MkdirAll(filepath.Join(nodeDir, "bin"), 0o755); err != nil {
@@ -217,7 +220,7 @@ func TestGenerateShims_NeverOverwritesAForeignFile(t *testing.T) {
 }
 
 func TestRefreshIfStale(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	binDir, _ := ShimDir()
 
 	// Before setup there is no shim dir, and a refresh must not create one.
@@ -299,7 +302,7 @@ func TestGenerateShims_ReleasesTheOldHomebrewKeg(t *testing.T) {
 		{"another formula's keg", []string{"Cellar", "node", "22.0.0"}, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.SetHome(t, t.TempDir())
 			binDir, _ := ShimDir()
 			keg := filepath.Join(append([]string{t.TempDir()}, tt.kegPath...)...)
 			if err := os.MkdirAll(filepath.Join(keg, "bin"), 0o755); err != nil {

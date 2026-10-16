@@ -241,6 +241,7 @@ func TestListCmd_Empty(t *testing.T) {
 }
 
 func TestSetupCmd_ConfiguresPathInUniversalRcFile(t *testing.T) {
+	testutil.SkipOnWindows(t, "shell rc files")
 	home := t.TempDir()
 	testutil.SetHome(t, home)
 	t.Setenv("SHELL", "/bin/zsh")

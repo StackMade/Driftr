@@ -119,7 +119,7 @@ func TestInstallPnpm_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pnpm binary not installed: %v", err)
 	}
-	if info.Mode().Perm()&0o111 == 0 {
+	if !platform.IsExecutable(info) {
 		t.Errorf("pnpm binary is not executable: mode %v", info.Mode())
 	}
 }

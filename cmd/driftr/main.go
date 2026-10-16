@@ -8,31 +8,40 @@ import (
 	"github.com/stackmade/driftr/internal/cli"
 	"github.com/stackmade/driftr/internal/ioutil"
 	"github.com/stackmade/driftr/internal/resolver"
+	"github.com/stackmade/driftr/internal/shim"
 )
 
 func main() {
-	// Fast path: bypass Cobra entirely for shim invocations.
-	// Shim scripts call "driftr shim <tool> [args...]".
+	// Fast path: bypass Cobra entirely for shim invocations. Unix shim
+	// scripts call "driftr shim <tool> [args...]"; a Windows shim is a copy
+	// of driftr named after its tool.
 	if len(os.Args) >= 3 && os.Args[1] == "shim" {
-		tool := os.Args[2]
-		_ = cli.RefreshStaleShims()
-		rb, err := resolver.ResolveBinaryFull(tool, "")
-		if err != nil {
-			rb, err = cli.HandleShimError(err, tool)
-		}
-		if err == nil {
-			err = cli.ExecResolved(tool, rb, os.Args[3:])
-		}
-		if err != nil {
-			var exitErr *cli.ExitError
-			if errors.As(err, &exitErr) {
-				os.Exit(exitErr.Code)
-			}
-			fmt.Fprintf(os.Stderr, "driftr: %s\n", ioutil.Commands(err.Error()))
-			os.Exit(1)
-		}
+		runShim(os.Args[2], os.Args[3:])
+		return
+	}
+	if tool, ok := shim.InvokedAs(); ok {
+		runShim(tool, os.Args[1:])
 		return
 	}
 
 	cli.Execute()
+}
+
+func runShim(tool string, args []string) {
+	_ = cli.RefreshStaleShims()
+	rb, err := resolver.ResolveBinaryFull(tool, "")
+	if err != nil {
+		rb, err = cli.HandleShimError(err, tool)
+	}
+	if err == nil {
+		err = cli.ExecResolved(tool, rb, args)
+	}
+	if err != nil {
+		var exitErr *cli.ExitError
+		if errors.As(err, &exitErr) {
+			os.Exit(exitErr.Code)
+		}
+		fmt.Fprintf(os.Stderr, "driftr: %s\n", ioutil.Commands(err.Error()))
+		os.Exit(1)
+	}
 }

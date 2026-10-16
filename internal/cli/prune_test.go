@@ -306,7 +306,7 @@ func TestRecordProject_UsesNearestPinDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(dirs) != 1 || dirs[0] != "/work/repo/app" {
+	if len(dirs) != 1 || dirs[0] != filepath.FromSlash("/work/repo/app") {
 		t.Errorf("registry = %v, want [/work/repo/app]", dirs)
 	}
 }

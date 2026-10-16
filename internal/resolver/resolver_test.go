@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -20,14 +21,33 @@ func setupFakeInstall(t *testing.T, home, tool, version string) {
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		t.Fatalf("failed to create dir: %v", err)
 	}
-	entry, ok := platform.LookupTool(tool)
-	binName := tool
-	if ok {
-		binName = entry.Binary
+	binPath, err := platform.ToolBinary(tool, version)
+	if err != nil {
+		binPath = filepath.Join(binDir, tool)
 	}
-	if err := os.WriteFile(filepath.Join(binDir, binName), []byte("#!/bin/sh\n"), 0o755); err != nil {
+	if err := os.WriteFile(binPath, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatalf("failed to write fake binary: %v", err)
 	}
+}
+
+// writePackageBin leaves name in a node bin dir the way a global npm install
+// does, and returns the file the shim should run for it: the bin itself, or on
+// Windows the script its .cmd launches.
+func writePackageBin(t *testing.T, binDir, name string) string {
+	t.Helper()
+	if runtime.GOOS != "windows" {
+		path := filepath.Join(binDir, name)
+		if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	cmd := "@ECHO off\r\n\"%_prog%\"  \"%dp0%\\node_modules\\" + name + "\\bin\\" + name + "\" %*\r\n"
+	cmd = "SET \"_prog=%dp0%\\node.exe\"\r\n" + cmd
+	if err := os.WriteFile(filepath.Join(binDir, name+".cmd"), []byte(cmd), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Join(binDir, "node_modules", name, "bin", name)
 }
 
 func TestRequireToolInstalled_ExactVersion(t *testing.T) {
@@ -1080,7 +1100,7 @@ func TestResolvePackageBin(t *testing.T) {
 	testutil.SetHome(t, home)
 	// Another install of nest sits on PATH; the developer's own tsc must not.
 	elsewhere := t.TempDir()
-	if err := os.WriteFile(filepath.Join(elsewhere, "nest"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(elsewhere, platform.ExeName("nest")), []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", elsewhere)
@@ -1090,9 +1110,7 @@ func TestResolvePackageBin(t *testing.T) {
 	// tsc lives under 20 and 22, never under 24; nest under 22 only.
 	for _, f := range []string{"20.0.0/tsc", "22.0.0/tsc", "22.0.0/nest"} {
 		dir, _ := platform.NodeVersionDir(filepath.Dir(f))
-		if err := os.WriteFile(filepath.Join(dir, "bin", filepath.Base(f)), []byte("#!/bin/sh\n"), 0o755); err != nil {
-			t.Fatal(err)
-		}
+		writePackageBin(t, filepath.Join(dir, "bin"), filepath.Base(f))
 	}
 	binOf := func(v string) string {
 		dir, _ := platform.NodeVersionDir(v)
@@ -1128,7 +1146,11 @@ func TestResolvePackageBin(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if rb.PathPrefix != binOf(tt.want) || rb.ToolPath != filepath.Join(binOf(tt.want), tt.bin) {
+			want := filepath.Join(binOf(tt.want), tt.bin)
+			if runtime.GOOS == "windows" {
+				want = filepath.Join(binOf(tt.want), "node_modules", tt.bin, "bin", tt.bin)
+			}
+			if rb.PathPrefix != binOf(tt.want) || rb.ToolPath != want {
 				t.Errorf("got %+v, want bin from node %s", rb, tt.want)
 			}
 		})
@@ -1141,10 +1163,9 @@ func TestResolvePackageBin_OtherInstallOnPathWins(t *testing.T) {
 	setupFakeInstall(t, home, "node", "22.0.0")
 	dir, _ := platform.NodeVersionDir("22.0.0")
 	elsewhere := t.TempDir()
-	for _, p := range []string{filepath.Join(dir, "bin", "nest"), filepath.Join(elsewhere, "nest")} {
-		if err := os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755); err != nil {
-			t.Fatal(err)
-		}
+	writePackageBin(t, filepath.Join(dir, "bin"), "nest")
+	if err := os.WriteFile(filepath.Join(elsewhere, platform.ExeName("nest")), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
 	}
 	// A package bin's own commands see the node bin dir on PATH; it is not somewhere else.
 	t.Setenv("PATH", filepath.Join(dir, "bin")+string(os.PathListSeparator)+elsewhere)
@@ -1154,7 +1175,7 @@ func TestResolvePackageBin_OtherInstallOnPathWins(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rb.ToolPath != filepath.Join(elsewhere, "nest") || rb.PathPrefix != "" {
+	if rb.ToolPath != filepath.Join(elsewhere, platform.ExeName("nest")) || rb.PathPrefix != "" {
 		t.Errorf("want the install outside driftr run untouched, got %+v", rb)
 	}
 }
@@ -1200,6 +1221,9 @@ func npmProject(t *testing.T) string {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if err := os.MkdirAll(filepath.Dir(bundled), 0o755); err != nil {
+			t.Fatal(err)
+		}
 		if err := os.WriteFile(bundled, []byte("#!/bin/sh\n"), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -1228,8 +1252,14 @@ func TestResolveBinaryFull_UnpinnedNpmUsesBundled(t *testing.T) {
 		if rb.ToolPath != want {
 			t.Errorf("%s ToolPath = %q, want the bundled %q", tool, rb.ToolPath, want)
 		}
-		if rb.NodePath != "" {
-			t.Errorf("%s NodePath = %q, want empty: the bundled npm runs as itself", tool, rb.NodePath)
+		// The bundled npm runs as itself, except on Windows, where it is a
+		// script for node.
+		wantNode := ""
+		if runtime.GOOS == "windows" {
+			wantNode, _ = platform.NodeBinary("22.14.0")
+		}
+		if rb.NodePath != wantNode {
+			t.Errorf("%s NodePath = %q, want %q", tool, rb.NodePath, wantNode)
 		}
 	}
 }
@@ -1250,7 +1280,7 @@ func TestResolveBinaryFull_PinnedNpmRunsUnderNode(t *testing.T) {
 		if want := filepath.Join("npm", "10.9.2", "bin", script); !strings.HasSuffix(rb.ToolPath, want) {
 			t.Errorf("%s ToolPath = %q, want suffix %q", tool, rb.ToolPath, want)
 		}
-		if want := filepath.Join("node", "22.14.0", "bin", "node"); !strings.HasSuffix(rb.NodePath, want) {
+		if want := filepath.Join("node", "22.14.0", "bin", platform.ExeName("node")); !strings.HasSuffix(rb.NodePath, want) {
 			t.Errorf("%s NodePath = %q, want suffix %q", tool, rb.NodePath, want)
 		}
 	}

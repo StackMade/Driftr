@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -87,13 +88,13 @@ func TestCheckToolPins(t *testing.T) {
 		{
 			name: "a parent pin beats engines and falls outside it",
 			pins: []resolver.Pin{{Tool: "node", Version: "20", Source: resolver.SourceNvmrc, Dir: "/"}, engines(">=24")},
-			want: []string{`node 20 from ../.nvmrc is outside package.json (engines.node) ">=24"`},
+			want: []string{`node 20 from ` + filepath.FromSlash("../.nvmrc") + ` is outside package.json (engines.node) ">=24"`},
 		},
 		{
 			name:      "engines wins, the version it runs is outside a parent's engines",
 			pins:      []resolver.Pin{engines(">=18"), {Tool: "node", Version: "<20", Source: resolver.SourceEnginesNode, Dir: "/"}},
 			installed: map[string]string{">=18": "24.1.0"},
-			want:      []string{`node >=18 from package.json (engines.node) resolves to 24.1.0, which is outside ../package.json (engines.node) "<20"`},
+			want:      []string{`node >=18 from package.json (engines.node) resolves to 24.1.0, which is outside ` + filepath.FromSlash("../package.json") + ` (engines.node) "<20"`},
 		},
 		{
 			name:      "engines wins, the version it runs satisfies a parent's engines",

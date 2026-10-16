@@ -3,17 +3,19 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/stackmade/driftr/internal/config"
+	"github.com/stackmade/driftr/internal/platform"
 	"github.com/stackmade/driftr/internal/shim"
 	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func TestBinDirOnPath(t *testing.T) {
-	binDir := "/home/user/.driftr/bin"
+	binDir := filepath.FromSlash("/home/user/.driftr/bin")
 
 	tests := []struct {
 		name string
@@ -30,12 +32,25 @@ func TestBinDirOnPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("PATH", tt.path)
+			t.Setenv("PATH", pathList(tt.path))
 			if got := binDirOnPath(binDir); got != tt.want {
 				t.Errorf("binDirOnPath(%q) with PATH=%q = %v, want %v", binDir, tt.path, got, tt.want)
 			}
 		})
 	}
+}
+
+// pathList turns a colon-separated PATH written for Unix into this
+// platform's form.
+func pathList(unix string) string {
+	if unix == "" {
+		return ""
+	}
+	parts := strings.Split(unix, ":")
+	for i, p := range parts {
+		parts[i] = filepath.FromSlash(p)
+	}
+	return strings.Join(parts, string(os.PathListSeparator))
 }
 
 func TestCheckPath_CountsMissingBinDirAsAnIssue(t *testing.T) {
@@ -51,7 +66,7 @@ func TestCheckPath_CountsMissingBinDirAsAnIssue(t *testing.T) {
 		t.Errorf("output does not explain the problem: %q", out)
 	}
 
-	t.Setenv("PATH", "/usr/bin:"+binDir)
+	t.Setenv("PATH", "/usr/bin"+string(os.PathListSeparator)+binDir)
 	out = captureStdout(t, func() { issues = checkPath(binDir) })
 	if issues != 0 {
 		t.Errorf("checkPath() = %d, want 0 when the shim dir is on PATH", issues)
@@ -68,8 +83,14 @@ func TestBrokenShims_MissingAndNotExecutable(t *testing.T) {
 		t.Skipf("need at least two shim tools, got %v", tools)
 	}
 
-	if err := os.WriteFile(filepath.Join(binDir, tools[0]), []byte("#!/bin/sh\n"), 0o755); err != nil {
+	if err := os.WriteFile(shim.Path(binDir, tools[0]), []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
+	}
+	if runtime.GOOS == "windows" {
+		if broken := brokenShims(binDir); len(broken) != len(tools)-1 || slices.Contains(broken, tools[0]) {
+			t.Errorf("brokenShims() = %v, want every tool but %q", broken, tools[0])
+		}
+		return // no execute bit to lose
 	}
 	if err := os.WriteFile(filepath.Join(binDir, tools[1]), []byte("#!/bin/sh\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -105,12 +126,12 @@ func TestCheckShims_FixRegeneratesEveryShim(t *testing.T) {
 		t.Fatalf("checkShims(fix=true) = %d, want 0 after regeneration", issues)
 	}
 	for _, tool := range shim.ShimTools() {
-		info, err := os.Stat(filepath.Join(binDir, tool))
+		info, err := os.Stat(shim.Path(binDir, tool))
 		if err != nil {
 			t.Errorf("shim %s was not regenerated: %v", tool, err)
 			continue
 		}
-		if info.Mode().Perm()&0o111 == 0 {
+		if !platform.IsExecutable(info) {
 			t.Errorf("shim %s is not executable: mode %v", tool, info.Mode())
 		}
 	}
@@ -213,6 +234,7 @@ func zshHome(t *testing.T) string {
 }
 
 func TestCheckShellRCPlacement_FixWritesZshenv(t *testing.T) {
+	testutil.SkipOnWindows(t, "shell rc files and script shims")
 	home := zshHome(t)
 	binDir := filepath.Join(home, ".driftr", "bin")
 
@@ -237,6 +259,7 @@ func TestCheckShellRCPlacement_FixWritesZshenv(t *testing.T) {
 }
 
 func TestCheckShellRCPlacement_FlagsInteractiveOnlyEntry(t *testing.T) {
+	testutil.SkipOnWindows(t, "shell rc files and script shims")
 	home := zshHome(t)
 	binDir := filepath.Join(home, ".driftr", "bin")
 	writeFile(t, filepath.Join(home, ".zshrc"), "export PATH=\"$HOME/.driftr/bin:$PATH\"\n")
@@ -280,6 +303,7 @@ func TestCheckShimVersion(t *testing.T) {
 }
 
 func TestCheckShimBinaryPath(t *testing.T) {
+	testutil.SkipOnWindows(t, "shell rc files and script shims")
 	home := t.TempDir()
 	testutil.SetHome(t, home)
 	binDir := filepath.Join(home, ".driftr", "bin")
@@ -336,7 +360,7 @@ func TestCheckConflictingManagers(t *testing.T) {
 	if issues != 2 {
 		t.Errorf("issues = %d, want 2 (nvm and fnm; volta in binDir is ours)", issues)
 	}
-	for _, want := range []string{"nvm detected", "fnm detected at " + filepath.Join(otherDir, "fnm")} {
+	for _, want := range []string{"nvm detected", "fnm detected at " + filepath.Join(otherDir, platform.ExeName("fnm"))} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output lacks %q: %q", want, out)
 		}

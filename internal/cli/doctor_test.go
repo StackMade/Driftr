@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stackmade/driftr/internal/platform"
 	"github.com/stackmade/driftr/internal/testutil"
 )
 
@@ -14,7 +15,7 @@ func writeExe(t *testing.T, dir, tool string) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, tool), []byte("#!/bin/sh\n"), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, platform.ExeName(tool)), []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -63,6 +64,7 @@ func TestCheckShimShadowing_NoToolsOnPath(t *testing.T) {
 }
 
 func TestCheckShimShadowing_FixAppendsGuardToZshrc(t *testing.T) {
+	testutil.SkipOnWindows(t, "shell rc files")
 	home := t.TempDir()
 	testutil.SetHome(t, home)
 	t.Setenv("ZDOTDIR", "")

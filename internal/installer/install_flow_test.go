@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -39,12 +40,19 @@ func serveNodeDist(t *testing.T, version string, archive []byte, shasum string) 
 	swapHTTPClient(t, srv)
 }
 
-func nodeTarball(t *testing.T, version, binary string) []byte {
+// nodeArchive builds the archive nodejs.org serves for this platform, with
+// binary as the node executable.
+func nodeArchive(t *testing.T, version, binary string) []byte {
 	t.Helper()
-	path := buildTarGz(t, []tarEntry{
-		{Name: nodePrefix(version) + "bin/", Typeflag: tar.TypeDir},
-		{Name: nodePrefix(version) + "bin/node", Data: []byte(binary), Typeflag: tar.TypeReg},
-	})
+	var path string
+	if runtime.GOOS == "windows" {
+		path = writeTestZip(t, map[string]string{nodePrefix(version) + "node.exe": binary})
+	} else {
+		path = buildTarGz(t, []tarEntry{
+			{Name: nodePrefix(version) + "bin/", Typeflag: tar.TypeDir},
+			{Name: nodePrefix(version) + "bin/node", Data: []byte(binary), Typeflag: tar.TypeReg},
+		})
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -120,7 +128,7 @@ func TestInstall_Success(t *testing.T) {
 	home := t.TempDir()
 	testutil.SetHome(t, home)
 
-	archive := nodeTarball(t, "99.0.0", "#!/bin/sh\necho 99\n")
+	archive := nodeArchive(t, "99.0.0", "#!/bin/sh\necho 99\n")
 	serveNodeDist(t, "99.0.0", archive, fmt.Sprintf("%x", sha256.Sum256(archive)))
 
 	got, err := Install("99.0.0", false)
@@ -145,7 +153,7 @@ func TestInstall_ChecksumMismatchRemovesCachedArchive(t *testing.T) {
 	home := t.TempDir()
 	testutil.SetHome(t, home)
 
-	archive := nodeTarball(t, "99.0.0", "#!/bin/sh\n")
+	archive := nodeArchive(t, "99.0.0", "#!/bin/sh\n")
 	serveNodeDist(t, "99.0.0", archive, "") // published hash does not match
 
 	_, err := Install("99.0.0", false)

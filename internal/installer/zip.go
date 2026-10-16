@@ -20,6 +20,12 @@ import (
 // install. Extraction happens in a temp dir under destDir's parent, so two
 // concurrent installs of the same version cannot interleave.
 func ExtractZipToBin(archivePath, destDir, prefix, binName string) error {
+	return extractZipToBin(archivePath, destDir, prefix, binName, nil)
+}
+
+// extractZipToBin is ExtractZipToBin that tells cleanup, when set, where its
+// work dir is, so an interrupted install can remove it.
+func extractZipToBin(archivePath, destDir, prefix, binName string, cleanup *installCleanup) error {
 	zr, err := zip.OpenReader(archivePath)
 	if err != nil {
 		return fmt.Errorf("failed to open archive: %w", err)
@@ -37,6 +43,8 @@ func ExtractZipToBin(archivePath, destDir, prefix, binName string) error {
 	}
 	// After a successful rename tmpDir is gone and this is a no-op.
 	defer os.RemoveAll(tmpDir)
+	cleanup.setTmpDir(tmpDir)
+	defer cleanup.clearTmpDir()
 
 	if err := os.Chmod(tmpDir, 0o755); err != nil {
 		return fmt.Errorf("failed to set version dir permissions: %w", err)
@@ -94,6 +102,8 @@ func ExtractZipToBin(archivePath, destDir, prefix, binName string) error {
 		return fmt.Errorf("failed to verify extracted %s binary: %w", binName, err)
 	}
 
+	// Windows refuses to rename a directory something holds open.
+	root.Close()
 	if err := os.Rename(tmpDir, destDir); err != nil {
 		// Another process may have won the race — check if the binary is there.
 		if _, statErr := os.Stat(filepath.Join(destDir, "bin", binName)); statErr == nil {

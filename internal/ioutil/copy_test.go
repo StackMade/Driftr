@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stackmade/driftr/internal/platform"
 )
 
 func TestCopyFile_CopiesContentAndMode(t *testing.T) {
@@ -35,7 +37,7 @@ func TestCopyFile_CopiesContentAndMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm()&0o111 == 0 {
+	if !platform.IsExecutable(info) {
 		t.Errorf("destination mode = %v, want it executable", info.Mode())
 	}
 }

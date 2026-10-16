@@ -37,7 +37,7 @@ func TestAddProject_RecordsOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"/work/a", "/work/b"}; !slices.Equal(dirs, want) {
+	if want := fromSlash("/work/a", "/work/b"); !slices.Equal(dirs, want) {
 		t.Errorf("got %v, want %v", dirs, want)
 	}
 }
@@ -59,7 +59,7 @@ func TestLoadProjects_SkipsBlankLines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"/work/a", "/work/b"}; !slices.Equal(dirs, want) {
+	if want := fromSlash("/work/a", "/work/b"); !slices.Equal(dirs, want) {
 		t.Errorf("got %v, want %v", dirs, want)
 	}
 }
@@ -80,7 +80,7 @@ func TestRemoveProjects_DropsOnlyGone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"/work/a", "/work/b"}; !slices.Equal(dirs, want) {
+	if want := fromSlash("/work/a", "/work/b"); !slices.Equal(dirs, want) {
 		t.Errorf("got %v, want %v", dirs, want)
 	}
 }
@@ -126,7 +126,15 @@ func TestLoadProjects_DedupesAndCleans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"/work/a", "/work/b"}; !slices.Equal(dirs, want) {
+	if want := fromSlash("/work/a", "/work/b"); !slices.Equal(dirs, want) {
 		t.Errorf("got %v, want %v", dirs, want)
 	}
+}
+
+// fromSlash returns paths in this platform's form, as LoadProjects cleans them.
+func fromSlash(paths ...string) []string {
+	for i, p := range paths {
+		paths[i] = filepath.FromSlash(p)
+	}
+	return paths
 }

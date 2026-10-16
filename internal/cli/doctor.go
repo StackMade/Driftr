@@ -91,9 +91,8 @@ func checkPath(binDir string) int {
 
 // binDirOnPath reports whether binDir appears as a PATH entry.
 func binDirOnPath(binDir string) bool {
-	cleanBinDir := filepath.Clean(binDir)
 	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
-		if filepath.Clean(dir) == cleanBinDir {
+		if platform.SamePath(dir, binDir) {
 			return true
 		}
 	}
@@ -120,14 +119,13 @@ func shadowedShims(binDir string) []shadowedShim {
 	if !binDirOnPath(binDir) {
 		return nil
 	}
-	shimDir := filepath.Clean(binDir)
 	var shadows []shadowedShim
 	for _, tool := range versionedTools {
 		resolved, err := exec.LookPath(tool)
 		if err != nil {
 			continue // tool not on PATH anywhere — nothing to shadow
 		}
-		if filepath.Dir(filepath.Clean(resolved)) == shimDir {
+		if platform.SamePath(filepath.Dir(resolved), binDir) {
 			continue // driftr shim wins
 		}
 		shadows = append(shadows, shadowedShim{tool: tool, resolved: resolved})
@@ -218,8 +216,8 @@ func checkShellRCPlacement(binDir string, fix bool) int {
 func brokenShims(binDir string) []string {
 	var broken []string
 	for _, tool := range shim.ShimTools() {
-		info, err := os.Stat(filepath.Join(binDir, tool))
-		if err != nil || info.Mode()&0o111 == 0 {
+		info, err := os.Stat(shim.Path(binDir, tool))
+		if err != nil || !platform.IsExecutable(info) {
 			broken = append(broken, tool)
 		}
 	}
@@ -293,7 +291,7 @@ func checkShimBinaryPath(binDir string, fix bool) int {
 		currentBin = resolved
 	}
 
-	shimBin := shim.BakedPath(filepath.Join(binDir, "node"))
+	shimBin := shim.BakedPath(shim.Path(binDir, "node"))
 	if shimBin == "" {
 		return 0 // missing shim is already covered by checkShims
 	}
@@ -376,7 +374,7 @@ func checkConflictingManagers(binDir string) int {
 		if err != nil {
 			continue
 		}
-		if filepath.Dir(path) == binDir {
+		if platform.SamePath(filepath.Dir(path), binDir) {
 			continue
 		}
 		warn(fmt.Sprintf("%s detected at %s — may conflict with driftr shims", manager, path))
