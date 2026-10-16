@@ -121,7 +121,9 @@ A `DRIFTR_<TOOL>` variable in the environment (see [Environment Variables](#envi
 /home/user/my-project/                 <- .driftr.toml found! uses this
 ```
 
-If multiple config files exist in the same directory, the priority order above applies. `.nvmrc` and `.node-version` are only used for Node.js version resolution. The `packageManager` field is read for npm, pnpm, yarn and bun only (not node, which has no equivalent standard field); it must name an exact installed version, same as the `driftr` key — it's read-only, Driftr never writes it.
+If multiple config files exist in the same directory, the priority order above applies. `.nvmrc` and `.node-version` are only used for Node.js version resolution. The `packageManager` field is read for npm, pnpm, yarn and bun only (not node, which has no equivalent standard field); it is read-only, Driftr never writes it.
+
+**Partial pins.** Every source takes a full version (`22.14.0`, `v22.14.0`) or a partial one (`22`, `22.14`). A partial pin, `latest` or an LTS alias picks the newest installed version that matches, so `.nvmrc` containing `22` runs your newest installed 22.x. When nothing installed matches, the not-installed error names the pin as written (`driftr install node@22`), and auto-install fetches the newest release of that line.
 
 **LTS aliases.** `.nvmrc` and `.node-version` may hold `lts`, `lts/*`, or a codename such as `lts/jod`. Driftr resolves those against the versions you already have installed, never over the network, since the shim runs on every `node` call. `lts` and `lts/*` take the newest installed release of a line known to have entered LTS. An even major spends months as Current before it is promoted, so it counts only once this version of Driftr lists its codename; until then `lts` keeps to the previous LTS line. `lts/<codename>` takes the newest installed release of that codename's major, so `lts/iron` means 20 and `lts/jod` means 22. When nothing installed fits, you get the usual not-installed error with the command to run, which is also what lets auto-install step in. An unknown codename prints a warning and resolution moves on to the next source.
 

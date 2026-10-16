@@ -651,6 +651,52 @@ func TestResolveFromProject_Nvmrc(t *testing.T) {
 	}
 }
 
+// A pin that is not an exact installed version picks the newest installed
+// match in every project source, the way check and prune already read it.
+func TestResolveFromProject_InexactPins(t *testing.T) {
+	cases := []struct{ file, content string }{
+		{".nvmrc", "22\n"},
+		{".node-version", "22.14\n"},
+		{".nvmrc", "v22.14.0\n"},
+		{".driftr.toml", "[tools]\nnode = \"22\"\n"},
+		{".driftr.toml", "[tools]\nnode = \"lts\"\n"},
+		{"package.json", `{"driftr": {"node": "22"}}`},
+	}
+	for _, c := range cases {
+		t.Run(c.file+"="+strings.TrimSpace(c.content), func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			setupFakeInstall(t, home, "node", "20.0.0")
+			setupFakeInstall(t, home, "node", "22.1.0")
+			setupFakeInstall(t, home, "node", "22.14.0")
+			projectDir := t.TempDir()
+			os.WriteFile(filepath.Join(projectDir, c.file), []byte(c.content), 0o644)
+			t.Chdir(projectDir)
+
+			res, err := ResolveTool("node", "", false)
+			if err != nil {
+				t.Fatalf("ResolveTool() error: %v", err)
+			}
+			if res.Version != "22.14.0" {
+				t.Errorf("version = %q, want 22.14.0", res.Version)
+			}
+		})
+	}
+
+	// No match: the error names the pin as written, so auto-install asks for node@24.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	setupFakeInstall(t, home, "node", "22.14.0")
+	projectDir := t.TempDir()
+	os.WriteFile(filepath.Join(projectDir, ".nvmrc"), []byte("24\n"), 0o644)
+	t.Chdir(projectDir)
+	_, err := ResolveTool("node", "", false)
+	var notInstalled *NotInstalledError
+	if !errors.As(err, &notInstalled) || notInstalled.Version != "24" {
+		t.Fatalf("want NotInstalledError for 24, got %v", err)
+	}
+}
+
 func TestResolveFromProject_NodeVersion(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

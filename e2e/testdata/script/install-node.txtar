@@ -34,6 +34,18 @@ stdout 'v'$NODE_VERSION
 exec npm -v
 stdout '10\.99\.0'
 
+# A partial project pin, the usual nvm .nvmrc, runs the newest installed match
+# through the shim, and resolves the same way in which.
+mkdir $WORK/partial
+cd $WORK/partial
+cp $WORK/nvmrc-22 .nvmrc
+exec node -v
+stdout 'v'$NODE_VERSION
+exec driftr which node
+stdout $NODE_VERSION
+stdout '\.nvmrc'
+cd $WORK
+
 # lts resolves through the release index, which marks the fixture as LTS.
 exec driftr install node@lts -v
 stdout 'Installed|already installed'
@@ -45,3 +57,6 @@ stderr 'lts is only supported for node'
 stderr 'lts is only supported for node'
 ! exec driftr install bun@lts
 stderr 'lts is only supported for node'
+
+-- nvmrc-22 --
+22

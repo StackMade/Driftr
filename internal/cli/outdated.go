@@ -146,6 +146,16 @@ func runOutdated(w io.Writer, only string, includePre, exitCode bool) error {
 // that `outdated` works before `install` does.
 func outdatedCurrent(tool string, pins []resolver.Pin, cfg *config.GlobalConfig) (ver, source string) {
 	if res, err := resolver.ResolveTool(tool, "", false); err == nil && res != nil {
+		// A floating pin ("22", "lts/*") shows as written, so outdatedStatus
+		// only calls it behind when a newer major line exists.
+		for _, p := range pins {
+			if p.Tool != tool || p.Source != res.Source || p.Dir != res.ProjectDir || p.Source == resolver.SourceEnginesNode {
+				continue
+			}
+			if v, err := version.Parse(p.Version); err == nil && (v.IsPartial() || v.Latest || v.LTS) {
+				return p.Version, res.Source.String()
+			}
+		}
 		return res.Version, res.Source.String()
 	}
 	for _, p := range pins {

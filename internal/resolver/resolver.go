@@ -514,8 +514,31 @@ func resolveEnginesNode(rangeText, dir string) (*Resolution, error) {
 	return resolveProjectVersion("node", best.String(), dir, SourceEnginesNode)
 }
 
+// resolveProjectVersion turns a pin into an installed version. A partial pin
+// ("22", "22.14"), "latest" or an LTS alias picks the newest installed match,
+// as ResolvePin does for check and prune; "v22.14.0" drops its prefix. A miss
+// reports the pin as written, so auto-install fetches what it asks for.
 func resolveProjectVersion(tool, ver, dir string, source Source) (*Resolution, error) {
-	binPath, err := requireToolBinaryExists(tool, ver, "pinned in "+dir)
+	context := "pinned in " + dir
+	if v, err := version.Parse(ver); err == nil {
+		if v.Latest || v.LTS || v.IsPartial() {
+			match, known := installedMatcher(v)
+			if !known {
+				return nil, &NotInstalledError{Tool: tool, Version: ver, Context: context}
+			}
+			best, ok, err := newestInstalledMatching(tool, match)
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				return nil, &NotInstalledError{Tool: tool, Version: ver, Context: context}
+			}
+			ver = best.String()
+		} else {
+			ver = v.String()
+		}
+	}
+	binPath, err := requireToolBinaryExists(tool, ver, context)
 	if err != nil {
 		return nil, err
 	}
