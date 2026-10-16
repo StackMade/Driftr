@@ -408,3 +408,44 @@ func readFile(t *testing.T, path string) string {
 	}
 	return string(b)
 }
+
+// A disabled line, or a longer directory that merely starts with binDir, does
+// not put driftr on PATH; Apply must still write the export.
+func TestDetect_IgnoresCommentsAndLongerPaths(t *testing.T) {
+	for _, content := range []string{
+		"# export PATH=\"$HOME/.driftr/bin:$PATH\"  (disabled)\n",
+		"  #export PATH=\"$HOME/.driftr/bin:$PATH\"\n",
+		"export PATH=\"$HOME/.driftr/bin-legacy:$PATH\"\n",
+		"export PATH=\"$HOME/.driftr/binaries:$HOME/.driftr/bin.old:$PATH\"\n",
+	} {
+		home := setHome(t)
+		t.Setenv("SHELL", "/bin/zsh")
+		writeFile(t, filepath.Join(home, ".zshenv"), content)
+
+		r, err := Detect(filepath.Join(home, ".driftr", "bin"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.InTarget {
+			t.Errorf("InTarget = true for %q", content)
+		}
+	}
+}
+
+func TestNamesDir(t *testing.T) {
+	const dir = "$HOME/.driftr/bin"
+	for line, want := range map[string]bool{
+		`export PATH="$HOME/.driftr/bin:$PATH"`:                       true,
+		`export PATH=$HOME/.driftr/bin`:                               true,
+		"set -gx PATH $HOME/.driftr/bin $PATH":                        true,
+		"set -gx PATH '$HOME/.driftr/bin' $PATH":                      true,
+		`PATH="${PATH}:$HOME/.driftr/bin"; export PATH`:               true,
+		`export PATH="$HOME/.driftr/bin-old:$HOME/.driftr/bin:$PATH"`: true,
+		`export PATH="$HOME/.driftr/bin-old:$PATH"`:                   false,
+		`export PATH="$HOME/.driftr/binx:$PATH"`:                      false,
+	} {
+		if got := namesDir(line, dir); got != want {
+			t.Errorf("namesDir(%q) = %v, want %v", line, got, want)
+		}
+	}
+}

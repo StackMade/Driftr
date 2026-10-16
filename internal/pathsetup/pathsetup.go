@@ -338,9 +338,12 @@ func fileMentionsAny(path string, needles []string) (bool, error) {
 	reader := bufio.NewReader(f)
 	for {
 		line, err := reader.ReadString('\n')
-		for _, n := range needles {
-			if strings.Contains(line, n) {
-				return true, nil
+		// A commented-out export configures nothing.
+		if !strings.HasPrefix(strings.TrimSpace(line), "#") {
+			for _, n := range needles {
+				if namesDir(line, n) {
+					return true, nil
+				}
 			}
 		}
 		if err != nil {
@@ -349,6 +352,22 @@ func fileMentionsAny(path string, needles []string) (bool, error) {
 			}
 			return false, err
 		}
+	}
+}
+
+// namesDir reports whether line contains dir as a whole path, not as the
+// prefix of a longer one such as ".driftr/bin-legacy".
+func namesDir(line, dir string) bool {
+	for i := 0; ; {
+		j := strings.Index(line[i:], dir)
+		if j < 0 {
+			return false
+		}
+		end := i + j + len(dir)
+		if end == len(line) || strings.ContainsRune(":\"' \t\r\n;)}", rune(line[end])) {
+			return true
+		}
+		i += j + 1
 	}
 }
 
