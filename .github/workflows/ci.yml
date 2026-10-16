@@ -166,6 +166,11 @@ jobs:
           if ($argv -ne 'a b|"q"|c&d|100%') { throw "arguments reached node as: $argv" }
           npm -v
           if ($LASTEXITCODE -ne 0) { throw 'npm failed' }
+          # The runner image points npm's global prefix at C:\npm\prefix; a
+          # plain machine installs into the Node.js directory, where driftr
+          # looks for package bins.
+          Remove-Item Env:npm_config_prefix -ErrorAction SilentlyContinue
+          npm config get prefix
           npm install -g cowsay@1.6.0
           if ($LASTEXITCODE -ne 0) { throw 'npm install -g failed' }
           if (-not (Test-Path "$bin\cowsay.exe")) { throw 'no shim for the cowsay package bin' }
