@@ -96,7 +96,8 @@ Removes the version directory from `~/.driftr/tools/<tool>/<version>/`.
 **Notes:**
 
 - If the version is the current global default, a warning is printed
-- If the version is pinned in a `.driftr.toml` or `package.json` in the current directory or any parent directory, a warning naming that file is printed
+- If a pin selects the version (in `.driftr.toml`, `package.json`, `.nvmrc` or `.node-version`, exact or partial) for the current directory or any recorded project, a warning naming that file is printed
+- The version must be exact: `driftr uninstall node@22` names the installed version it would select instead of removing anything
 - Cached archives in `~/.driftr/cache/` are not removed (they will be reused if you reinstall)
 
 ## driftr prune

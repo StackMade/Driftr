@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stackmade/driftr/internal/config"
 	"github.com/stackmade/driftr/internal/platform"
 )
 
@@ -32,6 +33,7 @@ func captureStdout(t *testing.T, fn func()) string {
 }
 
 func TestWarnIfPinned_FindsPinInParentDirectory(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
 	pinFile := filepath.Join(root, ".driftr.toml")
 	if err := os.WriteFile(pinFile, []byte("[tools]\nnode = \"22.14.0\"\n"), 0o644); err != nil {
@@ -50,6 +52,7 @@ func TestWarnIfPinned_FindsPinInParentDirectory(t *testing.T) {
 }
 
 func TestWarnIfPinned_SilentWhenVersionDiffers(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, ".driftr.toml"), []byte("[tools]\nnode = \"20.0.0\"\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -59,6 +62,67 @@ func TestWarnIfPinned_SilentWhenVersionDiffers(t *testing.T) {
 
 	if out != "" {
 		t.Errorf("expected no warning for a different pinned version, got: %q", out)
+	}
+}
+
+func TestWarnIfPinned_EveryPinSource(t *testing.T) {
+	cases := map[string]struct{ file, content string }{
+		".nvmrc":            {".nvmrc", "18.0.0\n"},
+		".node-version":     {".node-version", "18\n"},
+		"partial toml pin":  {".driftr.toml", "[tools]\nnode = \"18\"\n"},
+		"engines.node":      {"package.json", `{"engines":{"node":">=18"}}`},
+		"exact driftr json": {"package.json", `{"driftr":{"node":"18.0.0"}}`},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			fakeNodeInstall(t, "18.0.0")
+			proj := t.TempDir()
+			if err := os.WriteFile(filepath.Join(proj, c.file), []byte(c.content), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			out := captureStdout(t, func() { warnIfPinned(proj, "node", "18.0.0") })
+			if !strings.Contains(out, filepath.Join(proj, c.file)) {
+				t.Errorf("output = %q, want a warning naming %s", out, c.file)
+			}
+		})
+	}
+}
+
+func TestWarnIfPinned_RecordedProject(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	fakeNodeInstall(t, "18.0.0")
+	proj := t.TempDir()
+	if err := os.WriteFile(filepath.Join(proj, ".nvmrc"), []byte("18.0.0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.AddProject(proj); err != nil {
+		t.Fatal(err)
+	}
+
+	out := captureStdout(t, func() { warnIfPinned(t.TempDir(), "node", "18.0.0") })
+	if !strings.Contains(out, filepath.Join(proj, ".nvmrc")) {
+		t.Errorf("output = %q, want a warning for the recorded project", out)
+	}
+}
+
+func TestUninstallCmd_PartialVersionNamesExactCommand(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+	fakeNodeInstall(t, "22.14.0")
+
+	err := runCmd(t, "uninstall", "node@22")
+	if err == nil || !strings.Contains(err.Error(), "driftr uninstall node@22.14.0") {
+		t.Errorf("error = %v, want it to name `driftr uninstall node@22.14.0`", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(os.Getenv("HOME"), ".driftr", "tools", "node", "22.14.0")); statErr != nil {
+		t.Errorf("a partial spec must not remove anything: %v", statErr)
+	}
+
+	err = runCmd(t, "uninstall", "node@20")
+	if err == nil || !strings.Contains(err.Error(), "driftr list node") {
+		t.Errorf("error = %v, want it to suggest `driftr list node`", err)
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/stackmade/driftr/internal/config"
 	"github.com/stackmade/driftr/internal/ioutil"
 	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/internal/resolver"
 	"github.com/stackmade/driftr/internal/shim"
 	"github.com/stackmade/driftr/internal/version"
 )
@@ -39,6 +40,18 @@ func newUninstallCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("invalid version: %w", err)
 			}
+			// Removal takes an exact version: a partial spec could mean any of
+			// several installs, so name the one it selects instead of guessing.
+			if v.Latest || v.LTS || v.IsPartial() {
+				match, ok, err := resolver.ResolvePin(tool, versionSpec)
+				if err != nil {
+					return err
+				}
+				if !ok {
+					return fmt.Errorf("no installed %s version matches %s. Run `driftr list %s` to see what is installed", tool, versionSpec, tool)
+				}
+				return fmt.Errorf("uninstall needs an exact version. Run `driftr uninstall %s@%s` to remove the newest match, or `driftr list %s` to see every installed version", tool, match, tool)
+			}
 			versionStr := v.String()
 
 			// Verify the version is installed.
@@ -48,7 +61,7 @@ func newUninstallCmd() *cobra.Command {
 			}
 			if _, err := os.Stat(versionDir); err != nil {
 				if errors.Is(err, os.ErrNotExist) {
-					return fmt.Errorf("%s %s is not installed", tool, versionStr)
+					return fmt.Errorf("%s %s is not installed. Run `driftr list %s` to see what is installed", tool, versionStr, tool)
 				}
 				return fmt.Errorf("failed to check installed version %s %s: %w", tool, versionStr, err)
 			}
@@ -92,27 +105,47 @@ func refreshShims() {
 	}
 }
 
-// warnIfPinned walks up from dir looking for a project config that pins
-// tool@versionStr, and warns once for each config file that does.
+// warnIfPinned warns once for each pin that selects tool@versionStr, in the
+// project containing dir and in every recorded project. Pins come from the
+// same sources the resolver reads (.nvmrc, packageManager, engines, partial
+// specs, …), so removing what any of them resolves to is flagged.
 func warnIfPinned(dir, tool, versionStr string) {
-	for {
-		if proj, err := config.LoadProject(dir); err == nil && proj != nil && proj.Tools.GetTool(tool) == versionStr {
-			printPinWarning(".driftr.toml", dir, tool, versionStr)
-		}
-		if pkg, err := config.LoadPackageJSON(dir); err == nil && pkg != nil && pkg.Driftr.GetTool(tool) == versionStr {
-			printPinWarning("package.json", dir, tool, versionStr)
-		}
+	dirs := []string{dir}
+	if recorded, err := config.LoadProjects(); err == nil {
+		dirs = append(dirs, recorded...)
+	}
 
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return
+	warned := map[string]bool{}
+	for _, d := range dirs {
+		// A recorded project that is gone would walk up into its parents.
+		if info, err := os.Stat(d); err != nil || !info.IsDir() {
+			continue
 		}
-		dir = parent
+		pins, err := resolver.ProjectPins(d)
+		if err != nil {
+			continue
+		}
+		for _, pin := range pins {
+			if pin.Tool != tool {
+				continue
+			}
+			if pin.Version != versionStr {
+				if resolved, ok, err := resolver.ResolvePin(tool, pin.Version); err != nil || !ok || resolved != versionStr {
+					continue
+				}
+			}
+			file := filepath.Join(pin.Dir, pin.Source.File())
+			if warned[file] {
+				continue
+			}
+			warned[file] = true
+			printPinWarning(file, tool, versionStr)
+		}
 	}
 }
 
-func printPinWarning(file, dir, tool, versionStr string) {
+func printPinWarning(file, tool, versionStr string) {
 	fmt.Println(ioutil.Warn(fmt.Sprintf(
 		"%s@%s is pinned in %s — uninstalling will break that project until you run 'driftr install %s@%s' or update the pin",
-		tool, versionStr, filepath.Join(dir, file), tool, versionStr)))
+		tool, versionStr, file, tool, versionStr)))
 }
