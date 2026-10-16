@@ -94,7 +94,7 @@ pnpm -v   # resolves automatically
 | `driftr prune [--dry-run] [-y] [--tool <name>]` | Remove installed versions that neither the global default nor any recorded project uses |
 | `driftr default <tool@version>` | Set the global default version for a tool |
 | `driftr pin <tool@version>` | Pin a version to the current project (`.driftr.toml` or `package.json`) |
-| `driftr pin <tool@version> --migrate` | Write this pin in the other format (`.driftr.toml` ↔ `package.json`) and remove the old config; other tools pinned there are not carried over |
+| `driftr pin <tool@version> --migrate` | Write this pin in the other format (`.driftr.toml` ↔ `package.json`), carrying every other tool pinned there, and remove the old config |
 | `driftr pin --bump [tool...] [--major] [--dry-run]` | Move the project's existing pins to the newest release on their major line (`--major`: newest overall), in the file that holds each pin |
 | `driftr use <tool@version>` | Print a shell snippet pinning a version for the current shell: `eval "$(driftr use node@24)"` |
 | `driftr list [tool]` | List installed versions (defaults to node) |

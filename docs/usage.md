@@ -192,9 +192,7 @@ Subsequent `driftr pin` commands detect the existing format and reuse it automat
 driftr pin node@22.14.0 --migrate
 ```
 
-This writes the version in the other format and removes the old config. Only the tool you name
-is written: pins for other tools in the old config are not carried over, so pin them again
-afterwards.
+This writes the version, along with every other tool the old config pins, in the other format and removes the old config.
 
 **Requirements:**
 - The version must already be installed

@@ -3,8 +3,10 @@ package cli
 import (
 	"bufio"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -187,9 +189,23 @@ func savePin(dir, tool, versionStr string, format pinFormat) error {
 func migratePin(dir, tool, versionStr string, current pinFormat) error {
 	switch current {
 	case formatTOML:
-		// Migrate TOML → package.json.
-		if err := config.SavePackageJSONTool(dir, tool, versionStr); err != nil {
+		// Migrate TOML → package.json, carrying every pinned tool across.
+		cfg, err := config.LoadProject(dir)
+		if err != nil {
 			return err
+		}
+		tools := map[string]string{}
+		if cfg != nil {
+			maps.Copy(tools, cfg.Tools)
+		}
+		tools[tool] = versionStr
+		for _, t := range slices.Sorted(maps.Keys(tools)) {
+			if tools[t] == "" {
+				continue
+			}
+			if err := config.SavePackageJSONTool(dir, t, tools[t]); err != nil {
+				return err
+			}
 		}
 		if err := os.Remove(filepath.Join(dir, config.ProjectConfigFile)); err != nil {
 			return fmt.Errorf("migrated to package.json but failed to remove %s: %w. Remove it manually — it takes precedence over package.json", config.ProjectConfigFile, err)
@@ -197,8 +213,19 @@ func migratePin(dir, tool, versionStr string, current pinFormat) error {
 		fmt.Println(ioutil.Success(fmt.Sprintf("Migrated %s %s from %s to package.json", tool, ioutil.Bold(versionStr), config.ProjectConfigFile)))
 
 	case formatPackageJSON:
-		// Migrate package.json → TOML.
+		// Migrate package.json → TOML, carrying every pinned tool across.
+		pkg, err := config.LoadPackageJSON(dir)
+		if err != nil {
+			return err
+		}
 		cfg := &config.ProjectConfig{}
+		if pkg != nil {
+			for t, v := range pkg.Driftr {
+				if v != "" {
+					cfg.Tools.SetTool(t, v)
+				}
+			}
+		}
 		cfg.Tools.SetTool(tool, versionStr)
 		if err := config.SaveProject(dir, cfg); err != nil {
 			return err

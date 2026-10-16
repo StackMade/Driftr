@@ -113,7 +113,7 @@ This format is useful when you want to keep all project tooling config in `packa
 driftr pin node@22.14.0 --migrate
 ```
 
-This writes the version in the new format and removes the old config (deletes `.driftr.toml` or removes the `driftr` key from `package.json`). Only the tool you name is written; pins for other tools in the old config are not carried over, so pin them again afterwards.
+This writes the version, along with every other tool the old config pins, in the new format and removes the old config (deletes `.driftr.toml` or removes the `driftr` key from `package.json`).
 
 ### Directory Walk Behavior
 

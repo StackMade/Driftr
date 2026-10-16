@@ -81,6 +81,49 @@ func TestMigratePin_PackageJSONToTOML(t *testing.T) {
 	}
 }
 
+func TestMigratePin_CarriesOtherTools(t *testing.T) {
+	t.Run("toml to package.json", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, config.ProjectConfigFile), []byte("[tools]\nnode = \"20.0.0\"\npnpm = \"9.15.0\"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"name":"app"}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		captureStdout(t, func() {
+			if err := migratePin(dir, "node", "22.14.0", formatTOML); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+		pkg, err := config.LoadPackageJSON(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if pkg == nil || pkg.Driftr.GetTool("node") != "22.14.0" || pkg.Driftr.GetTool("pnpm") != "9.15.0" {
+			t.Fatalf("package.json pins = %+v, want node 22.14.0 and pnpm 9.15.0", pkg)
+		}
+	})
+
+	t.Run("package.json to toml", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"name":"app","driftr":{"node":"20.0.0","pnpm":"9.15.0"}}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		captureStdout(t, func() {
+			if err := migratePin(dir, "node", "22.14.0", formatPackageJSON); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+		cfg, err := config.LoadProject(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg == nil || cfg.Tools.GetTool("node") != "22.14.0" || cfg.Tools.GetTool("pnpm") != "9.15.0" {
+			t.Fatalf("%s pins = %+v, want node 22.14.0 and pnpm 9.15.0", config.ProjectConfigFile, cfg)
+		}
+	})
+}
+
 func TestMigratePin_NothingToMigrate(t *testing.T) {
 	err := migratePin(t.TempDir(), "node", "22.14.0", formatNone)
 	if err == nil || !strings.Contains(err.Error(), "no existing config to migrate") {
