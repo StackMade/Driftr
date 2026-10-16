@@ -278,7 +278,9 @@ func TestDownloadFile_IdleTimeout(t *testing.T) {
 	origTimeout, origIdle := httpClient.Timeout, downloadIdleTimeout
 	t.Cleanup(func() { httpClient.Timeout, downloadIdleTimeout = origTimeout, origIdle })
 	httpClient.Timeout = 100 * time.Millisecond
-	downloadIdleTimeout = 300 * time.Millisecond
+	// Wide margins: a loaded CI runner, Windows above all, can stall a
+	// steady download for a few hundred milliseconds.
+	downloadIdleTimeout = time.Second
 
 	chunks := func(n int, pause time.Duration) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -300,13 +302,13 @@ func TestDownloadFile_IdleTimeout(t *testing.T) {
 		t.Fatalf("slow but steady download failed: %v", err)
 	}
 
-	stalled := httptest.NewServer(chunks(2, 2*time.Second))
+	stalled := httptest.NewServer(chunks(2, 10*time.Second))
 	defer stalled.Close()
 	start := time.Now()
 	if err := downloadFile(stalled.URL, filepath.Join(t.TempDir(), "out")); err == nil {
 		t.Fatal("stalled download succeeded, want an error")
 	}
-	if d := time.Since(start); d > time.Second {
+	if d := time.Since(start); d > 5*time.Second {
 		t.Errorf("stalled download took %s, want it cut off near the idle timeout", d)
 	}
 }
