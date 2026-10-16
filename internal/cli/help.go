@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"regexp"
 
 	"github.com/spf13/cobra"
@@ -62,4 +63,15 @@ func setColorHelp(cmd *cobra.Command) {
 		"flags":   colorFlags,
 	})
 	cmd.SetUsageTemplate(usageTemplate)
+
+	// The logo heads the top-level help only, and only in color.
+	help := cmd.HelpFunc()
+	cmd.SetHelpFunc(func(c *cobra.Command, args []string) {
+		if c == cmd {
+			if logo := ioutil.Logo("v"+Version, "JavaScript toolchain versions, per project"); logo != "" {
+				fmt.Fprintln(c.OutOrStdout(), logo)
+			}
+		}
+		help(c, args)
+	})
 }

@@ -136,3 +136,23 @@ func TestCommands(t *testing.T) {
 		t.Errorf("Warn() does not highlight the command: %q", got)
 	}
 }
+
+func TestLogo(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	if got := Logo("v1.0.0", "tag"); got != "" {
+		t.Errorf("Logo() without color = %q, want empty so plain help is unchanged", got)
+	}
+
+	forceColor(t)
+	t.Setenv("COLORTERM", "")
+	got := Logo("v1.0.0", "tag")
+	for _, want := range []string{"38;5;155m██", "38;5;255m", "driftr", "v1.0.0", "tag"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("Logo() missing %q:\n%s", want, got)
+		}
+	}
+	t.Setenv("COLORTERM", "truecolor")
+	if got := Logo("v1.0.0", "tag"); !strings.Contains(got, "38;2;184;255;61m██") {
+		t.Errorf("Logo() with COLORTERM=truecolor does not use the brand green:\n%s", got)
+	}
+}
