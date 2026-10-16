@@ -20,27 +20,42 @@ flowchart TD
 
 ```text
 cmd/driftr/
-  main.go                   entry point
+  main.go                   entry point; runs shim calls on a fast path before cobra
 
 internal/
   cli/                      cobra command definitions
-    root.go                 root command, global flags
-    install.go              driftr install
+    root.go                 root command, global flags, --version
+    install.go              driftr install (one tool, or every project pin)
+    uninstall.go            driftr uninstall, warns when the version is a default or pinned
+    prune.go                driftr prune
     default.go              driftr default
-    pin.go                  driftr pin
+    pin.go                  driftr pin, --migrate
     pin_bump.go             driftr pin --bump (shares release fetching with outdated.go)
-    list.go                 driftr list / ls
-    which.go                driftr which
+    use.go                  driftr use
+    list.go                 driftr list / ls, --remote
+    outdated.go             driftr outdated
     check.go                driftr check
+    which.go                driftr which
     run.go                  driftr run
     setup.go                driftr setup
-    shim_cmd.go             driftr shim (hidden, called by shim scripts)
+    doctor.go               driftr doctor and its checks
+    cache.go                driftr cache clean / dir
+    update.go               driftr self-update, PATH migration after the update
+    node_cmd.go             driftr node (parent of the commands below)
+    node_doctor.go          driftr node doctor
+    node_optimize.go        driftr node optimize
+    node_report.go          driftr node report
+    node_clean.go           driftr node clean
+    parse.go                tool@version argument parsing
+    shim_cmd.go             driftr shim (hidden, called by shim scripts), auto-install prompt
 
   config/                   configuration management
     global.go               ~/.driftr/config/config.toml read/write
     projects.go             ~/.driftr/config/projects: directories prune checks
     project.go              .driftr.toml read/write + directory walk
-    packagejson.go          package.json driftr key read/write
+    packagejson.go          package.json: driftr key, packageManager, engines.node
+    nvmrc.go                .nvmrc reading, shared version-file parser
+    nodeversion.go          .node-version reading
 
   installer/                tool installation pipelines
     node.go                 Node.js: resolve → download → verify SHA256 → extract
@@ -56,9 +71,10 @@ internal/
 
   resolver/                 version resolution engine
     resolver.go             generic resolution: ResolveTool(), ResolveBinaryFull() with dual resolution
+    pins.go                 every pin a project holds, for install, outdated, check, prune and pin --bump
 
   shim/                     shim script generation
-    shim.go                 creates shell scripts in ~/.driftr/bin/ (node, npm, npx, pnpm, pnpx, yarn, bun)
+    shim.go                 creates shell scripts in ~/.driftr/bin/ (node, npm, npx, pnpm, pnpx, yarn, bun, package bins)
 
   process/                  process execution
     exec.go                 syscall.Exec (replace) and exec.Command (child)
@@ -67,7 +83,23 @@ internal/
     platform.go             paths, directories, OS/arch detection, toolBinaryMap
 
   version/                  version string parsing
-    version.go              semver parsing with partial version and tool@ prefix support
+    version.go              semver parsing with partial version, tool@ prefix and LTS alias support
+    range.go                semver ranges for engines.node
+
+  pathsetup/                shell PATH configuration
+    pathsetup.go            picks the rc file per shell, writes the PATH line and precedence guard
+
+  nodeenv/                  support for driftr node
+    pkgmgr.go               detects a project's package manager
+    pnpm.go                 pnpm and corepack calls
+    runner.go               external command runner, swapped for a fake in tests
+    diskusage.go            directory sizes for node_modules and the store
+
+  ioutil/                   terminal and file helpers
+    color.go                colored output, off for NO_COLOR or non-terminal output
+    terminal.go             TTY detection (terminal_darwin.go, terminal_linux.go per OS)
+    progress.go             download progress on stderr
+    copy.go                 file copy and atomic write, used for shims
 
   updater/                  self-update mechanism
     updater.go              checks GitHub releases, downloads and replaces binary

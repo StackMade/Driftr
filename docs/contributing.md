@@ -110,12 +110,15 @@ cmd/driftr/          entry point
 internal/
   cli/               CLI commands (cobra)
   config/            TOML + JSON config management
-  installer/         tool installers (node, pnpm, yarn, bun) + npm registry client
-  resolver/          generic version resolution chain
-  shim/              shim script generation (node, npm, npx, pnpm, pnpx, yarn, bun)
+  installer/         tool installers (node, npm, pnpm, yarn, bun) + npm registry client
+  resolver/          generic version resolution chain, project pin collection
+  shim/              shim script generation (node, npm, npx, pnpm, pnpx, yarn, bun, package bins)
   process/           process execution (syscall.Exec)
   platform/          OS/architecture abstraction, tool binary map
-  version/           semver parsing with tool@ prefix support
+  version/           semver parsing with tool@ prefix support, engines.node ranges
+  pathsetup/         shell rc file detection and PATH line writing
+  nodeenv/           package manager detection and pnpm calls for driftr node
+  ioutil/            color, TTY detection, progress, atomic file writes
   updater/           self-update mechanism
 e2e/                 testscript e2e suite (testdata/script/*.txtar)
 test/fixture/        fake nodejs.org, npm registry and bun releases
