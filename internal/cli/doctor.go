@@ -267,10 +267,11 @@ func checkShimVersion(fix bool) int {
 		pass("Shims match this driftr version")
 		return 0
 	}
+	writer := "driftr " + stamp
 	if stamp == "" {
-		stamp = "an older version"
+		writer = "an older driftr"
 	}
-	warn(fmt.Sprintf("Shims were written by driftr %s, this is %s", stamp, Version))
+	warn(fmt.Sprintf("Shims were written by %s, this is driftr %s", writer, Version))
 	if !fix {
 		warn("  run `driftr doctor --fix` to regenerate them")
 		return 1

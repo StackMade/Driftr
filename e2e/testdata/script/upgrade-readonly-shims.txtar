@@ -20,7 +20,7 @@ exec driftr list
 stderr 'Could not update the shims'
 
 exec driftr doctor
-stdout 'Shims were written by driftr an older version'
+stdout 'Shims were written by an older driftr, this is driftr '
 
 chmod 0755 $HOME/.driftr/bin
 exec driftr doctor --fix
