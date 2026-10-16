@@ -44,8 +44,10 @@ go test ./e2e -run 'TestDriftr/install-node' -v
 
 The e2e suite runs driftr as a subprocess, so a plain `-coverprofile` credits it with
 nothing. Setting `DRIFTR_E2E_COVERDIR` makes `e2e/e2e_test.go` build the binary with `go
-build -cover` instead and point every script's `GOCOVERDIR` at that directory; `go tool
-covdata` then turns the raw profiles into a text profile that appends to the one `go test`
+build -cover` instead. Each script writes its raw profiles to its own subdirectory, since
+processes started in the same instant can collide on the runtime's temporary meta-file
+names, and `TestMain` moves them all into `DRIFTR_E2E_COVERDIR` once the suite finishes.
+`go tool covdata` then turns them into a text profile that appends to the one `go test`
 writes. The variable is driftr's own because `go test -coverprofile` overwrites
 `GOCOVERDIR` in the test binary's environment:
 
@@ -265,12 +267,20 @@ node = "22.99.0"
 Every script gets a fresh `$HOME` with `$HOME/.driftr/bin` first on `PATH`, plus
 `$NODE_VERSION`, `$PNPM_VERSION`, `$YARN_VERSION` and `$BUN_VERSION` holding the versions
 the fixture serves. Assert on those variables instead of writing the numbers out.
+`$DRIFTR_BIN` is the absolute path of the binary under test, for scripts that replace
+`PATH` with their own stubs (see `node-pnpm.txtar`).
 
-Two things catch people out:
+Three things catch people out:
 
 - `stdout` and `stderr` take a regular expression, so escape dots: `stdout '1\.2\.99'`.
 - An error path needs `!` in front of the command. Without it, a command that prints a
   complaint and still exits 0 will pass.
+- `stdin` resolves its file against the current directory, so after a `cd` write
+  `stdin $WORK/answer.txt`.
+
+Code that only runs on a terminal, such as prompts or the `driftr use` eval hint, is
+tested in `internal/cli/tty_test.go` against a real pseudo-terminal from `openPTY`
+(`pty_darwin_test.go`, `pty_linux_test.go`).
 
 Adding a version or a package to the fixture means editing `test/fixture/fixture.go`.
 
