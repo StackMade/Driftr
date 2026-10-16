@@ -2,6 +2,7 @@ package ioutil
 
 import (
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -144,15 +145,47 @@ func TestLogo(t *testing.T) {
 	}
 
 	forceColor(t)
+	t.Setenv("COLORFGBG", "")
 	t.Setenv("COLORTERM", "")
 	got := Logo("v1.0.0", "tag")
-	for _, want := range []string{"38;5;155m██", "38;5;255m", "driftr", "v1.0.0", "tag"} {
+	for _, want := range []string{"38;5;155m█", "39m█", "v1.0.0", "tag"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("Logo() missing %q:\n%s", want, got)
 		}
 	}
+	if lines := strings.Count(got, "\n"); lines != 9 {
+		t.Errorf("Logo() has %d lines, want 9 (a blank line, then 8)", lines)
+	}
+
 	t.Setenv("COLORTERM", "truecolor")
-	if got := Logo("v1.0.0", "tag"); !strings.Contains(got, "38;2;184;255;61m██") {
-		t.Errorf("Logo() with COLORTERM=truecolor does not use the brand green:\n%s", got)
+	if got := Logo("v1.0.0", "tag"); !strings.Contains(got, "38;2;184;255;61m█") || !regexp.MustCompile(`38;2;24\d;24\d;2\d\dm█`).MatchString(got) {
+		t.Errorf("Logo() with COLORTERM=truecolor lacks the brand green-to-light gradient:\n%s", got)
+	}
+
+	// A light background drops the gradient, whose light end would vanish.
+	t.Setenv("COLORFGBG", "0;15")
+	if got := Logo("v1.0.0", "tag"); regexp.MustCompile(`38;2;24\d;24\d;2\d\dm█`).MatchString(got) {
+		t.Errorf("Logo() on a light background still uses the light neutral:\n%s", got)
+	}
+}
+
+func TestXterm256(t *testing.T) {
+	for c, want := range map[rgb]int{{0, 0, 0}: 16, {255, 255, 255}: 231, {184, 255, 61}: 155} {
+		if got := xterm256(c); got != want {
+			t.Errorf("xterm256(%v) = %d, want %d", c, got, want)
+		}
+	}
+}
+
+// A cell holding a stem pixel over a bowl pixel would need the terminal's
+// own foreground as a background color, which SGR cannot express.
+func TestSignet_NoMixedCells(t *testing.T) {
+	for i := 0; i+1 < len(signet); i += 2 {
+		for c := range signet[i] {
+			top, bot := signet[i][c], signet[i+1][c]
+			if top != '.' && bot != '.' && top != bot {
+				t.Errorf("signet rows %d-%d column %d stack %c over %c", i, i+1, c, top, bot)
+			}
+		}
 	}
 }

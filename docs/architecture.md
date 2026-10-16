@@ -98,7 +98,7 @@ internal/
 
   ioutil/                   terminal and file helpers
     color.go                colored output and command highlighting, off for NO_COLOR or non-terminal output
-    logo.go                 the D signet shown above driftr --help, in color only
+    logo.go                 D signet and DRIFTR wordmark above driftr --help, in color only
     terminal.go             TTY detection (terminal_darwin.go, terminal_linux.go per OS)
     progress.go             download progress on stderr
     copy.go                 file copy and atomic write, used for shims
