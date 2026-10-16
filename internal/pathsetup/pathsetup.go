@@ -78,6 +78,10 @@ func Detect(binDir string) (Result, error) {
 // $HOME or ~, so we look for all three forms.
 func binDirNeedles(binDir string) []string {
 	needles := []string{binDir}
+	// The quoted fish line escapes ' and \, so look for that form too.
+	if escaped := fishEscaper.Replace(binDir); escaped != binDir {
+		needles = append(needles, escaped)
+	}
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		return needles
@@ -371,9 +375,13 @@ func namesDir(line, dir string) bool {
 	}
 }
 
+// fishEscaper escapes the two characters fish treats specially inside single
+// quotes.
+var fishEscaper = strings.NewReplacer(`\`, `\\`, `'`, `\'`)
+
 func exportLine(shell Shell, binDir string) string {
 	if shell == ShellFish {
-		return fmt.Sprintf("set -gx PATH %s $PATH", binDir)
+		return fmt.Sprintf("set -gx PATH '%s' $PATH", fishEscaper.Replace(binDir))
 	}
 	return fmt.Sprintf(`export PATH="%s:$PATH"`, binDir)
 }

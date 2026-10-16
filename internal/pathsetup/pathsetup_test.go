@@ -273,7 +273,7 @@ func TestApply_Fish(t *testing.T) {
 		t.Errorf("wrote to %q, want %q", file, want)
 	}
 	content := readFile(t, file)
-	if !strings.Contains(content, "set -gx PATH "+binDir+" $PATH") {
+	if !strings.Contains(content, "set -gx PATH '"+binDir+"' $PATH") {
 		t.Errorf("content missing fish syntax:\n%s", content)
 	}
 }
@@ -447,5 +447,56 @@ func TestNamesDir(t *testing.T) {
 		if got := namesDir(line, dir); got != want {
 			t.Errorf("namesDir(%q) = %v, want %v", line, got, want)
 		}
+	}
+}
+
+// fish does not split variables, but it does split a bare word on spaces, so
+// an unquoted home like "/Users/John Doe" became two PATH entries.
+func TestApply_FishQuotesBinDir(t *testing.T) {
+	for _, dirName := range []string{"John Doe", `O'Brien`, `back\slash`} {
+		home := filepath.Join(t.TempDir(), dirName)
+		t.Setenv("HOME", home)
+		t.Setenv("XDG_CONFIG_HOME", "")
+		t.Setenv("SHELL", "/usr/bin/fish")
+		binDir := filepath.Join(home, ".driftr", "bin")
+
+		r, err := Detect(binDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := Apply(r); err != nil {
+			t.Fatal(err)
+		}
+		content := readFile(t, r.Target)
+		want := "set -gx PATH '" + fishEscaper.Replace(binDir) + "' $PATH"
+		if !strings.Contains(content, want) {
+			t.Errorf("%s: want %q in:\n%s", dirName, want, content)
+		}
+
+		// The line just written counts as configured, so a rerun is a no-op.
+		r, err = Detect(binDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !r.InTarget {
+			t.Errorf("%s: quoted fish line not detected", dirName)
+		}
+	}
+}
+
+// Lines written by older driftr versions, and by install.sh, are unquoted.
+func TestDetect_FishUnquotedLegacyLine(t *testing.T) {
+	home := setHome(t)
+	t.Setenv("SHELL", "/usr/bin/fish")
+	binDir := filepath.Join(home, ".driftr", "bin")
+	writeFile(t, filepath.Join(home, ".config", "fish", "conf.d", "driftr.fish"),
+		"# Driftr\nset -gx PATH "+binDir+" $PATH\n")
+
+	r, err := Detect(binDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.InTarget {
+		t.Error("unquoted fish line not detected")
 	}
 }
