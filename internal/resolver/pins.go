@@ -16,6 +16,10 @@ type Pin struct {
 	Version string
 	Source  Source
 	Dir     string // directory the pin was found in
+	// Range is the engines.node range a ProjectPins pin came from, whose
+	// Version is then only the major to install. The shim runs the newest
+	// installed version inside Range instead.
+	Range string
 }
 
 // installableTools are the tools `driftr install` with no argument acts on,
@@ -111,6 +115,21 @@ func ResolvePin(tool, spec string) (string, bool, error) {
 	return best.String(), true, nil
 }
 
+// ResolveRange returns the installed version an engines.node range selects on
+// the shim path: the newest installed match. ok is false when nothing
+// installed satisfies it.
+func ResolveRange(tool, rangeText string) (string, bool, error) {
+	rng, err := version.ParseRange(rangeText)
+	if err != nil {
+		return "", false, err
+	}
+	best, found, err := newestInstalledMatching(tool, rng.Matches)
+	if err != nil || !found {
+		return "", false, err
+	}
+	return best.String(), true, nil
+}
+
 // ProjectSources lists every source that pins a tool for the project
 // containing dir, across the same directory walk the resolver makes. Per tool
 // the pins come in resolution order, so the first one is the one that wins;
@@ -194,7 +213,7 @@ func enginesPin(p Pin) (Pin, error) {
 	if err != nil {
 		return Pin{}, fmt.Errorf("cannot use engines.node from %s: %w", filepath.Join(p.Dir, "package.json"), err)
 	}
-	p.Version = "lts"
+	p.Range, p.Version = p.Version, "lts"
 	if major, ok := rng.LowerBoundMajor(); ok {
 		p.Version = strconv.Itoa(major)
 	}

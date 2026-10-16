@@ -203,6 +203,18 @@ func prunable(tools []string, pins []resolver.Pin) ([]pruneCandidate, error) {
 			if pin.Tool != tool {
 				continue
 			}
+			if pin.Range != "" {
+				// engines.node: keep what the shim runs, the newest installed
+				// match, not the major install would fetch.
+				v, ok, err := resolver.ResolveRange(tool, pin.Range)
+				if err != nil {
+					return nil, fmt.Errorf("cannot resolve engines.node %q in %s, refusing to prune: %w", pin.Range, pin.Dir, err)
+				}
+				if ok {
+					keep[v] = true
+				}
+				continue
+			}
 			keep[pin.Version] = true
 			if err := keepResolved(keep, tool, pin.Version); err != nil {
 				return nil, err

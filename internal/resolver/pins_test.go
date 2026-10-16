@@ -48,7 +48,7 @@ func TestProjectPins(t *testing.T) {
 		{
 			name:  "engines.node yields its lower-bound major",
 			files: map[string]string{"sub/package.json": `{"engines": {"node": ">=20.9.0"}}`},
-			want:  []Pin{{Tool: "node", Version: "20", Source: SourceEnginesNode}},
+			want:  []Pin{{Tool: "node", Version: "20", Source: SourceEnginesNode, Range: ">=20.9.0"}},
 		},
 		{
 			name:  "driftr key beats engines.node",
@@ -69,7 +69,7 @@ func TestProjectPins(t *testing.T) {
 				"package.json":     `{"engines": {"node": ">=20"}}`,
 				"sub/package.json": `{"engines": {"node": ">=18"}}`,
 			},
-			want: []Pin{{Tool: "node", Version: "18", Source: SourceEnginesNode}},
+			want: []Pin{{Tool: "node", Version: "18", Source: SourceEnginesNode, Range: ">=18"}},
 		},
 		{
 			name: "unparseable engines.node behind an explicit parent pin is never read",
@@ -134,7 +134,7 @@ func TestProjectPins(t *testing.T) {
 			}
 			for i, want := range tt.want {
 				got := pins[i]
-				if got.Tool != want.Tool || got.Version != want.Version || got.Source != want.Source {
+				if got.Tool != want.Tool || got.Version != want.Version || got.Source != want.Source || got.Range != want.Range {
 					t.Errorf("pin %d = %+v, want tool=%s version=%s source=%s", i, got, want.Tool, want.Version, want.Source)
 				}
 				wantDir := sub

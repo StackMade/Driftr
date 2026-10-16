@@ -109,6 +109,33 @@ func TestPrune_PartialPinKeepsNewestMatch(t *testing.T) {
 	}
 }
 
+// An engines.node range keeps the version the shim runs, the newest installed
+// match, not the lower-bound major driftr install would fetch.
+func TestPrune_EnginesNodeKeepsNewestMatch(t *testing.T) {
+	project := pruneEnv(t)
+	fakeNodeInstall(t, "18.0.0")
+	fakeNodeInstall(t, "20.1.0")
+	fakeNodeInstall(t, "22.99.0")
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{"engines":{"node":">=18"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var err error
+	captureStdout(t, func() { err = runCmd(t, "prune", "-y") })
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !nodeInstalled(t, "22.99.0") {
+		t.Error("22.99.0, which engines.node >=18 runs, was pruned")
+	}
+	for _, v := range []string{"18.0.0", "20.1.0"} {
+		if nodeInstalled(t, v) {
+			t.Errorf("unreferenced %s was not pruned", v)
+		}
+	}
+}
+
 func TestPrune_DryRunRemovesNothing(t *testing.T) {
 	pruneEnv(t)
 	fakeNodeInstall(t, "20.0.0")
