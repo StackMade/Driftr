@@ -55,12 +55,14 @@ jobs:
           cache: true
       - name: Build all release targets
         run: |
-          for goos in linux darwin; do
+          for goos in linux darwin windows; do
             for goarch in amd64 arm64; do
               echo "Building $goos/$goarch"
               GOOS=$goos GOARCH=$goarch CGO_ENABLED=0 go build -o /dev/null ./cmd/driftr/
             done
           done
+      - name: Vet for Windows, test files included
+        run: GOOS=windows go vet ./...
 
   shellcheck:
     name: ShellCheck
@@ -87,6 +89,21 @@ jobs:
             driftr --version || exit 1
             test -x "$HOME/.driftr/bin/node" || { echo "node shim missing"; exit 1; }
           '
+
+  test-windows:
+    # Unit tests only: the e2e suite still assumes POSIX shims and sh fakes.
+    name: Test (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: true
+      - name: Run unit tests
+        run: go test -count=1 ./internal/...
 
   test:
     # Covers both the unit tests and the e2e suite in e2e/, which drives a real
