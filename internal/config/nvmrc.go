@@ -87,7 +87,7 @@ func SaveVersionFile(path, ver string) error {
 			prefix = "v"
 		}
 		lines[i] = line[:start] + prefix + ver + line[start+len(token):]
-		return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644)
+		return replaceFile(path, []byte(strings.Join(lines, "\n")))
 	}
 
 	return fmt.Errorf("%s holds no version to replace", path)
