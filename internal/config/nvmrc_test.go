@@ -30,6 +30,8 @@ func TestLoadNvmrc(t *testing.T) {
 		{"byte order mark", "\ufeff22.14.0\n", "22.14.0"},
 		{"byte order mark before comment", "\ufeff# pinned\n22.14.0\n", "22.14.0"},
 		{"lts with trailing comment", "lts/iron # ci\n", "lts/iron"},
+		{"nvm node alias", "node\n", "latest"},
+		{"nvm stable alias", "Stable\n", "latest"},
 	}
 
 	for _, tt := range tests {

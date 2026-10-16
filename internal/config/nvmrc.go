@@ -27,13 +27,19 @@ func LoadNvmrc(dir string) (string, error) {
 
 // parseVersionFile extracts a version string from a single-line version file.
 // LTS aliases ("lts", "lts/*", "lts/hydrogen") are returned verbatim for the
-// resolver to interpret.
+// resolver to interpret; nvm's "node" and "stable" come back as "latest".
 func parseVersionFile(content string) (string, error) {
 	// Take the first line that holds a version, not just a comment.
 	for _, line := range strings.Split(content, "\n") {
 		line = versionToken(line)
 		if line == "" {
 			continue
+		}
+
+		// nvm's "node" and "stable" mean the newest release: driftr's "latest".
+		switch strings.ToLower(line) {
+		case "node", "stable":
+			return "latest", nil
 		}
 
 		// LTS aliases pass through untouched — no "v" prefix to strip.

@@ -658,6 +658,8 @@ func TestResolveFromProject_InexactPins(t *testing.T) {
 		{".nvmrc", "22\n"},
 		{".node-version", "22.14\n"},
 		{".nvmrc", "v22.14.0\n"},
+		{".nvmrc", "node\n"},
+		{".node-version", "stable\n"},
 		{".driftr.toml", "[tools]\nnode = \"22\"\n"},
 		{".driftr.toml", "[tools]\nnode = \"lts\"\n"},
 		{"package.json", `{"driftr": {"node": "22"}}`},
