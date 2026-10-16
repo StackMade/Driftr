@@ -111,7 +111,7 @@ driftr prune               # show the plan, then ask before deleting
 driftr prune --tool node -y
 ```
 
-A version counts as referenced when it is the global default for its tool, when the project in the current directory pins it, or when a recorded project pins it. Pins are resolved the same way the shims resolve them, so a partial pin such as `24`, an `lts/jod` alias, or an `engines.node` range protects the installed version it would actually select. Everything else is listed with its size and removed after you confirm.
+A version counts as referenced when it is the global default for its tool, when `DRIFTR_<TOOL>` in the current shell selects it, when the project in the current directory pins it, or when a recorded project pins it. Pins are resolved the same way the shims resolve them, so a partial pin such as `24`, an `lts/jod` alias, or an `engines.node` range protects the installed version it would actually select. Everything else is listed with its size and removed after you confirm.
 
 **Scope:** `driftr pin` (including `--bump`, but not `--bump --dry-run`) and `driftr install` record the project they run in, in `~/.driftr/config/projects`, one directory per line. The directory recorded is the one holding the nearest pin, which is where the shims would read it from. Prune re-reads the pins of every recorded project that still exists, along with the current directory and the global default, and prints how many projects it checked. Shims never write to this file, so running `node` stays free of writes.
 

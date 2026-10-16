@@ -21,7 +21,7 @@ import (
 // pruneScopeNote states what prune can and cannot see. It is printed on every
 // run that is about to delete something, because the limit is the whole risk:
 // a version pinned by a checkout driftr has never recorded looks unreferenced.
-const pruneScopeNote = "Prune protects the global default, the current directory and every project recorded by driftr pin or driftr install.\nA project pinned before driftr recorded projects, or only by editing files, is not protected until you run driftr install there once."
+const pruneScopeNote = "Prune protects the global default, the DRIFTR_<TOOL> override of this shell, the current directory and every project recorded by driftr pin or driftr install.\nA project pinned before driftr recorded projects, or only by editing files, is not protected until you run driftr install there once."
 
 // pruneScope is everything prune reads pins from.
 type pruneScope struct {
@@ -195,6 +195,14 @@ func prunable(tools []string, pins []resolver.Pin) ([]pruneCandidate, error) {
 		if def := cfg.Default.GetTool(tool); def != "" {
 			keep[def] = true
 			if err := keepResolved(keep, tool, def); err != nil {
+				return nil, err
+			}
+		}
+
+		// DRIFTR_<TOOL> overrides every pin in this shell, so what it selects
+		// is in use here, partial specs resolved as the resolver does.
+		if spec := strings.TrimSpace(os.Getenv(resolver.EnvVarName(tool))); spec != "" {
+			if err := keepResolved(keep, tool, spec); err != nil {
 				return nil, err
 			}
 		}

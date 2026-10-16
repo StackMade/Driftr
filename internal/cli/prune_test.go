@@ -136,6 +136,30 @@ func TestPrune_EnginesNodeKeepsNewestMatch(t *testing.T) {
 	}
 }
 
+// DRIFTR_NODE selects the version in use for this shell, ahead of any pin.
+func TestPrune_KeepsEnvOverride(t *testing.T) {
+	pruneEnv(t)
+	fakeNodeInstall(t, "20.1.0")
+	fakeNodeInstall(t, "20.5.0")
+	fakeNodeInstall(t, "22.14.0")
+	t.Setenv("DRIFTR_NODE", "20")
+
+	var err error
+	captureStdout(t, func() { err = runCmd(t, "prune", "-y") })
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !nodeInstalled(t, "20.5.0") {
+		t.Error("20.5.0, selected by DRIFTR_NODE=20, was pruned")
+	}
+	for _, v := range []string{"20.1.0", "22.14.0"} {
+		if nodeInstalled(t, v) {
+			t.Errorf("unreferenced %s was not pruned", v)
+		}
+	}
+}
+
 func TestPrune_DryRunRemovesNothing(t *testing.T) {
 	pruneEnv(t)
 	fakeNodeInstall(t, "20.0.0")
