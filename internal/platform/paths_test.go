@@ -6,12 +6,14 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 // Shims, docs and the installer all assume these directory names under ~/.driftr.
 func TestPaths_LayoutUnderHome(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	root := filepath.Join(home, ".driftr")
 
 	tests := []struct {
@@ -92,7 +94,7 @@ func TestPaths_NoHomeDirectory(t *testing.T) {
 
 func TestEnsureDirs_CreatesNodeLayout(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	if err := EnsureDirs(); err != nil {
 		t.Fatalf("EnsureDirs() error: %v", err)
@@ -113,7 +115,7 @@ func TestEnsureDirs_CreatesNodeLayout(t *testing.T) {
 
 func TestEnsureToolDirs_Idempotent(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	if err := EnsureToolDirs("bun"); err != nil {
 		t.Fatalf("first EnsureToolDirs() error: %v", err)
@@ -134,7 +136,7 @@ func TestEnsureToolDirs_Idempotent(t *testing.T) {
 // A file where a directory belongs cannot be repaired silently; the error must name the path.
 func TestEnsureToolDirs_FileInTheWay(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	if err := os.MkdirAll(filepath.Join(home, ".driftr"), 0o755); err != nil {
 		t.Fatal(err)
@@ -175,7 +177,7 @@ func TestArchAndOS_NodeDistNaming(t *testing.T) {
 
 func TestListToolVersions_SkipsExtractionWorkDirs(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	nodeDir := filepath.Join(home, ".driftr", "tools", "node")
 	for _, name := range []string{"22.14.0", "22.15.0.tmp-4711"} {

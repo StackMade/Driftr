@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func writeExe(t *testing.T, dir, tool string) {
@@ -62,7 +64,7 @@ func TestCheckShimShadowing_NoToolsOnPath(t *testing.T) {
 
 func TestCheckShimShadowing_FixAppendsGuardToZshrc(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	t.Setenv("ZDOTDIR", "")
 	t.Setenv("SHELL", "/bin/zsh")
 

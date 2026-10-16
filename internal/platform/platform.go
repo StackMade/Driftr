@@ -12,8 +12,9 @@ import (
 // HomeDir returns the user's home directory: the parent of ~/.driftr and of
 // the shell rc files driftr edits.
 func HomeDir() (string, error) {
-	// TODO(windows): os.UserHomeDir reads USERPROFILE on Windows and ignores
-	// HOME. Decide which one wins there when both are set.
+	// On Windows this is USERPROFILE, never HOME: Git Bash and Cygwin may set
+	// HOME to another directory, and cmd and PowerShell would then see a
+	// different ~/.driftr than the shells that have it.
 	return os.UserHomeDir()
 }
 

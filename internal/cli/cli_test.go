@@ -9,6 +9,7 @@ import (
 
 	"github.com/stackmade/driftr/internal/config"
 	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func fakeNodeInstall(t *testing.T, ver string) {
@@ -35,7 +36,7 @@ func runCmd(t *testing.T, args ...string) error {
 }
 
 func TestDefaultCmd_SetsGlobalDefault(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	fakeNodeInstall(t, "22.14.0")
 
 	if err := runCmd(t, "default", "node@22.14.0"); err != nil {
@@ -52,7 +53,7 @@ func TestDefaultCmd_SetsGlobalDefault(t *testing.T) {
 }
 
 func TestDefaultCmd_PartialVersionResolves(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	fakeNodeInstall(t, "22.14.0")
 	fakeNodeInstall(t, "22.9.0")
 
@@ -70,7 +71,7 @@ func TestDefaultCmd_PartialVersionResolves(t *testing.T) {
 }
 
 func TestDefaultCmd_NotInstalled(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	err := runCmd(t, "default", "node@22.14.0")
 	if err == nil || !strings.Contains(err.Error(), "not installed") {
@@ -79,7 +80,7 @@ func TestDefaultCmd_NotInstalled(t *testing.T) {
 }
 
 func TestDefaultCmd_InvalidVersion(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	err := runCmd(t, "default", "node@bogus.version.string")
 	if err == nil || !strings.Contains(err.Error(), "invalid version") {
@@ -88,7 +89,7 @@ func TestDefaultCmd_InvalidVersion(t *testing.T) {
 }
 
 func TestPinCmd_ExistingTOMLFormat(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	fakeNodeInstall(t, "22.14.0")
 
 	proj := t.TempDir()
@@ -111,7 +112,7 @@ func TestPinCmd_ExistingTOMLFormat(t *testing.T) {
 }
 
 func TestPinCmd_ExistingPackageJSONFormat(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	fakeNodeInstall(t, "22.14.0")
 
 	proj := t.TempDir()
@@ -138,7 +139,7 @@ func TestPinCmd_ExistingPackageJSONFormat(t *testing.T) {
 }
 
 func TestPinCmd_NotInstalled(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 
 	err := runCmd(t, "pin", "node@22.14.0")
@@ -148,7 +149,7 @@ func TestPinCmd_NotInstalled(t *testing.T) {
 }
 
 func TestWhichCmd_ProjectSource(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	fakeNodeInstall(t, "22.14.0")
 
 	proj := t.TempDir()
@@ -163,7 +164,7 @@ func TestWhichCmd_ProjectSource(t *testing.T) {
 }
 
 func TestWhichCmd_NothingConfigured(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 
 	err := runCmd(t, "which", "node")
@@ -173,7 +174,7 @@ func TestWhichCmd_NothingConfigured(t *testing.T) {
 }
 
 func TestUninstallCmd_RemovesVersion(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 	fakeNodeInstall(t, "22.14.0")
 
@@ -191,7 +192,7 @@ func TestUninstallCmd_RemovesVersion(t *testing.T) {
 }
 
 func TestUninstallCmd_NotInstalled(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 
 	err := runCmd(t, "uninstall", "node@22.14.0")
@@ -201,7 +202,7 @@ func TestUninstallCmd_NotInstalled(t *testing.T) {
 }
 
 func TestUninstallCmd_UnknownTool(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	err := runCmd(t, "uninstall", "ruby@3.0.0")
 	if err == nil || !strings.Contains(err.Error(), "unknown tool") {
@@ -210,7 +211,7 @@ func TestUninstallCmd_UnknownTool(t *testing.T) {
 }
 
 func TestUninstallCmd_MissingVersion(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	// "node@" is an empty spec; bare "node" would parse as a version of the default tool.
 	err := runCmd(t, "uninstall", "node@")
@@ -220,7 +221,7 @@ func TestUninstallCmd_MissingVersion(t *testing.T) {
 }
 
 func TestListCmd_Local(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 	fakeNodeInstall(t, "22.14.0")
 	fakeNodeInstall(t, "20.10.0")
@@ -231,7 +232,7 @@ func TestListCmd_Local(t *testing.T) {
 }
 
 func TestListCmd_Empty(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 
 	if err := runCmd(t, "list"); err != nil {
@@ -241,7 +242,7 @@ func TestListCmd_Empty(t *testing.T) {
 
 func TestSetupCmd_ConfiguresPathInUniversalRcFile(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	t.Setenv("SHELL", "/bin/zsh")
 
 	if err := runCmd(t, "setup"); err != nil {
@@ -263,7 +264,7 @@ func TestSetupCmd_ConfiguresPathInUniversalRcFile(t *testing.T) {
 }
 
 func TestInstallCmd_TrailingAtErrors(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	// "pnpm@" must fail offline rather than fall through to installing latest.
 	err := runCmd(t, "install", "pnpm@")
@@ -273,7 +274,7 @@ func TestInstallCmd_TrailingAtErrors(t *testing.T) {
 }
 
 func TestInstallCmd_NoArgsNoPins(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 
 	// With nothing pinned the command must fail, not exit 0 having installed nothing.
@@ -285,7 +286,7 @@ func TestInstallCmd_NoArgsNoPins(t *testing.T) {
 
 func TestDefaultCmd_MalformedGlobalConfig(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	fakeNodeInstall(t, "22.14.0")
 
 	cfgPath := filepath.Join(home, ".driftr", "config", "config.toml")

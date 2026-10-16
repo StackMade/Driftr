@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func TestManualPathInstructions_ShowsExportLine(t *testing.T) {
@@ -27,7 +29,7 @@ func TestManualPathInstructions_ShowsExportLine(t *testing.T) {
 
 func TestConfigureSetupPath_AlreadyConfigured(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	t.Setenv("SHELL", "/bin/zsh")
 	t.Setenv("ZDOTDIR", "")
 

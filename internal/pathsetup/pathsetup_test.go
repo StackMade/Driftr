@@ -5,12 +5,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func setHome(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	t.Setenv("HOME", dir)
+	testutil.SetHome(t, dir)
 	t.Setenv("ZDOTDIR", "")
 	t.Setenv("XDG_CONFIG_HOME", "")
 	return dir
@@ -452,7 +454,7 @@ func TestNamesDir(t *testing.T) {
 func TestApply_FishQuotesBinDir(t *testing.T) {
 	for _, dirName := range []string{"John Doe", `O'Brien`, `back\slash`} {
 		home := filepath.Join(t.TempDir(), dirName)
-		t.Setenv("HOME", home)
+		testutil.SetHome(t, home)
 		t.Setenv("XDG_CONFIG_HOME", "")
 		t.Setenv("SHELL", "/usr/bin/fish")
 		binDir := filepath.Join(home, ".driftr", "bin")

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func TestInstallTool_UnknownTool(t *testing.T) {
@@ -24,7 +26,7 @@ func TestInstallTool_UnknownTool(t *testing.T) {
 }
 
 func TestInstallCmd_UnknownToolWithVersion(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 
 	// Must fail on the tool name alone — offline, before any network call.
@@ -35,7 +37,7 @@ func TestInstallCmd_UnknownToolWithVersion(t *testing.T) {
 }
 
 func TestInstallCmd_ProjectPinsUnknownTool(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	proj := t.TempDir()
 	if err := os.WriteFile(filepath.Join(proj, ".driftr.toml"), []byte("[tools]\nruby = \"3.0.0\"\n"), 0o644); err != nil {

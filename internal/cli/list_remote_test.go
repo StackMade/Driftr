@@ -3,6 +3,8 @@ package cli
 import (
 	"strings"
 	"testing"
+
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func listRemoteOutput(t *testing.T, tool string, pre bool, limit int) (string, error) {
@@ -13,7 +15,7 @@ func listRemoteOutput(t *testing.T, tool string, pre bool, limit int) (string, e
 }
 
 func TestListRemote_NodeMarksInstalledAndLTS(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 	nodeIndexServer(t, []map[string]any{
 		{"version": "v24.0.0", "lts": false},
@@ -50,7 +52,7 @@ func TestListRemote_NodeMarksInstalledAndLTS(t *testing.T) {
 }
 
 func TestListRemote_LimitTruncates(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 	nodeIndexServer(t, []map[string]any{
 		{"version": "v24.0.0", "lts": false},
@@ -71,7 +73,7 @@ func TestListRemote_LimitTruncates(t *testing.T) {
 }
 
 func TestListRemote_NpmPackage(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 	npmRegistryServer(t, []string{"9.15.0", "9.14.0", "8.15.0"})
 
@@ -88,7 +90,7 @@ func TestListRemote_NpmPackage(t *testing.T) {
 }
 
 func TestListRemote_Bun(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 	bunReleasesServer(t, []string{"1.2.3", "1.2.2"})
 
@@ -102,7 +104,7 @@ func TestListRemote_Bun(t *testing.T) {
 }
 
 func TestListRemote_UnsupportedTool(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 
 	_, err := listRemoteOutput(t, "deno", false, 0)
@@ -113,7 +115,7 @@ func TestListRemote_UnsupportedTool(t *testing.T) {
 
 // An unreachable release source must fail loudly, not print an empty list.
 func TestListRemote_UpstreamFailure(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 	npmRegistryServer(t, nil) // answers 500
 

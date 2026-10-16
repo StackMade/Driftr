@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 type tarEntry struct {
@@ -64,7 +65,7 @@ func nodePrefix(version string) string {
 }
 
 func TestExtract_Success(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	const ver = "99.0.0"
 	prefix := nodePrefix(ver)
 
@@ -102,7 +103,7 @@ func TestExtract_Success(t *testing.T) {
 }
 
 func TestExtract_MissingNodeBinary(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	const ver = "99.0.0"
 	prefix := nodePrefix(ver)
 
@@ -127,7 +128,7 @@ func TestExtract_MissingNodeBinary(t *testing.T) {
 
 func TestExtract_PathTraversalBlocked(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	const ver = "99.0.0"
 	prefix := nodePrefix(ver)
 
@@ -183,7 +184,7 @@ func TestSymlinkEscapes(t *testing.T) {
 
 func TestExtract_EscapingSymlinkRejected(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	const ver = "99.0.0"
 	prefix := nodePrefix(ver)
 
@@ -226,7 +227,7 @@ func TestExtract_SymlinkChainEscapeRejected(t *testing.T) {
 	}
 	for name, links := range chains {
 		t.Run(name, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.SetHome(t, t.TempDir())
 			entries := append([]tarEntry{{Name: prefix + "bin/node", Data: []byte("node binary"), Typeflag: tar.TypeReg}}, links...)
 			err := Extract(buildTarGz(t, entries), ver, false, nil)
 			if err == nil || !strings.Contains(err.Error(), "symlink pointing outside") {
@@ -244,7 +245,7 @@ func TestExtract_SymlinkChainEscapeRejected(t *testing.T) {
 }
 
 func TestExtract_InternalSymlinkKept(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	const ver = "99.0.0"
 	prefix := nodePrefix(ver)
 
@@ -272,7 +273,7 @@ func TestExtract_InternalSymlinkKept(t *testing.T) {
 }
 
 func TestExtract_AlreadyExtracted(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	const ver = "99.0.0"
 
 	nodeBin, err := platform.NodeBinary(ver)
@@ -403,7 +404,7 @@ func TestRemoveCorruptArchive_Undeletable(t *testing.T) {
 }
 
 func TestExtract_WrongArchiveLayout(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	const ver = "99.0.0"
 
 	// No entry carries the expected node-v<ver>-<os>-<arch>/ prefix.
@@ -444,7 +445,7 @@ func TestExtract_CorruptDownloadLeavesNothingBehind(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.SetHome(t, t.TempDir())
 			archive := filepath.Join(t.TempDir(), "node.tar.gz")
 			if err := os.WriteFile(archive, tc.data, 0o644); err != nil {
 				t.Fatal(err)

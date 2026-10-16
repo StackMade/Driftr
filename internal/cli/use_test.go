@@ -5,6 +5,8 @@ import (
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func runCmdOut(t *testing.T, args ...string) (string, error) {
@@ -19,7 +21,7 @@ func runCmdOut(t *testing.T, args ...string) (string, error) {
 }
 
 func TestUseCmd_PosixSnippet(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Setenv("SHELL", "/bin/zsh")
 	fakeNodeInstall(t, "22.14.0")
 
@@ -33,7 +35,7 @@ func TestUseCmd_PosixSnippet(t *testing.T) {
 }
 
 func TestUseCmd_PartialVersionResolves(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Setenv("SHELL", "/bin/bash")
 	fakeNodeInstall(t, "22.9.0")
 	fakeNodeInstall(t, "22.14.0")
@@ -48,7 +50,7 @@ func TestUseCmd_PartialVersionResolves(t *testing.T) {
 }
 
 func TestUseCmd_FishSnippet(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Setenv("SHELL", "/usr/bin/fish")
 	fakeNodeInstall(t, "22.14.0")
 
@@ -62,7 +64,7 @@ func TestUseCmd_FishSnippet(t *testing.T) {
 }
 
 func TestUseCmd_ShellFlagOverridesDetection(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Setenv("SHELL", "/bin/zsh")
 	fakeNodeInstall(t, "22.14.0")
 
@@ -76,7 +78,7 @@ func TestUseCmd_ShellFlagOverridesDetection(t *testing.T) {
 }
 
 func TestUseCmd_UnknownShellFlag(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	_, err := runCmdOut(t, "use", "node@22.14.0", "--shell", "tcsh")
 	if err == nil || !strings.Contains(err.Error(), "unknown shell") {
@@ -85,7 +87,7 @@ func TestUseCmd_UnknownShellFlag(t *testing.T) {
 }
 
 func TestUseCmd_Unset(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Setenv("SHELL", "/bin/zsh")
 
 	out, err := runCmdOut(t, "use", "--unset", "node")
@@ -106,7 +108,7 @@ func TestUseCmd_Unset(t *testing.T) {
 }
 
 func TestUseCmd_MissingVersion(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	_, err := runCmdOut(t, "use", "pnpm")
 	if err == nil || !strings.Contains(err.Error(), "version required") {
@@ -115,7 +117,7 @@ func TestUseCmd_MissingVersion(t *testing.T) {
 }
 
 func TestUseCmd_UnknownTool(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	_, err := runCmdOut(t, "use", "ruby@3.0.0")
 	if err == nil || !strings.Contains(err.Error(), "unknown tool") {
@@ -124,7 +126,7 @@ func TestUseCmd_UnknownTool(t *testing.T) {
 }
 
 func TestUseCmd_NotInstalled(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	_, err := runCmdOut(t, "use", "node@22.14.0")
 	if err == nil || !strings.Contains(err.Error(), "not installed") {
@@ -133,7 +135,7 @@ func TestUseCmd_NotInstalled(t *testing.T) {
 }
 
 func TestUseCmd_UnsetAcceptsToolAtVersion(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Setenv("SHELL", "/bin/zsh")
 
 	out, err := runCmdOut(t, "use", "--unset", "node@22")
@@ -146,7 +148,7 @@ func TestUseCmd_UnsetAcceptsToolAtVersion(t *testing.T) {
 }
 
 func TestBundledToolsMapToTheirParent(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Setenv("SHELL", "/bin/zsh")
 
 	out, err := runCmdOut(t, "use", "--unset", "npx")
@@ -167,7 +169,7 @@ func TestBundledToolsMapToTheirParent(t *testing.T) {
 }
 
 func TestUnknownToolListsKnownTools(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	for _, cmd := range []string{"use", "pin", "default"} {
 		err := runCmd(t, cmd, "foo@1")

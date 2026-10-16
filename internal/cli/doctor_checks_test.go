@@ -9,6 +9,7 @@ import (
 
 	"github.com/stackmade/driftr/internal/config"
 	"github.com/stackmade/driftr/internal/shim"
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func TestBinDirOnPath(t *testing.T) {
@@ -90,7 +91,7 @@ func TestBrokenShims_MissingAndNotExecutable(t *testing.T) {
 
 func TestCheckShims_FixRegeneratesEveryShim(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	binDir := filepath.Join(home, ".driftr", "bin")
 
 	var issues int
@@ -153,7 +154,7 @@ func TestCheckGlobalDefault(t *testing.T) {
 
 // A default uninstalled behind driftr's back is the failure mode this check exists for.
 func TestCheckDefaultsInstalled_ReportsMissingInstall(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	cfg := &config.GlobalConfig{}
 	cfg.Default.SetTool("node", "22.14.0")
@@ -205,7 +206,7 @@ func TestCheckNeedsNode(t *testing.T) {
 func zshHome(t *testing.T) string {
 	t.Helper()
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	t.Setenv("ZDOTDIR", "")
 	t.Setenv("SHELL", "/bin/zsh")
 	return home
@@ -252,7 +253,7 @@ func TestCheckShellRCPlacement_FlagsInteractiveOnlyEntry(t *testing.T) {
 
 func TestCheckShimVersion(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	var issues int
 	out := captureStdout(t, func() { issues = checkShimVersion(false) })
@@ -280,7 +281,7 @@ func TestCheckShimVersion(t *testing.T) {
 
 func TestCheckShimBinaryPath(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	binDir := filepath.Join(home, ".driftr", "bin")
 
 	if got := checkShimBinaryPath(binDir, false); got != 0 {

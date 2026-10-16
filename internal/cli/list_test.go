@@ -3,10 +3,12 @@ package cli
 import (
 	"strings"
 	"testing"
+
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func TestListCmd_UnknownToolFails(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	err := runCmd(t, "list", "foo")
 	if err == nil || !strings.Contains(err.Error(), "unknown tool: foo") {
@@ -15,7 +17,7 @@ func TestListCmd_UnknownToolFails(t *testing.T) {
 }
 
 func TestListCmd_NpxListsNpm(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 
 	var err error
@@ -29,7 +31,7 @@ func TestListCmd_NpxListsNpm(t *testing.T) {
 }
 
 func TestListCmd_RemoteOnlyFlagsNeedRemote(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	for _, flag := range []string{"--pre", "--limit=5"} {
 		err := runCmd(t, "list", "pnpm", flag)

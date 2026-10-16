@@ -5,10 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func TestToolBinary_KnownTools(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	tests := []struct {
 		tool       string
@@ -81,7 +83,7 @@ func TestLookupTool(t *testing.T) {
 
 func TestListToolVersions(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	nodeDir := filepath.Join(home, ".driftr", "tools", "node")
 	for _, v := range []string{"20.11.0", "22.14.0", "24.0.0"} {
@@ -100,7 +102,7 @@ func TestListToolVersions(t *testing.T) {
 }
 
 func TestListToolVersions_NoDir(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	versions, err := ListToolVersions("node")
 	if err != nil {
@@ -113,7 +115,7 @@ func TestListToolVersions_NoDir(t *testing.T) {
 
 func TestListToolVersions_IgnoresFiles(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	nodeDir := filepath.Join(home, ".driftr", "tools", "node")
 	if err := os.MkdirAll(nodeDir, 0o755); err != nil {
@@ -133,7 +135,7 @@ func TestListToolVersions_IgnoresFiles(t *testing.T) {
 
 func TestEnsureToolDirs(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	if err := EnsureToolDirs("node", "pnpm"); err != nil {
 		t.Fatalf("EnsureToolDirs() error: %v", err)
@@ -157,7 +159,7 @@ func pathEndsWith(path, suffix string) bool {
 }
 
 func TestNodePackageBins(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	for v, names := range map[string][]string{
 		"20.0.0": {"node", "npm", "tsc", "corepack", "bad;name", ".hidden"},
 		"22.0.0": {"node", "tsc"},
@@ -194,7 +196,7 @@ func TestIsSafeBinName(t *testing.T) {
 }
 
 func TestFindOutsideDriftr(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	bin, _ := BinDir()
 	writeExec := func(p string) {
 		t.Helper()

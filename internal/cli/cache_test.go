@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func writeCacheFiles(t *testing.T, sizes ...int) string {
@@ -28,7 +29,7 @@ func writeCacheFiles(t *testing.T, sizes ...int) string {
 }
 
 func TestCacheClean_RemovesCachedFiles(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	cacheDir := writeCacheFiles(t, 1024, 2048)
 
 	var err error
@@ -50,7 +51,7 @@ func TestCacheClean_RemovesCachedFiles(t *testing.T) {
 
 // Installed versions live outside the cache and must survive a clean.
 func TestCacheClean_KeepsInstalledVersions(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	writeCacheFiles(t, 10)
 	fakeNodeInstall(t, "22.14.0")
 
@@ -80,7 +81,7 @@ func TestCacheClean_NothingCached(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.SetHome(t, t.TempDir())
 			if tt.createEmpty {
 				writeCacheFiles(t)
 			}
@@ -98,7 +99,7 @@ func TestCacheClean_NothingCached(t *testing.T) {
 }
 
 func TestCacheDir_PrintsCachePath(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	want, err := platform.CacheDir()
 	if err != nil {

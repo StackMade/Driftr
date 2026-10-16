@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stackmade/driftr/internal/config"
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func TestProjectPins(t *testing.T) {
@@ -165,7 +166,7 @@ func sameDir(t *testing.T, a, b string) bool {
 
 // Not requiring an install is the reason ProjectPins exists next to resolveFromProject.
 func TestProjectPins_DoesNotRequireInstall(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, ".driftr.toml"), []byte("[tools]\nnode = \"99.0.0\"\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
@@ -310,7 +311,7 @@ func mustLoadProject(t *testing.T, dir string) *config.ProjectConfig {
 
 func TestResolvePin(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	for _, v := range []string{"20.11.0", "22.1.0", "22.14.0", "23.5.0", "26.0.0"} {
 		setupFakeInstall(t, home, "node", v)
 	}
@@ -346,7 +347,7 @@ func TestResolvePin(t *testing.T) {
 
 func TestResolveRange(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	for _, v := range []string{"18.20.0", "20.11.0", "22.14.0", "24.0.0"} {
 		setupFakeInstall(t, home, "node", v)
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/stackmade/driftr/internal/config"
 	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func captureStdout(t *testing.T, fn func()) string {
@@ -32,7 +33,7 @@ func captureStdout(t *testing.T, fn func()) string {
 }
 
 func TestWarnIfPinned_FindsPinInParentDirectory(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	root := t.TempDir()
 	pinFile := filepath.Join(root, ".driftr.toml")
 	if err := os.WriteFile(pinFile, []byte("[tools]\nnode = \"22.14.0\"\n"), 0o644); err != nil {
@@ -51,7 +52,7 @@ func TestWarnIfPinned_FindsPinInParentDirectory(t *testing.T) {
 }
 
 func TestWarnIfPinned_SilentWhenVersionDiffers(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, ".driftr.toml"), []byte("[tools]\nnode = \"20.0.0\"\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -74,7 +75,7 @@ func TestWarnIfPinned_EveryPinSource(t *testing.T) {
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.SetHome(t, t.TempDir())
 			fakeNodeInstall(t, "18.0.0")
 			proj := t.TempDir()
 			if err := os.WriteFile(filepath.Join(proj, c.file), []byte(c.content), 0o644); err != nil {
@@ -91,7 +92,7 @@ func TestWarnIfPinned_EveryPinSource(t *testing.T) {
 
 // The shim runs the newest installed match, not the newest release of the lower-bound major.
 func TestWarnIfPinned_EnginesWarnsForVersionInUse(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	fakeNodeInstall(t, "18.0.0")
 	fakeNodeInstall(t, "22.14.0")
 	proj := t.TempDir()
@@ -109,7 +110,7 @@ func TestWarnIfPinned_EnginesWarnsForVersionInUse(t *testing.T) {
 }
 
 func TestWarnIfPinned_RecordedProject(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	fakeNodeInstall(t, "18.0.0")
 	proj := t.TempDir()
 	if err := os.WriteFile(filepath.Join(proj, ".nvmrc"), []byte("18.0.0\n"), 0o644); err != nil {
@@ -126,7 +127,7 @@ func TestWarnIfPinned_RecordedProject(t *testing.T) {
 }
 
 func TestUninstallCmd_PartialVersionNamesExactCommand(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 	fakeNodeInstall(t, "22.14.0")
 
@@ -145,7 +146,7 @@ func TestUninstallCmd_PartialVersionNamesExactCommand(t *testing.T) {
 }
 
 func TestUninstallCmd_WarnsWhenVersionIsGlobalDefault(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 	fakeNodeInstall(t, "22.14.0")
 
@@ -167,7 +168,7 @@ func TestUninstallCmd_WarnsWhenVersionIsGlobalDefault(t *testing.T) {
 }
 
 func TestUninstallCmd_WarnsWhenVersionIsPinnedHere(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	fakeNodeInstall(t, "22.14.0")
 
 	proj := t.TempDir()
@@ -188,7 +189,7 @@ func TestUninstallCmd_WarnsWhenVersionIsPinnedHere(t *testing.T) {
 }
 
 func TestUninstallCmd_BundledToolResolvesToParent(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 	fakeNodeInstall(t, "22.14.0")
 	npmDir, err := platform.ToolVersionDir("npm", "10.9.2")
@@ -219,7 +220,7 @@ func TestUninstallCmd_BundledToolResolvesToParent(t *testing.T) {
 }
 
 func TestUninstallCmd_InvalidVersion(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 
 	// A traversal attempt must be rejected by version parsing, never reach the filesystem.

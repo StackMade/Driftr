@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/stackmade/driftr/internal/testutil"
+
 	"github.com/spf13/cobra"
 
 	"github.com/stackmade/driftr/internal/resolver"
@@ -90,7 +92,7 @@ func TestHintEval_OnlyWhenStdoutIsTerminal(t *testing.T) {
 }
 
 func TestHandleShimError_DeclinedPromptInstallsNothing(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	ttyStdin(t, "n\n")
 	notInstalled := &resolver.NotInstalledError{Tool: "node", Version: "22.14.0", Context: ".nvmrc"}
 

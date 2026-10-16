@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 // A shasum of "" makes SHASUMS256.txt list a hash that does not match.
@@ -52,7 +53,7 @@ func nodeTarball(t *testing.T, version, binary string) []byte {
 }
 
 func TestVerifyChecksum_Match(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	content := []byte("archive bytes")
 	sum := fmt.Sprintf("%x", sha256.Sum256(content))
 	serveNodeDist(t, "99.0.0", content, sum)
@@ -68,7 +69,7 @@ func TestVerifyChecksum_Match(t *testing.T) {
 }
 
 func TestVerifyChecksum_Mismatch(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	serveNodeDist(t, "99.0.0", nil, "")
 
 	archive := filepath.Join(t.TempDir(), ArchiveFilename("99.0.0"))
@@ -83,7 +84,7 @@ func TestVerifyChecksum_Mismatch(t *testing.T) {
 }
 
 func TestVerifyChecksum_FilenameAbsentFromShasums(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "deadbeef  some-other-file.tar.gz\n")
@@ -117,7 +118,7 @@ func TestFetchExpectedChecksum_ServerError(t *testing.T) {
 
 func TestInstall_Success(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	archive := nodeTarball(t, "99.0.0", "#!/bin/sh\necho 99\n")
 	serveNodeDist(t, "99.0.0", archive, fmt.Sprintf("%x", sha256.Sum256(archive)))
@@ -142,7 +143,7 @@ func TestInstall_Success(t *testing.T) {
 // A corrupt download left cached would make every retry fail on the same bad bytes.
 func TestInstall_ChecksumMismatchRemovesCachedArchive(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	archive := nodeTarball(t, "99.0.0", "#!/bin/sh\n")
 	serveNodeDist(t, "99.0.0", archive, "") // published hash does not match
@@ -172,7 +173,7 @@ func TestInstall_ChecksumMismatchRemovesCachedArchive(t *testing.T) {
 
 // A failed SHASUMS fetch says nothing about the archive, so it stays cached for the retry.
 func TestInstall_ChecksumFetchFailureKeepsArchiveAndConcurrentInstall(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	const ver = "99.0.0"
 	bin, err := platform.NodeBinary(ver)
 	if err != nil {
@@ -215,7 +216,7 @@ func TestInstall_ChecksumFetchFailureKeepsArchiveAndConcurrentInstall(t *testing
 // A half-written version directory would look installed to the resolver.
 func TestInstall_ExtractionFailureWipesVersionDir(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	path := buildTarGz(t, []tarEntry{
 		{Name: "unexpected-layout/readme", Data: []byte("no node here"), Typeflag: tar.TypeReg},
@@ -240,7 +241,7 @@ func TestInstall_ExtractionFailureWipesVersionDir(t *testing.T) {
 }
 
 func TestInstall_AlreadyInstalledSkipsNetwork(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Errorf("unexpected request for an already-installed version: %s", r.URL.Path)
@@ -270,7 +271,7 @@ func TestInstall_AlreadyInstalledSkipsNetwork(t *testing.T) {
 }
 
 func TestInstall_InvalidVersion(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	if _, err := Install("not.a.version", false); err == nil ||
 		!strings.Contains(err.Error(), "invalid version") {
@@ -280,7 +281,7 @@ func TestInstall_InvalidVersion(t *testing.T) {
 
 func TestListInstalledVersions(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	for _, v := range []string{"20.11.0", "22.14.0"} {
 		if err := os.MkdirAll(filepath.Join(home, ".driftr", "tools", "node", v), 0o755); err != nil {

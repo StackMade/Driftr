@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/internal/testutil"
 	"github.com/stackmade/driftr/internal/version"
 )
 
@@ -99,7 +100,7 @@ func cachedTarball(t *testing.T, pkg, ver string) string {
 }
 
 func TestInstallPnpm_Success(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	newRegistryFixture(t, "pnpm", "9.15.0", "pnpm.cjs").serve(t)
 
 	got, err := InstallPnpm("9.15.0", false)
@@ -124,7 +125,7 @@ func TestInstallPnpm_Success(t *testing.T) {
 }
 
 func TestInstallPnpm_ResolvesPartialVersion(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	f := newRegistryFixture(t, "pnpm", "9.15.0", "pnpm.cjs")
 	f.versions = []string{"8.15.0", "9.14.0", "9.15.0"}
 	f.serve(t)
@@ -140,7 +141,7 @@ func TestInstallPnpm_ResolvesPartialVersion(t *testing.T) {
 
 // Registry metadata is attacker-controlled, so a foreign tarball host is refused before download.
 func TestInstallPnpm_RejectsForeignTarballHost(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	f := newRegistryFixture(t, "pnpm", "9.15.0", "pnpm.cjs")
 	f.host = "http://evil.example.com"
 	f.serve(t)
@@ -155,7 +156,7 @@ func TestInstallPnpm_RejectsForeignTarballHost(t *testing.T) {
 }
 
 func TestInstallPnpm_MissingIntegrityRefusesAndClearsCache(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	f := newRegistryFixture(t, "pnpm", "9.15.0", "pnpm.cjs")
 	f.integrity = ""
 	f.serve(t)
@@ -177,7 +178,7 @@ func TestInstallPnpm_MissingIntegrityRefusesAndClearsCache(t *testing.T) {
 }
 
 func TestInstallPnpm_IntegrityMismatchClearsCache(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	f := newRegistryFixture(t, "pnpm", "9.15.0", "pnpm.cjs")
 	f.integrity = "sha512-" + base64.StdEncoding.EncodeToString(make([]byte, 64))
 	f.serve(t)
@@ -192,7 +193,7 @@ func TestInstallPnpm_IntegrityMismatchClearsCache(t *testing.T) {
 }
 
 func TestInstallYarn_Success(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	newRegistryFixture(t, "yarn", "1.22.22", "yarn.js").serve(t)
 
 	got, err := InstallYarn("1.22.22", false)
@@ -212,7 +213,7 @@ func TestInstallYarn_Success(t *testing.T) {
 }
 
 func TestFetchRegistryVersion_NotFound(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	newRegistryFixture(t, "pnpm", "9.15.0", "pnpm.cjs").serve(t)
 
 	_, err := FetchRegistryVersion("pnpm", "1.2.3")
@@ -222,7 +223,7 @@ func TestFetchRegistryVersion_NotFound(t *testing.T) {
 }
 
 func TestResolveRegistryLatest_NoMatchingVersion(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	newRegistryFixture(t, "pnpm", "9.15.0", "pnpm.cjs").serve(t)
 
 	v, err := version.Parse("7")
@@ -236,7 +237,7 @@ func TestResolveRegistryLatest_NoMatchingVersion(t *testing.T) {
 }
 
 func TestResolveRegistryLatest_UsesDistTag(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	f := newRegistryFixture(t, "pnpm", "9.15.0", "pnpm.cjs")
 	f.versions = []string{"8.15.0", "9.15.0"}
 	f.serve(t)
@@ -255,7 +256,7 @@ func TestResolveRegistryLatest_UsesDistTag(t *testing.T) {
 }
 
 func TestInstallNpm_Success(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	newRegistryFixture(t, "npm", "10.9.2", "npm-cli.js").serve(t)
 
 	got, err := InstallNpm("10", false)
@@ -278,7 +279,7 @@ func TestInstallNpm_Success(t *testing.T) {
 }
 
 func TestInstallNpm_RejectsLTS(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	_, err := InstallNpm("lts", false)
 	if err == nil || !strings.Contains(err.Error(), "npm@10") {

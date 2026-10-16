@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func swapHTTPClient(t *testing.T, srv *httptest.Server) {
@@ -22,7 +23,7 @@ func swapHTTPClient(t *testing.T, srv *httptest.Server) {
 }
 
 func TestDownload_Success(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	content := []byte("fake node archive")
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +55,7 @@ func TestDownload_Success(t *testing.T) {
 }
 
 func TestDownload_VersionNotFound(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
@@ -69,7 +70,7 @@ func TestDownload_VersionNotFound(t *testing.T) {
 }
 
 func TestDownload_ServerError(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -84,7 +85,7 @@ func TestDownload_ServerError(t *testing.T) {
 }
 
 func TestDownload_UsesCache(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	cacheDir, err := platform.CacheDir()
 	if err != nil {
@@ -117,7 +118,7 @@ func TestDownload_UsesCache(t *testing.T) {
 }
 
 func TestDownload_EmptyCachedFileRedownloads(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	cacheDir, err := platform.CacheDir()
 	if err != nil {
@@ -185,7 +186,7 @@ func slowServer(t *testing.T, n int, gap time.Duration, stall bool) *httptest.Se
 
 // The client Timeout used to count the body read and kill node downloads below ~450 KB/s.
 func TestFetchToCache_SlowSteadyDownloadOutlivesClientTimeout(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	srv := slowServer(t, 40, 20*time.Millisecond, false)
 	swapHTTPClient(t, srv)
 	httpClient.Timeout = 300 * time.Millisecond
@@ -196,7 +197,7 @@ func TestFetchToCache_SlowSteadyDownloadOutlivesClientTimeout(t *testing.T) {
 }
 
 func TestFetchToCache_StalledDownloadTimesOut(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	srv := slowServer(t, 10, 0, true)
 	swapHTTPClient(t, srv)
 	orig := downloadIdleTimeout

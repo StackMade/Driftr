@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stackmade/driftr/internal/resolver"
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func captureStderr(t *testing.T, fn func()) string {
@@ -163,7 +164,7 @@ func TestPromptInstall_ShowsContext(t *testing.T) {
 }
 
 func TestHandleShimError_PassesThroughUnrelatedErrors(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	want := errors.New("permission denied")
 	rb, got := HandleShimError(want, "node")
@@ -176,7 +177,7 @@ func TestHandleShimError_PassesThroughUnrelatedErrors(t *testing.T) {
 }
 
 func TestHandleShimError_NonInteractiveDoesNotPrompt(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	// Auto-install is off and go test stdin is not a terminal, so nothing may install silently.
 	notInstalled := &resolver.NotInstalledError{Tool: "node", Version: "22.14.0"}

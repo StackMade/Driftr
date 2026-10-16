@@ -10,6 +10,7 @@ import (
 
 	"github.com/stackmade/driftr/internal/config"
 	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func setupFakeInstall(t *testing.T, home, tool, version string) {
@@ -31,7 +32,7 @@ func setupFakeInstall(t *testing.T, home, tool, version string) {
 
 func TestRequireToolInstalled_ExactVersion(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "22.14.0")
 
 	ver, binPath, err := RequireToolInstalled("node", "22.14.0")
@@ -47,7 +48,7 @@ func TestRequireToolInstalled_ExactVersion(t *testing.T) {
 }
 
 func TestRequireToolInstalled_NotInstalled(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	_, _, err := RequireToolInstalled("node", "99.0.0")
 	if err == nil {
@@ -57,7 +58,7 @@ func TestRequireToolInstalled_NotInstalled(t *testing.T) {
 
 func TestRequireToolInstalled_PartialVersion(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "22.14.0")
 	setupFakeInstall(t, home, "node", "22.13.0")
 
@@ -72,7 +73,7 @@ func TestRequireToolInstalled_PartialVersion(t *testing.T) {
 
 func TestRequireToolInstalled_Latest(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "20.11.0")
 	setupFakeInstall(t, home, "node", "22.14.0")
 
@@ -87,7 +88,7 @@ func TestRequireToolInstalled_Latest(t *testing.T) {
 
 func TestRequireToolInstalled_PartialNoMatch(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "20.11.0")
 
 	_, _, err := RequireToolInstalled("node", "22")
@@ -98,7 +99,7 @@ func TestRequireToolInstalled_PartialNoMatch(t *testing.T) {
 
 func TestResolveFromProject_DriftrToml(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "22.14.0")
 
 	projectDir := t.TempDir()
@@ -126,7 +127,7 @@ func TestResolveFromProject_DriftrToml(t *testing.T) {
 
 func TestResolveFromProject_PackageJSON(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "22.14.0")
 
 	projectDir := t.TempDir()
@@ -151,7 +152,7 @@ func TestResolveFromProject_PackageJSON(t *testing.T) {
 
 func TestResolveFromProject_TomlTakesPriority(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "20.0.0")
 	setupFakeInstall(t, home, "node", "22.14.0")
 
@@ -180,7 +181,7 @@ func TestResolveFromProject_TomlTakesPriority(t *testing.T) {
 
 func TestResolveFromGlobal(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	if err := platform.EnsureDirs(); err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +210,7 @@ func TestResolveFromGlobal(t *testing.T) {
 
 func TestResolveExplicit(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "24.0.0")
 
 	res, err := ResolveTool("node", "24.0.0", false)
@@ -225,7 +226,7 @@ func TestResolveExplicit(t *testing.T) {
 }
 
 func TestResolveNoConfig(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	emptyDir := t.TempDir()
 	origDir, _ := os.Getwd()
@@ -240,7 +241,7 @@ func TestResolveNoConfig(t *testing.T) {
 
 func TestResolveTool_PnpmIndependent(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "pnpm", "9.15.0")
 
 	projectDir := t.TempDir()
@@ -266,7 +267,7 @@ func TestResolveTool_PnpmIndependent(t *testing.T) {
 
 func TestResolveBinary_NpmResolveViaNode(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	if err := platform.EnsureDirs(); err != nil {
 		t.Fatal(err)
 	}
@@ -294,7 +295,7 @@ func TestResolveBinary_NpmResolveViaNode(t *testing.T) {
 
 func TestResolveBinaryFull_ExplicitPinsNodeNotTool(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	if err := platform.EnsureDirs(); err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +328,7 @@ func TestResolveBinaryFull_ExplicitPinsNodeNotTool(t *testing.T) {
 
 func TestResolveTool_PackageManagerField(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "pnpm", "9.15.0")
 
 	projectDir := t.TempDir()
@@ -354,7 +355,7 @@ func TestResolveTool_PackageManagerField(t *testing.T) {
 
 func TestResolveBinaryFull_BunNeedsNoNode(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "bun", "1.2.3")
 
 	projectDir := t.TempDir()
@@ -391,7 +392,7 @@ func TestResolveBinaryFull_BunNeedsNoNode(t *testing.T) {
 
 func TestResolveTool_DriftrKeyBeatsPackageManagerField(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "pnpm", "9.15.0")
 	setupFakeInstall(t, home, "pnpm", "8.0.0")
 
@@ -419,7 +420,7 @@ func TestResolveTool_DriftrKeyBeatsPackageManagerField(t *testing.T) {
 
 func TestResolveTool_PackageManagerFieldIgnoredForNode(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "22.14.0")
 
 	globalCfg, _ := config.LoadGlobal()
@@ -460,7 +461,7 @@ func projectWithPin(t *testing.T, ver string) string {
 
 func TestResolveTool_EnvVarBeatsProjectConfig(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "22.14.0")
 	setupFakeInstall(t, home, "node", "24.1.0")
 	projectWithPin(t, "22.14.0")
@@ -481,7 +482,7 @@ func TestResolveTool_EnvVarBeatsProjectConfig(t *testing.T) {
 
 func TestResolveTool_EnvVarPartialVersion(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "24.1.0")
 	setupFakeInstall(t, home, "node", "24.9.0")
 	projectWithPin(t, "24.1.0")
@@ -499,7 +500,7 @@ func TestResolveTool_EnvVarPartialVersion(t *testing.T) {
 
 func TestResolveTool_EmptyEnvVarIgnored(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "22.14.0")
 	projectWithPin(t, "22.14.0")
 
@@ -516,7 +517,7 @@ func TestResolveTool_EmptyEnvVarIgnored(t *testing.T) {
 
 func TestResolveTool_EnvVarNotInstalled(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "22.14.0")
 	projectWithPin(t, "22.14.0")
 
@@ -602,7 +603,7 @@ func TestNotInstalledError_ErrorsAs(t *testing.T) {
 
 func TestRequireToolBinaryExists_NotInstalled(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	_, err := requireToolBinaryExists("node", "99.99.99", "global default")
 	if err == nil {
@@ -620,7 +621,7 @@ func TestRequireToolBinaryExists_NotInstalled(t *testing.T) {
 
 func TestResolveFromProject_Nvmrc(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "22.14.0")
 
 	projectDir := t.TempDir()
@@ -657,7 +658,7 @@ func TestResolveFromProject_InexactPins(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.file+"="+strings.TrimSpace(c.content), func(t *testing.T) {
 			home := t.TempDir()
-			t.Setenv("HOME", home)
+			testutil.SetHome(t, home)
 			setupFakeInstall(t, home, "node", "20.0.0")
 			setupFakeInstall(t, home, "node", "22.1.0")
 			setupFakeInstall(t, home, "node", "22.14.0")
@@ -677,7 +678,7 @@ func TestResolveFromProject_InexactPins(t *testing.T) {
 
 	// No match: the error names the pin as written, so auto-install asks for node@24.
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "22.14.0")
 	projectDir := t.TempDir()
 	os.WriteFile(filepath.Join(projectDir, ".nvmrc"), []byte("24\n"), 0o644)
@@ -691,7 +692,7 @@ func TestResolveFromProject_InexactPins(t *testing.T) {
 
 func TestResolveFromProject_NodeVersion(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "22.14.0")
 
 	projectDir := t.TempDir()
@@ -715,7 +716,7 @@ func TestResolveFromProject_NodeVersion(t *testing.T) {
 
 func TestResolveFromProject_NvmrcPriority(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "20.0.0")
 	setupFakeInstall(t, home, "node", "22.14.0")
 
@@ -743,7 +744,7 @@ func TestResolveFromProject_NvmrcPriority(t *testing.T) {
 
 func TestResolveFromProject_NvmrcIgnoredForNonNode(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	projectDir := t.TempDir()
 	os.WriteFile(filepath.Join(projectDir, ".nvmrc"), []byte("22.14.0\n"), 0o644)
@@ -777,7 +778,7 @@ func TestResolveFromProject_LTSAlias(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			home := t.TempDir()
-			t.Setenv("HOME", home)
+			testutil.SetHome(t, home)
 			for _, v := range tt.installed {
 				setupFakeInstall(t, home, "node", v)
 			}
@@ -815,7 +816,7 @@ func TestResolveFromProject_LTSAliasNotInstalled(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			home := t.TempDir()
-			t.Setenv("HOME", home)
+			testutil.SetHome(t, home)
 			for _, v := range tt.installed {
 				setupFakeInstall(t, home, "node", v)
 			}
@@ -847,7 +848,7 @@ func TestResolveFromProject_LTSAliasNotInstalled(t *testing.T) {
 
 func TestResolveFromProject_UnknownLTSCodenameFallsThrough(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "22.14.0")
 
 	// Unknown codename in .nvmrc: warn and fall through to .node-version.
@@ -898,7 +899,7 @@ func TestResolveFromProject_EnginesNode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			home := t.TempDir()
-			t.Setenv("HOME", home)
+			testutil.SetHome(t, home)
 			for _, v := range tt.installed {
 				setupFakeInstall(t, home, "node", v)
 			}
@@ -919,7 +920,7 @@ func TestResolveFromProject_EnginesNode(t *testing.T) {
 }
 func TestResolveFromProject_EnginesNodeLosesToDriftrKey(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "18.20.4")
 	setupFakeInstall(t, home, "node", "22.14.0")
 
@@ -944,7 +945,7 @@ func TestResolveFromProject_EnginesNodeLosesToDriftrKey(t *testing.T) {
 // engines.node is a fallback: any explicit pin up the tree beats it, as in a monorepo package.
 func TestResolveFromProject_ParentPinBeatsNearerEnginesNode(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "20.11.0")
 	setupFakeInstall(t, home, "node", "24.1.0")
 
@@ -979,7 +980,7 @@ func TestResolveFromProject_ParentPinBeatsNearerEnginesNode(t *testing.T) {
 
 func TestResolveFromProject_NoEnginesNodeFallsThroughToGlobal(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "22.14.0")
 
 	globalCfg, _ := config.LoadGlobal()
@@ -1005,7 +1006,7 @@ func TestResolveFromProject_NoEnginesNodeFallsThroughToGlobal(t *testing.T) {
 }
 func TestResolveFromProject_EnginesNodeIgnoredForOtherTools(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "pnpm", "9.15.0")
 
 	globalCfg, _ := config.LoadGlobal()
@@ -1036,7 +1037,7 @@ func TestResolveFromProject_EnginesNodeNotInstalled(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			home := t.TempDir()
-			t.Setenv("HOME", home)
+			testutil.SetHome(t, home)
 			setupFakeInstall(t, home, "node", "16.20.2")
 			if tt.rangeText == "<21" {
 				os.RemoveAll(filepath.Join(home, ".driftr", "tools", "node"))
@@ -1059,7 +1060,7 @@ func TestResolveFromProject_EnginesNodeNotInstalled(t *testing.T) {
 }
 func TestResolveFromProject_EnginesNodeUnsupportedRange(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "20.11.1")
 	enginesProject(t, "18 - 20")
 
@@ -1076,7 +1077,7 @@ func TestResolveFromProject_EnginesNodeUnsupportedRange(t *testing.T) {
 
 func TestResolvePackageBin(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	// Another install of nest sits on PATH; the developer's own tsc must not.
 	elsewhere := t.TempDir()
 	if err := os.WriteFile(filepath.Join(elsewhere, "nest"), []byte("#!/bin/sh\n"), 0o755); err != nil {
@@ -1136,7 +1137,7 @@ func TestResolvePackageBin(t *testing.T) {
 
 func TestResolvePackageBin_OtherInstallOnPathWins(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "22.0.0")
 	dir, _ := platform.NodeVersionDir("22.0.0")
 	elsewhere := t.TempDir()
@@ -1160,7 +1161,7 @@ func TestResolvePackageBin_OtherInstallOnPathWins(t *testing.T) {
 
 func TestResolveTool_ExplicitPartialVersion(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	// 26 is an even major that is still Current: lts must not pick it.
 	for _, v := range []string{"20.11.0", "20.12.1", "22.0.0", "26.0.0"} {
 		setupFakeInstall(t, home, "node", v)
@@ -1190,7 +1191,7 @@ func TestResolveTool_ExplicitPartialVersion(t *testing.T) {
 func npmProject(t *testing.T) string {
 	t.Helper()
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "22.14.0")
 	setupFakeInstall(t, home, "node", "20.0.0")
 	setupFakeInstall(t, home, "npm", "10.9.2")
@@ -1304,7 +1305,7 @@ func TestResolveTool_PackageManagerFieldPinsNpm(t *testing.T) {
 
 func TestResolveBinaryFull_PnpxFollowsPnpm(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "22.14.0")
 	setupFakeInstall(t, home, "pnpm", "9.15.0")
 	cfg, _ := config.LoadGlobal()

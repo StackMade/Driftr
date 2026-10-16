@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/internal/testutil"
 )
 
 func writeProjectConfig(t *testing.T, dir, content string) {
@@ -122,7 +123,7 @@ func TestLoadProject_EmptyNode(t *testing.T) {
 
 // Writing in place let a concurrent shim read see a half-written file; a rename makes a new inode.
 func TestSaves_ReplaceTheFileAtomically(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	dir := t.TempDir()
 	writeProjectConfig(t, dir, "[tools]\nnode = \"20.0.0\"\n")
 	writePackageJSON(t, dir, `{"name": "x"}`)
