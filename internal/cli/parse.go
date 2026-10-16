@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/stackmade/driftr/internal/platform"
@@ -26,4 +27,15 @@ func parseToolVersion(spec string) (string, string) {
 		return spec, ""
 	}
 	return "node", spec
+}
+
+// versionedTool maps a tool name to the tool whose versions driftr installs
+// and pins: npx follows npm and pnpx follows pnpm. An unknown name errors with
+// the list of supported tools.
+func versionedTool(tool string) (string, error) {
+	entry, ok := platform.LookupTool(tool)
+	if !ok {
+		return "", fmt.Errorf("unknown tool: %s. Supported tools: %s", tool, strings.Join(versionedTools, ", "))
+	}
+	return entry.Parent, nil
 }

@@ -132,3 +132,48 @@ func TestUseCmd_NotInstalled(t *testing.T) {
 		t.Errorf("expected not-installed error, got: %v", err)
 	}
 }
+
+func TestUseCmd_UnsetAcceptsToolAtVersion(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("SHELL", "/bin/zsh")
+
+	out, err := runCmdOut(t, "use", "--unset", "node@22")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := strings.TrimSpace(out); got != "unset DRIFTR_NODE" {
+		t.Errorf("snippet = %q, want %q", got, "unset DRIFTR_NODE")
+	}
+}
+
+func TestBundledToolsMapToTheirParent(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("SHELL", "/bin/zsh")
+
+	out, err := runCmdOut(t, "use", "--unset", "npx")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := strings.TrimSpace(out); got != "unset DRIFTR_NPM" {
+		t.Errorf("snippet = %q, want %q", got, "unset DRIFTR_NPM")
+	}
+
+	// The remediation must name a command that works: npx is installed as npm.
+	for _, cmd := range []string{"use", "pin", "default"} {
+		err := runCmd(t, cmd, "npx@11.0.0")
+		if err == nil || !strings.Contains(err.Error(), "driftr install npm@11.0.0") {
+			t.Errorf("%s npx@11.0.0: error = %v, want it to suggest `driftr install npm@11.0.0`", cmd, err)
+		}
+	}
+}
+
+func TestUnknownToolListsKnownTools(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	for _, cmd := range []string{"use", "pin", "default"} {
+		err := runCmd(t, cmd, "foo@1")
+		if err == nil || !strings.Contains(err.Error(), "unknown tool: foo") || !strings.Contains(err.Error(), "bun") {
+			t.Errorf("%s foo@1: error = %v, want an unknown-tool error listing the supported tools", cmd, err)
+		}
+	}
+}

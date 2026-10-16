@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -40,16 +41,17 @@ The syntax follows $SHELL. Pass --shell to say which one to write for.`,
 
 			tool, versionSpec := parseToolVersion(args[0])
 			if unset {
-				// With --unset the argument is a bare tool name, so anything
-				// after "@" is a mistake worth naming.
-				tool = args[0]
+				// With --unset only the tool matters: node and node@22 both
+				// drop the node override.
+				tool, _, _ = strings.Cut(args[0], "@")
 				versionSpec = ""
 			}
 
-			envVar := resolver.EnvVarName(tool)
-			if envVar == "" {
-				return fmt.Errorf("unknown tool: %s. Supported tools: node, npm, npx, pnpm, pnpx, yarn", tool)
+			tool, err = versionedTool(tool)
+			if err != nil {
+				return err
 			}
+			envVar := resolver.EnvVarName(tool)
 
 			if unset {
 				fmt.Fprintln(cmd.OutOrStdout(), unsetSnippet(envVar, fish))

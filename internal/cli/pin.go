@@ -71,6 +71,10 @@ Examples:
 			}
 
 			tool, versionSpec := parseToolVersion(args[0])
+			tool, err := versionedTool(tool)
+			if err != nil {
+				return err
+			}
 
 			versionStr, _, err := resolver.RequireToolInstalled(tool, versionSpec)
 			if err != nil {

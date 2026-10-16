@@ -25,11 +25,10 @@ func newUninstallCmd() *cobra.Command {
 			tool, versionSpec := parseToolVersion(args[0])
 
 			// Resolve bundled tools to their parent (e.g. npx → npm, pnpx → pnpm).
-			entry, ok := platform.LookupTool(tool)
-			if !ok {
-				return fmt.Errorf("unknown tool: %s. Supported tools: node, npm, pnpm, yarn, bun", tool)
+			tool, err := versionedTool(tool)
+			if err != nil {
+				return err
 			}
-			tool = entry.Parent
 
 			if versionSpec == "" {
 				return fmt.Errorf("version required. Usage: driftr uninstall %s@<version>", tool)

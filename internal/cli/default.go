@@ -18,6 +18,10 @@ func newDefaultCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			tool, versionSpec := parseToolVersion(args[0])
+			tool, err := versionedTool(tool)
+			if err != nil {
+				return err
+			}
 
 			versionStr, _, err := resolver.RequireToolInstalled(tool, versionSpec)
 			if err != nil {
