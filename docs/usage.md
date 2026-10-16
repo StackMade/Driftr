@@ -302,6 +302,8 @@ driftr list yarn     # list yarn versions
 driftr list bun      # list bun versions
 ```
 
+`npx` lists npm and `pnpx` lists pnpm. `--pre` and `--limit` only apply with `--remote`.
+
 Output example, in a project that pins 24 with 22.14.0 as the global default:
 
 ```

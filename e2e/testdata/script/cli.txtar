@@ -6,8 +6,8 @@ stdout 'Available Commands'
 exec driftr list
 stdout 'No node versions installed'
 
-exec driftr list unknown
-stdout 'No unknown versions'
+! exec driftr list unknown
+stderr 'unknown tool: unknown'
 
 # Every error path has to exit non-zero. A command that prints a complaint and
 # still returns 0 breaks any script wrapping driftr.

@@ -35,7 +35,14 @@ func newListCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			tool := "node"
 			if len(args) > 0 {
-				tool = args[0]
+				var err error
+				if tool, err = versionedTool(args[0]); err != nil {
+					return err
+				}
+			}
+
+			if !remote && (cmd.Flags().Changed("pre") || cmd.Flags().Changed("limit")) {
+				return fmt.Errorf("--pre and --limit only apply with --remote. Run `driftr list --remote %s` with them", tool)
 			}
 
 			if remote {

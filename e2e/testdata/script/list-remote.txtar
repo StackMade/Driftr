@@ -27,4 +27,4 @@ stdout '>\*● '$NODE_VERSION
 stdout '= global default'
 
 ! exec driftr list --remote deno
-stderr 'remote listing not supported'
+stderr 'unknown tool: deno'
