@@ -77,6 +77,27 @@ func TestUseCmd_ShellFlagOverridesDetection(t *testing.T) {
 	}
 }
 
+func TestUseCmd_PowerShell(t *testing.T) {
+	testutil.SetHome(t, t.TempDir())
+	t.Setenv("SHELL", "/bin/zsh")
+	fakeNodeInstall(t, "22.14.0")
+
+	out, err := runCmdOut(t, "use", "node@22.14.0", "--shell", "powershell")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := strings.TrimSpace(out); got != "$env:DRIFTR_NODE = '22.14.0'" {
+		t.Errorf("snippet = %q, want PowerShell syntax", got)
+	}
+	out, err = runCmdOut(t, "use", "--unset", "node", "--shell", "pwsh")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := strings.TrimSpace(out); got != "Remove-Item Env:DRIFTR_NODE -ErrorAction SilentlyContinue" {
+		t.Errorf("unset snippet = %q, want PowerShell syntax", got)
+	}
+}
+
 func TestUseCmd_UnknownShellFlag(t *testing.T) {
 	testutil.SetHome(t, t.TempDir())
 

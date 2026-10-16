@@ -77,14 +77,14 @@ func TestHintEval_OnlyWhenStdoutIsTerminal(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.SetErr(&stderr)
 
-	hintEval(cmd, "node@22", true)
+	hintEval(cmd, "node@22", true, syntaxPOSIX)
 	if stderr.Len() != 0 {
 		t.Fatalf("hint printed while stdout is a pipe: %q", stderr.String())
 	}
 
 	orig := os.Stdout
 	os.Stdout = slave
-	hintEval(cmd, "node@22", true)
+	hintEval(cmd, "node@22", true, syntaxPOSIX)
 	os.Stdout = orig
 	if want := `eval "$(driftr use --unset node@22)"`; !strings.Contains(stderr.String(), want) {
 		t.Errorf("hint = %q, want %q", stderr.String(), want)
