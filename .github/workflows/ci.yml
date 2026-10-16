@@ -91,7 +91,8 @@ jobs:
           '
 
   test-windows:
-    # Unit tests only: the e2e suite still assumes POSIX shims and sh fakes.
+    # Unit tests and the e2e suite. Scripts whose stand-ins are sh scripts
+    # skip themselves; the fixture serves test/fakebin in its Windows archives.
     name: Test (windows-latest)
     runs-on: windows-latest
     timeout-minutes: 15
@@ -102,8 +103,8 @@ jobs:
           go-version-file: go.mod
           check-latest: true
           cache: true
-      - name: Run unit tests
-        run: go test -count=1 ./internal/...
+      - name: Run unit and e2e tests
+        run: go test -count=1 ./...
       - name: Smoke-test driftr.exe
         shell: pwsh
         run: |

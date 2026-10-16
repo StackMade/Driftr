@@ -24,7 +24,7 @@ func main() {
 	addr := flag.String("addr", "127.0.0.1:9123", "listen address")
 	flag.Parse()
 
-	handler, err := fixture.Handler()
+	handler, err := fixture.Handler(nil)
 	if err != nil {
 		log.Fatalf("build fixture: %v", err)
 	}

@@ -1,5 +1,7 @@
 # Package bins get shims, run under the node that installed them, and go with that node.
 
+[windows] skip 'hand-made node versions are sh scripts; see package-bins-windows.txtar'
+
 exec driftr setup
 exec driftr install node@22
 exec driftr default node@$NODE_VERSION

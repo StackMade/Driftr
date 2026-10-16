@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"testing"
 
@@ -38,7 +39,11 @@ func run(m *testing.M) int {
 	}
 	defer os.RemoveAll(tmp)
 
-	driftrBin = filepath.Join(tmp, "driftr")
+	exe := ""
+	if runtime.GOOS == "windows" {
+		exe = ".exe"
+	}
+	driftrBin = filepath.Join(tmp, "driftr"+exe)
 
 	// Not GOCOVERDIR: `go test -coverprofile` overwrites it in this process.
 	var buildFlags []string
@@ -57,8 +62,8 @@ func run(m *testing.M) int {
 	}
 
 	// Real binaries: shims embed os.Executable() of the driftr that wrote them.
-	updatableBin = filepath.Join(tmp, "driftr-updatable")
-	updatableSrc = updatableBin + ".orig"
+	updatableBin = filepath.Join(tmp, "driftr-updatable"+exe)
+	updatableSrc = filepath.Join(tmp, "driftr-updatable.orig")
 	for _, out := range []string{driftrBin, updatableSrc} {
 		flags := buildFlags
 		if out == updatableSrc {
@@ -71,7 +76,22 @@ func run(m *testing.M) int {
 		}
 	}
 
-	handler, err := fixture.Handler()
+	// Windows cannot run the fixture's shell scripts, so its archives carry
+	// a real program instead.
+	var windowsExe []byte
+	if runtime.GOOS == "windows" {
+		fakebin := filepath.Join(tmp, "fakebin.exe")
+		if err := build(fakebin, "../test/fakebin", nil); err != nil {
+			fmt.Fprintf(os.Stderr, "e2e: build fakebin: %v\n", err)
+			return 1
+		}
+		if windowsExe, err = os.ReadFile(fakebin); err != nil {
+			fmt.Fprintf(os.Stderr, "e2e: read fakebin: %v\n", err)
+			return 1
+		}
+	}
+
+	handler, err := fixture.Handler(windowsExe)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "e2e: build fixture: %v\n", err)
 		return 1
@@ -114,11 +134,15 @@ func collectCoverage() error {
 }
 
 func buildDriftr(out string, flags []string) error {
+	return build(out, "../cmd/driftr", flags)
+}
+
+func build(out, pkg string, flags []string) error {
 	args := append([]string{"build", "-o", out}, flags...)
-	build := exec.Command("go", append(args, "../cmd/driftr")...)
-	build.Stderr = os.Stderr
-	build.Stdout = os.Stdout
-	return build.Run()
+	cmd := exec.Command("go", append(args, pkg)...)
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
+	return cmd.Run()
 }
 
 func TestDriftr(t *testing.T) {
@@ -142,6 +166,13 @@ func TestDriftr(t *testing.T) {
 				return err
 			}
 			env.Setenv("HOME", home)
+			// Windows reads the home directory from USERPROFILE.
+			env.Setenv("USERPROFILE", home)
+			// On Windows, setup would write the shim dir into the runner's
+			// own registry Path; unit tests cover that against a scratch key.
+			if runtime.GOOS == "windows" {
+				env.Setenv("DRIFTR_NO_MODIFY_PATH", "1")
+			}
 
 			// Shims first, so `node` in a script never reaches the runner's own.
 			shimDir := filepath.Join(home, ".driftr", "bin")

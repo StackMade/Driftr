@@ -1,0 +1,51 @@
+# On Windows a global package bin is a .cmd; its shim runs the script that .cmd names under node.
+
+[!windows] skip 'npm writes .cmd bins only on Windows'
+
+exec driftr setup
+exec driftr install node@22
+exec driftr default node@$NODE_VERSION
+
+# Laid out the way npm install -g leaves a package: node's bin dir is npm's prefix.
+mkdir $HOME/.driftr/tools/node/$NODE_VERSION/bin/node_modules/hello/bin
+cp hello.js $HOME/.driftr/tools/node/$NODE_VERSION/bin/node_modules/hello/bin/hello.js
+cp hello.cmd $HOME/.driftr/tools/node/$NODE_VERSION/bin/hello.cmd
+! exists $HOME/.driftr/bin/hello.exe
+
+# npm -g refreshes the shims once npm exits.
+exec npm install -g hello
+stdout '10\.99\.0'
+exists $HOME/.driftr/bin/hello.exe
+
+exec hello
+stdout 'hello from a package'
+
+exec driftr which hello
+stdout 'global npm package'
+
+# Once the bin is gone, the next refresh removes its shim and keeps the rest.
+rm $HOME/.driftr/tools/node/$NODE_VERSION/bin/hello.cmd
+exec driftr setup
+! exists $HOME/.driftr/bin/hello.exe
+exists $HOME/.driftr/bin/node.exe
+
+-- hello.js --
+// driftr-fixture-prints: hello from a package
+-- hello.cmd --
+@ECHO off
+GOTO start
+:find_dp0
+SET dp0=%~dp0
+EXIT /b
+:start
+SETLOCAL
+CALL :find_dp0
+
+IF EXIST "%dp0%\node.exe" (
+  SET "_prog=%dp0%\node.exe"
+) ELSE (
+  SET "_prog=node"
+  SET PATHEXT=%PATHEXT:;.JS;=;%
+)
+
+endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\node_modules\hello\bin\hello.js" %*

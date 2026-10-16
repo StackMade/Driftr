@@ -1,5 +1,7 @@
 # Unwritable shims after an upgrade: tools work, commands say so, doctor reports until --fix.
 
+[windows] skip 'Windows has no read-only shim directory to simulate'
+
 [root] skip 'root ignores file permissions'
 
 exec driftr setup

@@ -1,5 +1,7 @@
 # The pnpm stub keeps its config in a file, so doctor reads back what optimize writes.
 
+[windows] skip 'the pnpm stub is a sh script'
+
 chmod 0755 fake/pnpm
 chmod 0755 fake/corepack
 chmod 0755 fake/node
