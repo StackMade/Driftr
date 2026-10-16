@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, feat/windows]
   pull_request:
     branches: [main, master]
   workflow_dispatch:
@@ -104,6 +104,14 @@ jobs:
           cache: true
       - name: Run unit tests
         run: go test -count=1 ./internal/...
+      - name: Smoke-test driftr.exe
+        shell: pwsh
+        run: |
+          go build -o driftr.exe ./cmd/driftr/
+          ./driftr.exe --version
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          ./driftr.exe --help | Out-Null
+          if ($LASTEXITCODE -ne 0) { exit 1 }
 
   test:
     # Covers both the unit tests and the e2e suite in e2e/, which drives a real
