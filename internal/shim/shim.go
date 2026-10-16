@@ -45,7 +45,7 @@ func GenerateShims(version string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot determine driftr executable path: %w", err)
 	}
-	previous := bakedPath(filepath.Join(binDir, "node"))
+	previous := BakedPath(filepath.Join(binDir, "node"))
 
 	for _, tool := range shimTools {
 		if err := writeShim(binDir, tool, driftrBin); err != nil {
@@ -86,21 +86,41 @@ func GenerateShims(version string) ([]string, error) {
 	return skipped, nil
 }
 
-// bakedPath returns the driftr path a shim execs, or "".
-func bakedPath(shimPath string) string {
+// BakedPath returns the driftr path a shim execs, or "".
+func BakedPath(shimPath string) string {
 	data, err := os.ReadFile(shimPath)
 	if err != nil {
 		return ""
 	}
-	rest, ok := strings.CutPrefix(string(data), "#!/bin/sh\nexec \"")
-	if !ok {
-		return ""
-	}
-	path, _, ok := strings.Cut(rest, "\"")
-	if !ok {
-		return ""
-	}
+	path, _, _ := parseShim(string(data))
 	return path
+}
+
+// parseShim returns the driftr path and tool of a shim writeShim made. Shims
+// from older versions double-quote the path instead; they parse too, so they
+// are still recognized as ours and refreshed.
+func parseShim(content string) (driftrBin, tool string, ok bool) {
+	line, ok := strings.CutPrefix(content, "#!/bin/sh\nexec ")
+	if !ok || strings.Count(line, "\n") != 1 {
+		return "", "", false
+	}
+	line, ok = strings.CutSuffix(line, ` "$@"`+"\n")
+	if !ok {
+		return "", "", false
+	}
+	i := strings.LastIndex(line, " shim ")
+	if i < 2 {
+		return "", "", false
+	}
+	quoted, tool := line[:i], line[i+len(" shim "):]
+	inner := quoted[1 : len(quoted)-1]
+	switch {
+	case quoted[0] == '\'' && quoted[len(quoted)-1] == '\'':
+		return strings.ReplaceAll(inner, `'\''`, "'"), tool, true
+	case quoted[0] == '"' && quoted[len(quoted)-1] == '"':
+		return inner, tool, true
+	}
+	return "", "", false
 }
 
 // releaseHomebrewKeg lets Homebrew clean up the keg old shims pointed at.
@@ -190,9 +210,8 @@ func isShimFile(path, tool string) bool {
 // isShimFor matches what writeShim produces for tool, with any driftr path:
 // the path changes when driftr moves, and an old shim is still ours.
 func isShimFor(content, tool string) bool {
-	return strings.HasPrefix(content, "#!/bin/sh\nexec \"") &&
-		strings.HasSuffix(content, "\" shim "+tool+" \"$@\"\n") &&
-		strings.Count(content, "\n") == 2
+	_, t, ok := parseShim(content)
+	return ok && t == tool
 }
 
 // stableExecutable returns the path driftr was invoked by, with symlinks left
@@ -239,9 +258,12 @@ func sameFile(a, b string) bool {
 }
 
 func writeShim(binDir, tool, driftrBin string) error {
+	// Single quotes keep $, `, " and \ in the path literal; a ' inside ends
+	// the quote, adds an escaped ', and reopens it.
+	quoted := "'" + strings.ReplaceAll(driftrBin, "'", `'\''`) + "'"
 	content := fmt.Sprintf(`#!/bin/sh
-exec "%s" shim %s "$@"
-`, driftrBin, tool)
+exec %s shim %s "$@"
+`, quoted, tool)
 	return ioutil.WriteFileAtomic(filepath.Join(binDir, tool), []byte(content), 0o755)
 }
 

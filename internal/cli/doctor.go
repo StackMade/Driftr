@@ -22,8 +22,6 @@ var versionedTools = []string{"node", "npm", "pnpm", "yarn", "bun"}
 // conflicting node version managers to detect on PATH.
 var conflictingBinaries = []string{"fnm", "volta", "n"}
 
-const shimExecPrefix = `exec "`
-
 func newDoctorCmd() *cobra.Command {
 	var fix bool
 	cmd := &cobra.Command{
@@ -295,39 +293,28 @@ func checkShimBinaryPath(binDir string, fix bool) int {
 		currentBin = resolved
 	}
 
-	shimPath := filepath.Join(binDir, "node")
-	data, err := os.ReadFile(shimPath)
-	if err != nil {
-		return 0 // already covered by checkShims
+	shimBin := shim.BakedPath(filepath.Join(binDir, "node"))
+	if shimBin == "" {
+		return 0 // missing shim is already covered by checkShims
 	}
-
-	content := string(data)
-	if idx := strings.Index(content, shimExecPrefix); idx >= 0 {
-		rest := content[idx+len(shimExecPrefix):]
-		if end := strings.Index(rest, "\""); end >= 0 {
-			shimBin := rest[:end]
-			resolved, err := filepath.EvalSymlinks(shimBin)
-			if err != nil || resolved == "" {
-				resolved = shimBin
-			}
-			if resolved != currentBin {
-				warn(fmt.Sprintf("Shims point to %s but driftr is at %s", shimBin, currentBin))
-				if !fix {
-					warn("  run `driftr doctor --fix` to point them at the current binary")
-					return 1
-				}
-				if _, err := shim.GenerateShims(Version); err != nil {
-					warn("  fix failed: " + err.Error())
-					return 1
-				}
-				pass("  fixed: shims now point to " + currentBin)
-				return 0
-			}
-			pass("Shims point to current driftr binary")
-			return 0
+	resolved, err := filepath.EvalSymlinks(shimBin)
+	if err != nil || resolved == "" {
+		resolved = shimBin
+	}
+	if resolved != currentBin {
+		warn(fmt.Sprintf("Shims point to %s but driftr is at %s", shimBin, currentBin))
+		if !fix {
+			warn("  run `driftr doctor --fix` to point them at the current binary")
+			return 1
 		}
+		if _, err := shim.GenerateShims(Version); err != nil {
+			warn("  fix failed: " + err.Error())
+			return 1
+		}
+		pass("  fixed: shims now point to " + currentBin)
+		return 0
 	}
-
+	pass("Shims point to current driftr binary")
 	return 0
 }
 

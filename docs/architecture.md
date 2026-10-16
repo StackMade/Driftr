@@ -113,7 +113,7 @@ Shims are simple shell scripts:
 
 ```sh
 #!/bin/sh
-exec "/usr/local/bin/driftr" shim node "$@"
+exec '/usr/local/bin/driftr' shim node "$@"
 ```
 
 The baked path is the path `driftr` was invoked with (`os.Executable()`), **not** the symlink-resolved target. This matters for package-manager installs: Homebrew exposes a stable symlink (`/opt/homebrew/bin/driftr`) pointing at a version-pinned file (`.../Cellar/driftr/0.11.1/bin/driftr`). Baking the resolved path would dangle every shim on the next `brew upgrade`; baking the stable symlink survives upgrades.

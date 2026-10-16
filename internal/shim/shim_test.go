@@ -3,6 +3,7 @@ package shim
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -27,7 +28,7 @@ func TestWriteShim_Content(t *testing.T) {
 	if !strings.HasPrefix(shim, "#!/bin/sh\n") {
 		t.Error("shim should start with #!/bin/sh")
 	}
-	if !strings.Contains(shim, `exec "/usr/local/bin/driftr" shim node "$@"`) {
+	if !strings.Contains(shim, `exec '/usr/local/bin/driftr' shim node "$@"`) {
 		t.Errorf("shim content unexpected: %s", shim)
 	}
 }
@@ -329,5 +330,54 @@ func TestGenerateShims_ReleasesTheOldHomebrewKeg(t *testing.T) {
 				t.Errorf(".keepme released = %v, want %v", released, tt.released)
 			}
 		})
+	}
+}
+
+// The driftr path is baked into every shim, so a $, backtick, quote or
+// backslash in it used to break all of them.
+func TestWriteShim_PathWithShellMetacharacters(t *testing.T) {
+	dir := t.TempDir()
+	weird := filepath.Join(dir, "a $HOME `x` \"q\" \\b 'c'")
+	if err := os.MkdirAll(weird, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	driftrBin := filepath.Join(weird, "driftr")
+	if err := os.WriteFile(driftrBin, []byte("#!/bin/sh\necho OK \"$@\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeShim(dir, "node", driftrBin); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := exec.Command("/bin/sh", filepath.Join(dir, "node"), "-v").CombinedOutput()
+	if err != nil || string(out) != "OK shim node -v\n" {
+		t.Errorf("shim broken for %q: %q, %v", driftrBin, out, err)
+	}
+	if got := BakedPath(filepath.Join(dir, "node")); got != driftrBin {
+		t.Errorf("BakedPath() = %q, want %q", got, driftrBin)
+	}
+	if !isShimFile(filepath.Join(dir, "node"), "node") {
+		t.Error("isShimFile() = false for a shim writeShim made")
+	}
+}
+
+// Shims written before the path was single-quoted must still be recognized,
+// so they get refreshed and their Homebrew keg released.
+func TestParseShim(t *testing.T) {
+	for _, tt := range []struct {
+		content, path, tool string
+		ok                  bool
+	}{
+		{"#!/bin/sh\nexec \"/old/driftr\" shim node \"$@\"\n", "/old/driftr", "node", true},
+		{"#!/bin/sh\nexec '/new/driftr' shim tsc \"$@\"\n", "/new/driftr", "tsc", true},
+		{"#!/bin/sh\nexec '/O'\\''Brien/driftr' shim npm \"$@\"\n", "/O'Brien/driftr", "npm", true},
+		{"#!/bin/sh\nexec /bare/driftr shim node \"$@\"\n", "", "", false},
+		{"#!/bin/sh\nexec '/x' shim node \"$@\"\necho extra\n", "", "", false},
+		{"#!/bin/bash\nexec '/x' shim node \"$@\"\n", "", "", false},
+	} {
+		path, tool, ok := parseShim(tt.content)
+		if path != tt.path || tool != tt.tool || ok != tt.ok {
+			t.Errorf("parseShim(%q) = %q, %q, %v; want %q, %q, %v", tt.content, path, tool, ok, tt.path, tt.tool, tt.ok)
+		}
 	}
 }
