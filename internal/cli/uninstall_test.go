@@ -90,6 +90,26 @@ func TestWarnIfPinned_EveryPinSource(t *testing.T) {
 	}
 }
 
+// engines.node warns about the version the shim runs, the newest installed
+// match, not the newest release of the range's lower-bound major.
+func TestWarnIfPinned_EnginesWarnsForVersionInUse(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	fakeNodeInstall(t, "18.0.0")
+	fakeNodeInstall(t, "22.14.0")
+	proj := t.TempDir()
+	pkg := filepath.Join(proj, "package.json")
+	if err := os.WriteFile(pkg, []byte(`{"engines":{"node":">=18"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if out := captureStdout(t, func() { warnIfPinned(proj, "node", "22.14.0") }); !strings.Contains(out, pkg) {
+		t.Errorf("removing the version in use: output = %q, want a warning naming %s", out, pkg)
+	}
+	if out := captureStdout(t, func() { warnIfPinned(proj, "node", "18.0.0") }); out != "" {
+		t.Errorf("removing an unused version: got warning %q", out)
+	}
+}
+
 func TestWarnIfPinned_RecordedProject(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	fakeNodeInstall(t, "18.0.0")

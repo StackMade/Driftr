@@ -129,7 +129,13 @@ func warnIfPinned(dir, tool, versionStr string) {
 			if pin.Tool != tool {
 				continue
 			}
-			if pin.Version != versionStr {
+			if pin.Range != "" {
+				// engines.node: the shim runs the newest installed match, not
+				// the lower-bound major in pin.Version.
+				if resolved, ok, err := resolver.ResolveRange(tool, pin.Range); err != nil || !ok || resolved != versionStr {
+					continue
+				}
+			} else if pin.Version != versionStr {
 				if resolved, ok, err := resolver.ResolvePin(tool, pin.Version); err != nil || !ok || resolved != versionStr {
 					continue
 				}
