@@ -503,6 +503,7 @@ func TestRootOwnedRcFiles(t *testing.T) {
 		t.Skip("permissions do not bind root")
 	}
 	home := setHome(t)
+	t.Setenv("SHELL", "/bin/zsh")
 	binDir := filepath.Join(home, ".driftr", "bin")
 	zshenv := filepath.Join(home, ".zshenv")
 	zshrc := filepath.Join(home, ".zshrc")
