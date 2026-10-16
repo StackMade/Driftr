@@ -212,6 +212,40 @@ func TestExtract_EscapingSymlinkRejected(t *testing.T) {
 	}
 }
 
+// Each link passes symlinkEscapes on its own; only following the links
+// already on disk shows that the last one climbs out of the version dir.
+func TestExtract_SymlinkChainEscapeRejected(t *testing.T) {
+	const ver = "99.0.0"
+	prefix := nodePrefix(ver)
+	chains := map[string][]tarEntry{
+		"nested links": {
+			{Name: prefix + "x/y/b", Link: "../..", Typeflag: tar.TypeSymlink},
+			{Name: prefix + "x/y/b/c", Link: "../..", Typeflag: tar.TypeSymlink},
+		},
+		"dotdot after link": {
+			{Name: prefix + "x/b", Link: "..", Typeflag: tar.TypeSymlink},
+			{Name: prefix + "a", Link: "x/b/x/b/..", Typeflag: tar.TypeSymlink},
+		},
+	}
+	for name, links := range chains {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			entries := append([]tarEntry{{Name: prefix + "bin/node", Data: []byte("node binary"), Typeflag: tar.TypeReg}}, links...)
+			err := Extract(buildTarGz(t, entries), ver, false, nil)
+			if err == nil || !strings.Contains(err.Error(), "symlink pointing outside") {
+				t.Fatalf("expected escaping-symlink error, got: %v", err)
+			}
+			destDir, dirErr := platform.NodeVersionDir(ver)
+			if dirErr != nil {
+				t.Fatal(dirErr)
+			}
+			if _, statErr := os.Stat(destDir); !errors.Is(statErr, os.ErrNotExist) {
+				t.Errorf("version dir left behind after rejected extraction: %s", destDir)
+			}
+		})
+	}
+}
+
 func TestExtract_InternalSymlinkKept(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	const ver = "99.0.0"

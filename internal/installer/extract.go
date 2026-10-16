@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -29,6 +30,68 @@ func symlinkEscapes(linkPath, target string) bool {
 	}
 	resolved := path.Join(path.Dir(linkPath), target)
 	return resolved == ".." || strings.HasPrefix(resolved, "../")
+}
+
+// checkSymlinks rejects any symlink under dir whose target leaves dir once
+// the links already on disk are followed. symlinkEscapes sees one entry at a
+// time and resolves ".." lexically, so a chain such as b -> .. followed by
+// b/c -> ../.. passes it while c points two levels above dir. Run it on the
+// finished tree, before the rename makes the version visible.
+func checkSymlinks(dir string) error {
+	return filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.Type()&fs.ModeSymlink == 0 {
+			return nil
+		}
+		rel, err := filepath.Rel(dir, p)
+		if err != nil {
+			return err
+		}
+		if resolvesOutside(dir, filepath.ToSlash(rel)) {
+			return fmt.Errorf("archive entry %s is a symlink pointing outside the install directory. Run 'driftr cache clean' and retry", rel)
+		}
+		return nil
+	})
+}
+
+// resolvesOutside follows rel inside dir one component at a time, reading
+// every symlink it meets, and reports whether the walk climbs above dir.
+// Components that do not exist are taken lexically.
+func resolvesOutside(dir, rel string) bool {
+	parts := strings.Split(rel, "/")
+	var cur []string
+	for hops := 0; len(parts) > 0; {
+		p := parts[0]
+		parts = parts[1:]
+		switch p {
+		case "", ".":
+			continue
+		case "..":
+			if len(cur) == 0 {
+				return true
+			}
+			cur = cur[:len(cur)-1]
+			continue
+		}
+		cur = append(cur, p)
+		full := filepath.Join(dir, filepath.FromSlash(path.Join(cur...)))
+		fi, err := os.Lstat(full)
+		if err != nil || fi.Mode()&fs.ModeSymlink == 0 {
+			continue
+		}
+		if hops++; hops > 255 {
+			return true // a loop: treat as unsafe rather than spin
+		}
+		target, err := os.Readlink(full)
+		if err != nil || target == "" || path.IsAbs(target) {
+			return true
+		}
+		cur = cur[:len(cur)-1]
+		parts = append(strings.Split(target, "/"), parts...)
+	}
+	return false
 }
 
 // extractToRoot extracts a tar entry into an os.Root-sandboxed directory.
@@ -199,6 +262,11 @@ func Extract(archivePath, version string, verbose bool, cleanup *installCleanup)
 	}
 
 	root.Close()
+
+	if err := checkSymlinks(tmpDir); err != nil {
+		os.RemoveAll(tmpDir)
+		return err
+	}
 
 	if err := os.Rename(tmpDir, destDir); err != nil {
 		// Another process may have won the race — check if binary exists

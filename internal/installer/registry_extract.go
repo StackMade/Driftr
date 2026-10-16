@@ -78,6 +78,11 @@ func ExtractRegistryPackage(archivePath, destDir, binaryPath string) error {
 
 	root.Close()
 
+	if err := checkSymlinks(tmpDir); err != nil {
+		os.RemoveAll(tmpDir)
+		return err
+	}
+
 	if err := os.Rename(tmpDir, destDir); err != nil {
 		// Another process may have won the race — check if binary exists
 		if _, statErr := os.Stat(binaryPath); statErr == nil {
