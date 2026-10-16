@@ -17,7 +17,6 @@ import (
 	"time"
 )
 
-// makeTarGz builds a tar.gz archive with the given file entries.
 func makeTarGz(t *testing.T, files map[string][]byte) []byte {
 	t.Helper()
 	var buf bytes.Buffer
@@ -238,8 +237,7 @@ func TestDownloadFile_Success(t *testing.T) {
 	}
 }
 
-// A download slower than the client timeout still finishes as long as data
-// keeps coming; one that stops sending is cut off by the idle timeout.
+// A slow but steady download outlives the client timeout; a stalled one hits the idle timeout.
 func TestDownloadFile_IdleTimeout(t *testing.T) {
 	origTimeout, origIdle := httpClient.Timeout, downloadIdleTimeout
 	t.Cleanup(func() { httpClient.Timeout, downloadIdleTimeout = origTimeout, origIdle })
@@ -289,7 +287,6 @@ func TestDownloadFile_HTTPError(t *testing.T) {
 	}
 }
 
-// rewriteTransport sends every request to the test server, preserving the path.
 type rewriteTransport struct{ target string }
 
 func (rt *rewriteTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -384,13 +381,35 @@ func TestFetchLatestVersion_UsesOverride(t *testing.T) {
 }
 
 func TestRedirectGuardRejectsPlaintext(t *testing.T) {
-	// The override loosens the *initial* URL only. A redirect off HTTPS is
-	// still refused, because self-update overwrites the running binary.
+	// The override loosens only the initial URL: self-update overwrites the binary, so no downgrade.
 	req, err := http.NewRequest(http.MethodGet, "http://example.invalid/x", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := httpClient.CheckRedirect(req, nil); err == nil {
 		t.Error("expected redirect to plaintext HTTP to be refused")
+	}
+}
+
+func TestReplaceBinary_FallbackFailureLeavesNoTempFile(t *testing.T) {
+	dir := t.TempDir()
+	newPath := filepath.Join(dir, "new")
+	oldPath := filepath.Join(dir, "driftr")
+	if err := os.WriteFile(newPath, []byte("new binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(oldPath, "keep"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	err := replaceBinary(newPath, oldPath)
+	if err == nil || !strings.Contains(err.Error(), "atomic replace also failed") {
+		t.Fatalf("got %v, want the fallback rename error", err)
+	}
+	if _, err := os.Stat(oldPath + ".driftr-update"); !os.IsNotExist(err) {
+		t.Errorf("temp copy left behind: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(oldPath, "keep")); err != nil {
+		t.Errorf("target was damaged: %v", err)
 	}
 }

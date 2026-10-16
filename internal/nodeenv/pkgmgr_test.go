@@ -89,7 +89,6 @@ func TestDetectPackageManager(t *testing.T) {
 	}
 }
 
-// A directory named like a lockfile is not a lockfile.
 func TestDetectPackageManager_LockfileDirIsNotALockfile(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "pnpm-lock.yaml"), 0o755); err != nil {
@@ -100,7 +99,6 @@ func TestDetectPackageManager_LockfileDirIsNotALockfile(t *testing.T) {
 	}
 }
 
-// A directory in place of package.json must not abort detection.
 func TestDetectPackageManager_PackageJSONDirFallsThrough(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "package.json"), 0o755); err != nil {

@@ -120,10 +120,7 @@ func TestLoadProject_EmptyNode(t *testing.T) {
 	}
 }
 
-// Shims read these files while pin and default write them. Writing in place
-// truncated the file first, so a concurrent read could see it empty or half
-// written; a replace by rename never shows either. A replaced file is a new
-// inode, which is what these checks look for.
+// Writing in place let a concurrent shim read see a half-written file; a rename makes a new inode.
 func TestSaves_ReplaceTheFileAtomically(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	dir := t.TempDir()
@@ -165,7 +162,6 @@ func TestSaves_ReplaceTheFileAtomically(t *testing.T) {
 	}
 }
 
-// package.json keeps its mode, and a symlinked one stays a symlink.
 func TestSavePackageJSONTool_KeepsModeAndSymlink(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(t.TempDir(), "package.json")

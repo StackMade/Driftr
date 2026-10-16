@@ -8,8 +8,6 @@ import (
 	"testing"
 )
 
-// fakeBinDir prepends a fresh directory to PATH for the duration of the test and
-// returns it, so scripts written there shadow any real binary of the same name.
 func fakeBinDir(t *testing.T) string {
 	t.Helper()
 	if runtime.GOOS == "windows" {
@@ -20,7 +18,6 @@ func fakeBinDir(t *testing.T) string {
 	return dir
 }
 
-// writeScript places an executable /bin/sh script named name into dir.
 func writeScript(t *testing.T, dir, name, body string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
@@ -94,8 +91,7 @@ func TestExecRunner_RunFailure(t *testing.T) {
 			body:     `exit 1`,
 			args:     []string{"config", "get", "store-dir"},
 			contains: []string{"driftr-fake-pnpm config get store-dir", "exit status 1"},
-			// Nothing was written to stderr, so the message must not end with a
-			// dangling ": " from an empty stderr suffix.
+			// Nothing went to stderr, so the message must not end with a dangling ": ".
 			absent: "exit status 1: ",
 		},
 	}
@@ -155,8 +151,7 @@ func TestExecRunner_LookPath(t *testing.T) {
 	}
 }
 
-// A file on PATH that is not executable must not resolve — otherwise Installed()
-// would report a tool that cannot be run.
+// A non-executable file on PATH must not resolve, or Installed() would report an unrunnable tool.
 func TestExecRunner_LookPathIgnoresNonExecutable(t *testing.T) {
 	dir := fakeBinDir(t)
 	if err := os.WriteFile(filepath.Join(dir, "driftr-fake-pnpm"), []byte("#!/bin/sh\n"), 0o644); err != nil {

@@ -83,7 +83,6 @@ func TestListToolVersions(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	// Create fake installed versions.
 	nodeDir := filepath.Join(home, ".driftr", "tools", "node")
 	for _, v := range []string{"20.11.0", "22.14.0", "24.0.0"} {
 		if err := os.MkdirAll(filepath.Join(nodeDir, v), 0o755); err != nil {
@@ -120,7 +119,6 @@ func TestListToolVersions_IgnoresFiles(t *testing.T) {
 	if err := os.MkdirAll(nodeDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// Create a version dir and a stray file.
 	os.MkdirAll(filepath.Join(nodeDir, "22.14.0"), 0o755)
 	os.WriteFile(filepath.Join(nodeDir, ".DS_Store"), []byte{}, 0o644)
 
@@ -209,8 +207,7 @@ func TestFindOutsideDriftr(t *testing.T) {
 	}
 	writeExec(filepath.Join(bin, "nest")) // driftr's own shim
 
-	// Aliases of the shim that must never count as "elsewhere": a symlinked
-	// shim dir, and a symlink straight to the shim file.
+	// A symlinked shim dir and a symlink to the shim file must never count as "elsewhere".
 	aliasDir := filepath.Join(t.TempDir(), "shims")
 	if err := os.Symlink(bin, aliasDir); err != nil {
 		t.Fatal(err)

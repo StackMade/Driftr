@@ -1,10 +1,4 @@
-# self-update downloads a release, verifies its checksum, and replaces the
-# binary it is running from.
-#
-# That last part is why this script runs $DRIFTR_UPDATABLE_BIN, a second binary
-# built for it alone. Overwriting the one every other script shares would break
-# the whole suite, and copying a binary here and executing it immediately races
-# with concurrent forks, which fails with ETXTBSY on Linux.
+# self-update replaces its own binary, so it runs a copy built for this script (see e2e_test.go).
 
 exec $DRIFTR_UPDATABLE_BIN self-update -v
 stdout 'Updating driftr'

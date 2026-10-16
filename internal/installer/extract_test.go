@@ -14,8 +14,6 @@ import (
 	"github.com/stackmade/driftr/internal/platform"
 )
 
-// tarEntry describes one entry for buildTarGz. Link is the symlink target
-// when Typeflag is tar.TypeSymlink.
 type tarEntry struct {
 	Name     string
 	Data     []byte
@@ -23,7 +21,6 @@ type tarEntry struct {
 	Link     string
 }
 
-// buildTarGz creates a tar.gz archive file from ordered entries and returns its path.
 func buildTarGz(t *testing.T, entries []tarEntry) string {
 	t.Helper()
 	var buf bytes.Buffer
@@ -95,7 +92,6 @@ func TestExtract_Success(t *testing.T) {
 		t.Errorf("content mismatch: got %q", got)
 	}
 
-	// Entries outside the expected prefix must not be extracted.
 	destDir, err := platform.NodeVersionDir(ver)
 	if err != nil {
 		t.Fatal(err)
@@ -119,7 +115,7 @@ func TestExtract_MissingNodeBinary(t *testing.T) {
 		t.Fatalf("expected node-binary-not-found error, got: %v", err)
 	}
 
-	// The version dir must not exist — a broken install must never look valid.
+	// A broken install must never look valid to the resolver.
 	destDir, err := platform.NodeVersionDir(ver)
 	if err != nil {
 		t.Fatal(err)
@@ -140,8 +136,7 @@ func TestExtract_PathTraversalBlocked(t *testing.T) {
 		{Name: prefix + "bin/node", Data: []byte("node binary"), Typeflag: tar.TypeReg},
 	})
 
-	// Whether Extract errors or skips the entry, nothing may be written
-	// outside the version directory.
+	// Extract may error or skip the entry; either way nothing may land outside the version dir.
 	_ = Extract(archive, ver, false, nil)
 
 	// filepath.Glob has no recursive **, so walk the whole tree.
@@ -202,7 +197,6 @@ func TestExtract_EscapingSymlinkRejected(t *testing.T) {
 		t.Fatalf("expected escaping-symlink error, got: %v", err)
 	}
 
-	// A rejected archive must leave no half-installed version behind.
 	destDir, dirErr := platform.NodeVersionDir(ver)
 	if dirErr != nil {
 		t.Fatal(dirErr)
@@ -212,8 +206,7 @@ func TestExtract_EscapingSymlinkRejected(t *testing.T) {
 	}
 }
 
-// Each link passes symlinkEscapes on its own; only following the links
-// already on disk shows that the last one climbs out of the version dir.
+// Each link passes symlinkEscapes alone; only following the links on disk reveals the escape.
 func TestExtract_SymlinkChainEscapeRejected(t *testing.T) {
 	const ver = "99.0.0"
 	prefix := nodePrefix(ver)
@@ -225,6 +218,10 @@ func TestExtract_SymlinkChainEscapeRejected(t *testing.T) {
 		"dotdot after link": {
 			{Name: prefix + "x/b", Link: "..", Typeflag: tar.TypeSymlink},
 			{Name: prefix + "a", Link: "x/b/x/b/..", Typeflag: tar.TypeSymlink},
+		},
+		"link loop": {
+			{Name: prefix + "l1", Link: "l2", Typeflag: tar.TypeSymlink},
+			{Name: prefix + "l2", Link: "l1", Typeflag: tar.TypeSymlink},
 		},
 	}
 	for name, links := range chains {
@@ -278,7 +275,6 @@ func TestExtract_AlreadyExtracted(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	const ver = "99.0.0"
 
-	// Pre-create the node binary so Extract should be a no-op.
 	nodeBin, err := platform.NodeBinary(ver)
 	if err != nil {
 		t.Fatal(err)
@@ -426,5 +422,81 @@ func TestExtract_WrongArchiveLayout(t *testing.T) {
 	}
 	if _, statErr := os.Stat(destDir); !errors.Is(statErr, os.ErrNotExist) {
 		t.Errorf("version dir left behind after layout error: %s", destDir)
+	}
+}
+
+func TestExtract_CorruptDownloadLeavesNothingBehind(t *testing.T) {
+	const ver = "99.0.0"
+	prefix := nodePrefix(ver)
+	valid, err := os.ReadFile(buildTarGz(t, []tarEntry{
+		{Name: prefix + "bin/node", Data: bytes.Repeat([]byte("x"), 64<<10), Typeflag: tar.TypeReg},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cases := map[string]struct {
+		data []byte
+		want string
+	}{
+		"html error page": {[]byte("<html>502 Bad Gateway</html>"), "gzip reader"},
+		"truncated":       {valid[:len(valid)/2], "failed to"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			archive := filepath.Join(t.TempDir(), "node.tar.gz")
+			if err := os.WriteFile(archive, tc.data, 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			err := Extract(archive, ver, false, &installCleanup{})
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("Extract() error = %v, want it to contain %q", err, tc.want)
+			}
+			destDir, _ := platform.NodeVersionDir(ver)
+			left, _ := os.ReadDir(filepath.Dir(destDir))
+			if len(left) != 0 {
+				t.Errorf("tools dir not clean after failed extraction: %v", left)
+			}
+		})
+	}
+}
+
+func TestExtractRegistryPackage_ConcurrentInstallWins(t *testing.T) {
+	destDir := filepath.Join(t.TempDir(), "pnpm", "9.0.0")
+	binaryPath := filepath.Join(destDir, "bin", "pnpm.cjs")
+	writeFileAll(t, binaryPath, "theirs")
+	archive := buildTarGz(t, []tarEntry{
+		{Name: "package/bin/pnpm.cjs", Data: []byte("ours"), Typeflag: tar.TypeReg},
+	})
+
+	if err := ExtractRegistryPackage(archive, destDir, binaryPath); err != nil {
+		t.Fatalf("losing the race should not fail: %v", err)
+	}
+	if got := readString(t, binaryPath); got != "theirs" {
+		t.Errorf("winner's file was replaced: %q", got)
+	}
+	if left := tmpLeftovers(t, filepath.Dir(destDir)); len(left) > 0 {
+		t.Errorf("temp dirs left behind: %v", left)
+	}
+}
+
+func TestExtractRegistryPackage_EscapingSymlinkRejected(t *testing.T) {
+	destDir := filepath.Join(t.TempDir(), "pnpm", "9.0.0")
+	archive := buildTarGz(t, []tarEntry{
+		{Name: "package/x/b", Link: "..", Typeflag: tar.TypeSymlink},
+		{Name: "package/x/b/c", Link: "../..", Typeflag: tar.TypeSymlink},
+	})
+
+	err := ExtractRegistryPackage(archive, destDir, filepath.Join(destDir, "bin", "pnpm.cjs"))
+	if err == nil || !strings.Contains(err.Error(), "symlink pointing outside") {
+		t.Fatalf("got %v, want escaping-symlink error", err)
+	}
+	if _, err := os.Stat(destDir); !os.IsNotExist(err) {
+		t.Errorf("version dir exists after rejection: %v", err)
+	}
+	if left := tmpLeftovers(t, filepath.Dir(destDir)); len(left) > 0 {
+		t.Errorf("temp dirs left behind: %v", left)
 	}
 }

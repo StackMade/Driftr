@@ -30,8 +30,7 @@ func TestCopyFile_CopiesContentAndMode(t *testing.T) {
 		t.Errorf("copied content = %q, want %q", got, want)
 	}
 
-	// The destination is a binary the updater is about to run, so it has to
-	// come out executable regardless of the source's mode.
+	// The updater runs the destination next, so it must be executable whatever the source mode.
 	info, err := os.Stat(dst)
 	if err != nil {
 		t.Fatal(err)

@@ -9,11 +9,7 @@ import (
 	"testing"
 )
 
-// concurrentExtractors runs extract N times at once and fails the test on the
-// first error any of them reports. Both extractors claim to survive two
-// installs of the same version racing each other: they unpack into a unique
-// sibling temp dir and rename it into place, treating a rename failure as
-// "another process got there first" once the binary exists.
+// Racing installs of one version must all succeed: each unpacks to a temp dir, then renames.
 func concurrentExtractors(t *testing.T, n int, extract func() error) {
 	t.Helper()
 
@@ -38,9 +34,6 @@ func concurrentExtractors(t *testing.T, n int, extract func() error) {
 	}
 }
 
-// assertSoleInstall checks that destDir is the only thing its parent holds —
-// no abandoned ".tmp-" work dir — and that the named binary is there, has the
-// expected content, and is executable.
 func assertSoleInstall(t *testing.T, destDir, binPath, wantContent string) {
 	t.Helper()
 
@@ -110,16 +103,12 @@ func TestExtractZipToBin_ConcurrentInstalls(t *testing.T) {
 	assertSoleInstall(t, destDir, binPath, body)
 }
 
-// A loser of the race must not report success while the destination is
-// unusable: with the winner's directory present but empty, the rename fails
-// and the binary is nowhere, so the error has to surface.
+// A race loser must not report success when the rename fails and no binary exists.
 func TestExtractZipToBin_RenameFailureWithoutBinaryErrors(t *testing.T) {
 	archive := writeTestZip(t, map[string]string{"bun-linux-x64/bun": "#!/bin/sh\n"})
 
 	parent := t.TempDir()
 	destDir := filepath.Join(parent, "1.2.3")
-	// A directory that is occupied but holds no binary: renaming onto it fails
-	// and the "someone else won" check must not paper over that.
 	if err := os.MkdirAll(filepath.Join(destDir, "occupied"), 0o755); err != nil {
 		t.Fatal(err)
 	}

@@ -9,8 +9,6 @@ import (
 	"github.com/stackmade/driftr/internal/platform"
 )
 
-// writeCacheFiles fills the cache directory with files of the given sizes and
-// returns the directory.
 func writeCacheFiles(t *testing.T, sizes ...int) string {
 	t.Helper()
 	cacheDir, err := platform.CacheDir()

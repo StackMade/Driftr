@@ -1,19 +1,4 @@
-// Package e2e runs the driftr binary against its own HOME and real archives
-// on disk. Every upstream it would otherwise fetch over the network is served
-// by test/fixture from an in-process HTTP server, so the suite needs neither
-// Docker nor a network connection.
-//
-// Each script in testdata/script gets its own work directory and its own
-// HOME, so installs land in $WORK/home/.driftr and never touch the developer's
-// ~/.driftr. Run them with:
-//
-//	go test ./e2e
-//	go test ./e2e -run 'TestDriftr/install_node'   # one script
-//	go test ./e2e -v                               # per-command tracing
-//
-// Shell-specific behavior is not covered here: writing PATH into .zshenv,
-// .bashrc or config.fish lives in test_path_e2e.sh, which starts a real login
-// shell for each shell it tests.
+// Package e2e runs the real driftr binary per script against test/fixture upstreams.
 package e2e
 
 import (
@@ -27,35 +12,24 @@ import (
 
 	"github.com/rogpeppe/go-internal/testscript"
 
+	"github.com/stackmade/driftr/internal/ioutil"
 	"github.com/stackmade/driftr/test/fixture"
 )
 
 var (
-	// driftrBin holds the path to the binary built once for the whole suite.
 	driftrBin string
-	// fixtureURL is the base URL of the fake upstream server. It outlives
-	// every script: testscript runs them as parallel subtests, so a server
-	// torn down when the parent test function returns would be gone before
-	// they finish.
+	// fixtureURL outlives every script: testscript runs them as parallel subtests.
 	fixtureURL string
-	// updatableBin is a second copy of the binary, for the one script that
-	// runs self-update. It is built here rather than copied by the script:
-	// copying a binary and executing it right away races with any concurrent
-	// fork in the process, which inherits the still-open write descriptor and
-	// makes the exec fail with ETXTBSY on Linux. Building it before m.Run
-	// keeps every write to it strictly before the parallel scripts start.
-	updatableBin string
-	// coverDir, when set, is where the coverage-instrumented driftr binary
-	// writes its raw profiles. See run.
-	coverDir string
+	// Copied before scripts start: copy-then-exec beside concurrent forks hits ETXTBSY.
+	updatableBin, updatableSrc string
+	coverDir                   string
 )
 
 func TestMain(m *testing.M) {
 	os.Exit(run(m))
 }
 
-// run builds driftr and hands control to the test suite. It is separate from
-// TestMain so the deferred cleanup runs before os.Exit.
+// run is separate from TestMain so deferred cleanup runs before os.Exit.
 func run(m *testing.M) int {
 	tmp, err := os.MkdirTemp("", "driftr-e2e-")
 	if err != nil {
@@ -66,14 +40,7 @@ func run(m *testing.M) int {
 
 	driftrBin = filepath.Join(tmp, "driftr")
 
-	// The e2e suite runs driftr as a subprocess, so `go test -cover` sees
-	// nothing it executes. Setting DRIFTR_E2E_COVERDIR — ci.yml does — builds
-	// the binary instrumented instead, and every driftr run drops a raw
-	// profile in that directory for `go tool covdata textfmt` to convert
-	// afterwards. Unset, which is the plain `go test ./e2e` case, nothing
-	// changes. It is not GOCOVERDIR because `go test -coverprofile` overwrites
-	// that variable in the test binary's environment with a temp directory of
-	// its own.
+	// Not GOCOVERDIR: `go test -coverprofile` overwrites it in this process.
 	var buildFlags []string
 	if dir := os.Getenv("DRIFTR_E2E_COVERDIR"); dir != "" {
 		coverDir, err = filepath.Abs(dir)
@@ -85,18 +52,16 @@ func run(m *testing.M) int {
 			fmt.Fprintf(os.Stderr, "e2e: create DRIFTR_E2E_COVERDIR: %v\n", err)
 			return 1
 		}
-		// The pattern is absolute rather than ./... — the build runs from the
-		// e2e directory, where ./... would match this package and nothing else.
+		// Absolute: ./... from the e2e directory would match only this package.
 		buildFlags = append(buildFlags, "-cover", "-covermode=atomic", "-coverpkg=github.com/stackmade/driftr/...")
 	}
 
-	// The shims driftr generates embed the absolute path of the binary that
-	// created them (os.Executable), so these have to be genuine binaries rather
-	// than testscript-registered commands backed by the test process.
+	// Real binaries: shims embed os.Executable() of the driftr that wrote them.
 	updatableBin = filepath.Join(tmp, "driftr-updatable")
-	for _, out := range []string{driftrBin, updatableBin} {
+	updatableSrc = updatableBin + ".orig"
+	for _, out := range []string{driftrBin, updatableSrc} {
 		flags := buildFlags
-		if out == updatableBin {
+		if out == updatableSrc {
 			// self-update refuses a dev build, so this one claims a release.
 			flags = append(slices.Clone(buildFlags), "-ldflags", "-X github.com/stackmade/driftr/internal/cli.Version=1.0.0")
 		}
@@ -115,10 +80,39 @@ func run(m *testing.M) int {
 	defer srv.Close()
 	fixtureURL = srv.URL
 
-	return m.Run()
+	code := m.Run()
+	if coverDir != "" {
+		if err := collectCoverage(); err != nil {
+			fmt.Fprintf(os.Stderr, "e2e: collect coverage: %v\n", err)
+			return 1
+		}
+	}
+	return code
 }
 
-// buildDriftr compiles cmd/driftr to out.
+// Meta files share name and content across scripts, so overwriting one is harmless.
+func collectCoverage() error {
+	subs, err := filepath.Glob(filepath.Join(coverDir, "script-*"))
+	if err != nil {
+		return err
+	}
+	for _, sub := range subs {
+		files, err := os.ReadDir(sub)
+		if err != nil {
+			return err
+		}
+		for _, f := range files {
+			if err := os.Rename(filepath.Join(sub, f.Name()), filepath.Join(coverDir, f.Name())); err != nil {
+				return err
+			}
+		}
+		if err := os.Remove(sub); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func buildDriftr(out string, flags []string) error {
 	args := append([]string{"build", "-o", out}, flags...)
 	build := exec.Command("go", append(args, "../cmd/driftr")...)
@@ -128,11 +122,14 @@ func buildDriftr(out string, flags []string) error {
 }
 
 func TestDriftr(t *testing.T) {
+	// self-update replaced the copy in an earlier -count run.
+	if err := ioutil.CopyFile(updatableSrc, updatableBin); err != nil {
+		t.Fatal(err)
+	}
 	testscript.Run(t, testscript.Params{
 		Dir:                 "testdata/script",
 		RequireExplicitExec: true,
-		// [root]: file permissions do not bind root, so checks that rely on
-		// an unwritable dir skip there (the Linux container runs as root).
+		// [root]: permissions do not bind root (the Linux container runs as root).
 		Condition: func(cond string) (bool, error) {
 			if cond == "root" {
 				return os.Geteuid() == 0, nil
@@ -146,14 +143,11 @@ func TestDriftr(t *testing.T) {
 			}
 			env.Setenv("HOME", home)
 
-			// The shim directory goes on PATH ahead of everything else, so a
-			// script that calls `node` gets driftr's shim rather than whatever
-			// the runner has installed.
+			// Shims first, so `node` in a script never reaches the runner's own.
 			shimDir := filepath.Join(home, ".driftr", "bin")
 			env.Setenv("PATH", shimDir+string(os.PathListSeparator)+
 				filepath.Dir(driftrBin)+string(os.PathListSeparator)+env.Getenv("PATH"))
 
-			// Point every upstream at the fixture.
 			env.Setenv("DRIFTR_NODE_MIRROR", fixtureURL)
 			env.Setenv("DRIFTR_NPM_REGISTRY", fixtureURL+"/registry")
 			env.Setenv("DRIFTR_BUN_RELEASES", fixtureURL+"/bun/releases")
@@ -161,21 +155,21 @@ func TestDriftr(t *testing.T) {
 			env.Setenv("DRIFTR_UPDATE_API", fixtureURL+"/update/api")
 			env.Setenv("DRIFTR_UPDATE_MIRROR", fixtureURL+"/update/download")
 
-			// self-update overwrites the binary it runs from, so the script
-			// that exercises it gets one of its own. DRIFTR_BIN is the shared
-			// one, there to assert it was left alone.
+			// self-update overwrites its own binary, so it gets a separate one.
 			env.Setenv("DRIFTR_BIN", driftrBin)
 			env.Setenv("DRIFTR_UPDATABLE_BIN", updatableBin)
 
 			if coverDir != "" {
-				env.Setenv("GOCOVERDIR", coverDir)
+				// Per script: runtime temp meta-file names collide across processes.
+				dir := filepath.Join(coverDir, filepath.Base(env.WorkDir))
+				if err := os.MkdirAll(dir, 0o755); err != nil {
+					return err
+				}
+				env.Setenv("GOCOVERDIR", dir)
 			}
 
-			// Plain output keeps the assertions readable.
 			env.Setenv("NO_COLOR", "1")
 
-			// Fixture versions, so a script asserts on $NODE_VERSION instead
-			// of a literal that has to be updated in a dozen places.
 			env.Setenv("NODE_VERSION", fixture.NodeVersion)
 			env.Setenv("NPM_VERSION", fixture.NpmVersion)
 			env.Setenv("PNPM_VERSION", fixture.PnpmVersion)

@@ -1,7 +1,4 @@
-# driftr pin --bump: move existing pins to newer upstream releases, in the file
-# that holds them. The fixture serves one release per tool ($NODE_VERSION is on
-# the 22.x line), so "older" pins are written by hand below. Nothing here needs
-# an install: bumping only edits files.
+# The fixture serves one release per tool, so the older pins below are written by hand.
 
 # --bump takes tool names; a version belongs to plain `driftr pin`.
 ! exec driftr pin --bump node@22
@@ -18,8 +15,7 @@ stdout 'nothing written'
 cmp .driftr.toml $WORK/toml-before.toml
 ! exists $HOME/.driftr/config/projects
 
-# The real run rewrites .driftr.toml, points at install, and records the
-# project so prune keeps the bumped versions.
+# The real run records the project so prune keeps the bumped versions.
 exec driftr pin --bump
 stdout 'Bumped 2 pin'
 stdout 'driftr install'
@@ -43,8 +39,7 @@ stdout 'engines.node .* not rewritten'
 stdout $NODE_VERSION
 cmp package.json $WORK/engines-before.json
 
-# No 20.x release upstream: same-major leaves it; --major moves the line.
-# A major-only pin keeps its precision.
+# No 20.x upstream: same-major leaves it, --major moves it, a major-only pin stays major-only.
 cd $WORK/old
 exec driftr pin --bump
 stdout 'no 20\.x release upstream'

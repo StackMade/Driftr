@@ -25,8 +25,7 @@ func TestColorFlags_MatchesFlagColumn(t *testing.T) {
 	}
 }
 
-// Without color the template must print exactly what cobra's default does,
-// so piped help and the e2e suite see no change.
+// Without color, help must match cobra's default so piped help and the e2e suite see no change.
 func TestUsageTemplate_PlainMatchesCobraDefault(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 	usage := func(colored bool, args ...string) string {

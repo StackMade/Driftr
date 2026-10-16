@@ -139,8 +139,7 @@ func TestMigratePin_TOMLRemovalFails(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"name":"app"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// Claimed to be TOML-formatted, but the file isn't there: the pin lands in
-	// package.json and the user must be told the stale file needs handling.
+	// Claimed TOML but the file is missing: the pin lands in package.json and the user is told.
 	captureStdout(t, func() {
 		err := migratePin(dir, "node", "22.14.0", formatTOML)
 		if err == nil {

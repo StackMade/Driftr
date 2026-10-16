@@ -1,12 +1,9 @@
-# prune protects the pins of every project driftr has recorded, not just the
-# current directory. Without the registry, pruning from b would delete the only
-# installed node, which a pins.
+# Without the project registry, pruning from b would delete the only node, which a pins.
 
 exec driftr setup
 exec driftr install node@22
 
-# Pinning records the project. Nothing is pinned outside it and there is no
-# global default, so a is the only thing keeping this version.
+# No global default and nothing pinned outside a, so a alone keeps this version.
 cd $WORK/a
 exec driftr pin node@$NODE_VERSION
 grep $WORK/a $HOME/.driftr/config/projects
@@ -26,8 +23,7 @@ stdout 'Nothing to prune'
 exec driftr list
 stdout $NODE_VERSION
 
-# A recorded project that was deleted is forgotten, and no longer protects
-# anything.
+# A deleted recorded project is forgotten and no longer protects anything.
 rm $WORK/a
 rm $WORK/c
 exec driftr prune --dry-run
@@ -39,6 +35,27 @@ stdout 'Forgot 2 recorded project'
 exec driftr list
 ! stdout $NODE_VERSION
 
+# Without -y prune asks first, and only a yes removes anything.
+exec driftr install node@22
+stdin $WORK/no.txt
+exec driftr prune
+stdout 'Remove 1 version\(s\)\?'
+stdout 'Aborted, nothing was removed'
+exec driftr list
+stdout $NODE_VERSION
+stdin $WORK/yes.txt
+exec driftr prune
+stdout 'Removed 1 version\(s\)'
+exec driftr list
+! stdout $NODE_VERSION
+
+! exec driftr prune --tool deno
+stderr 'unknown tool: deno'
+
+-- no.txt --
+n
+-- yes.txt --
+y
 -- a/README.md --
 placeholder so the directory exists
 -- b/README.md --

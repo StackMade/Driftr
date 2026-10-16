@@ -15,8 +15,6 @@ import (
 	"github.com/stackmade/driftr/internal/platform"
 )
 
-// serveNodeDist starts a fake nodejs.org/dist serving one archive and the
-// SHASUMS256.txt line for it, and points the installer's HTTP client at it.
 // A shasum of "" makes SHASUMS256.txt list a hash that does not match.
 func serveNodeDist(t *testing.T, version string, archive []byte, shasum string) {
 	t.Helper()
@@ -40,8 +38,6 @@ func serveNodeDist(t *testing.T, version string, archive []byte, shasum string) 
 	swapHTTPClient(t, srv)
 }
 
-// nodeTarball builds a Node.js release archive for version, with the given
-// content as the node binary.
 func nodeTarball(t *testing.T, version, binary string) []byte {
 	t.Helper()
 	path := buildTarGz(t, []tarEntry{
@@ -143,8 +139,7 @@ func TestInstall_Success(t *testing.T) {
 	}
 }
 
-// A corrupt download must not be left in the cache, or every retry would
-// re-verify the same bad bytes and fail again.
+// A corrupt download left cached would make every retry fail on the same bad bytes.
 func TestInstall_ChecksumMismatchRemovesCachedArchive(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -175,9 +170,7 @@ func TestInstall_ChecksumMismatchRemovesCachedArchive(t *testing.T) {
 	}
 }
 
-// A SHASUMS fetch that fails says nothing about the archive, which must stay
-// cached for the retry. Meanwhile another process finished installing the
-// same version; the failed install must leave that install alone.
+// A failed SHASUMS fetch says nothing about the archive, so it stays cached for the retry.
 func TestInstall_ChecksumFetchFailureKeepsArchiveAndConcurrentInstall(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	const ver = "99.0.0"
@@ -219,9 +212,7 @@ func TestInstall_ChecksumFetchFailureKeepsArchiveAndConcurrentInstall(t *testing
 	}
 }
 
-// An archive that passes its checksum but unpacks to the wrong layout must
-// leave no version directory: a half-written one would look installed to the
-// resolver.
+// A half-written version directory would look installed to the resolver.
 func TestInstall_ExtractionFailureWipesVersionDir(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -248,8 +239,6 @@ func TestInstall_ExtractionFailureWipesVersionDir(t *testing.T) {
 	}
 }
 
-// An already-installed version is a no-op, and must stay one even with no
-// network available at all.
 func TestInstall_AlreadyInstalledSkipsNetwork(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 

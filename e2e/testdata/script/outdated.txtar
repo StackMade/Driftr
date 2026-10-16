@@ -1,8 +1,5 @@
-# driftr outdated: what each tool is on now, where that came from, and what
-# upstream has. The fixture serves exactly one release per tool, so "behind"
-# is produced by pinning something older rather than by an older upstream.
+# The fixture serves one release per tool, so "behind" comes from pinning something older.
 
-# Nothing installed and nothing pinned: the report has no rows at all.
 exec driftr outdated
 stdout 'Nothing to check'
 stdout 'driftr install node@lts'
@@ -11,17 +8,12 @@ exec driftr setup
 exec driftr install node@$NODE_VERSION
 exec driftr default node@$NODE_VERSION
 
-# A resolved global default is current. Node reports its newest release on the
-# same major line and its newest LTS, both of which the fixture's single
-# release satisfies.
+# The fixture's single release is both the newest on its major line and the newest LTS.
 exec driftr outdated
 stdout 'TOOL\s+CURRENT\s+SOURCE\s+LINE LATEST\s+LATEST\s+LTS\s+STATUS'
 stdout 'node\s+'$NODE_VERSION'\s+global default\s+'$NODE_VERSION'\s+'$NODE_VERSION'\s+'$NODE_VERSION'\s+up to date'
 
-# A project pin below upstream, for a version that is not even installed. The
-# pin still counts, so outdated works before install does. Node has no release
-# on the 20.x line, so LINE LATEST stays a dash; the LTS column keeps
-# reporting upstream's newest LTS.
+# An uninstalled pin still counts; with no 20.x upstream release LINE LATEST stays a dash.
 cd $WORK/old
 exec driftr outdated
 stdout 'node\s+20\.1\.0\s+.*not installed.*\s+-\s+'$NODE_VERSION'\s+'$NODE_VERSION'\s+behind: '$NODE_VERSION
@@ -34,7 +26,6 @@ stdout 'bun\s+1\.0\.0\s+.*behind: '$BUN_VERSION
 ! exec driftr outdated --exit-code
 stdout 'behind'
 
-# --tool narrows the report to one tool.
 exec driftr outdated --tool node
 stdout '^node'
 ! stdout '^pnpm'

@@ -8,9 +8,7 @@ import (
 	"testing"
 )
 
-// TestPaths_LayoutUnderHome pins the on-disk storage layout: every path helper
-// must stay inside ~/.driftr and keep the directory names the shims, docs, and
-// installer all assume.
+// Shims, docs and the installer all assume these directory names under ~/.driftr.
 func TestPaths_LayoutUnderHome(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -53,8 +51,7 @@ func TestPaths_LayoutUnderHome(t *testing.T) {
 	}
 }
 
-// Without a home directory there is nowhere to store anything; every helper
-// must report that rather than falling back to a relative path.
+// Without a home every helper must fail rather than fall back to a relative path.
 func TestPaths_NoHomeDirectory(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("home directory is not derived from HOME on windows")
@@ -134,8 +131,7 @@ func TestEnsureToolDirs_Idempotent(t *testing.T) {
 	}
 }
 
-// A file where a directory belongs cannot be repaired silently — the error has
-// to name the path so the user can remove it.
+// A file where a directory belongs cannot be repaired silently; the error must name the path.
 func TestEnsureToolDirs_FileInTheWay(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -157,8 +153,7 @@ func TestEnsureToolDirs_FileInTheWay(t *testing.T) {
 	}
 }
 
-// Arch and OS name the current platform the way nodejs.org does — the download
-// URL is built from them, so a wrong value means every install 404s.
+// Download URLs are built from Arch and OS, so a wrong name means every install 404s.
 func TestArchAndOS_NodeDistNaming(t *testing.T) {
 	archNames := map[string]string{"amd64": "x64", "arm64": "arm64", "386": "x86"}
 	wantArch, ok := archNames[runtime.GOARCH]

@@ -18,8 +18,7 @@ func TestParseToolVersion(t *testing.T) {
 		{"24", "node", "24"},
 		{"latest", "node", "latest"},
 		{"node@v24.0.0", "node", "v24.0.0"},
-		// Bare tool names resolve to that tool with no version (caller defaults
-		// to latest), not to a node version named after the tool.
+		// A bare tool name means that tool at latest, not a node version named after the tool.
 		{"pnpm", "pnpm", ""},
 		{"yarn", "yarn", ""},
 		{"node", "node", ""},

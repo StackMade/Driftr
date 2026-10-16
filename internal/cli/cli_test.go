@@ -11,7 +11,6 @@ import (
 	"github.com/stackmade/driftr/internal/platform"
 )
 
-// fakeNodeInstall creates a fake installed node version under $HOME/.driftr.
 func fakeNodeInstall(t *testing.T, ver string) {
 	t.Helper()
 	bin, err := platform.NodeBinary(ver)
@@ -26,7 +25,6 @@ func fakeNodeInstall(t *testing.T, ver string) {
 	}
 }
 
-// runCmd executes the root command with the given args.
 func runCmd(t *testing.T, args ...string) error {
 	t.Helper()
 	root := NewRootCmd()
@@ -214,8 +212,7 @@ func TestUninstallCmd_UnknownTool(t *testing.T) {
 func TestUninstallCmd_MissingVersion(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	// "node@" parses to an empty version spec; bare "node" is treated as a
-	// version for the default tool by parseToolVersion.
+	// "node@" is an empty spec; bare "node" would parse as a version of the default tool.
 	err := runCmd(t, "uninstall", "node@")
 	if err == nil || !strings.Contains(err.Error(), "version required") {
 		t.Errorf("expected version-required error, got: %v", err)
@@ -251,8 +248,7 @@ func TestSetupCmd_ConfiguresPathInUniversalRcFile(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// zsh's universal rc file is .zshenv (sourced by every shell), not the
-	// interactive-only .zshrc.
+	// zsh's universal rc file is .zshenv (sourced by every shell), not the interactive-only .zshrc.
 	zshenv := filepath.Join(home, ".zshenv")
 	data, err := os.ReadFile(zshenv)
 	if err != nil {
@@ -269,8 +265,7 @@ func TestSetupCmd_ConfiguresPathInUniversalRcFile(t *testing.T) {
 func TestInstallCmd_TrailingAtErrors(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	// "pnpm@" is a malformed spec — an explicit "@" with no version. It must
-	// error (offline, before any download) rather than installing latest.
+	// "pnpm@" must fail offline rather than fall through to installing latest.
 	err := runCmd(t, "install", "pnpm@")
 	if err == nil || !strings.Contains(err.Error(), "version required after '@'") {
 		t.Errorf("expected version-required error for 'pnpm@', got: %v", err)
@@ -281,8 +276,7 @@ func TestInstallCmd_NoArgsNoPins(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
-	// Nothing pinned anywhere up the tree: the command must say so, offline,
-	// rather than exiting successfully having installed nothing.
+	// With nothing pinned the command must fail, not exit 0 having installed nothing.
 	err := runCmd(t, "install")
 	if err == nil || !strings.Contains(err.Error(), "no tool versions pinned") {
 		t.Errorf("expected a no-pins error, got: %v", err)
@@ -302,8 +296,7 @@ func TestDefaultCmd_MalformedGlobalConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A broken config must surface as an error, not be silently overwritten:
-	// the user's other settings would be lost.
+	// Overwriting a broken config would silently lose the user's other settings.
 	if err := runCmd(t, "default", "node@22.14.0"); err == nil {
 		t.Error("expected an error when the global config cannot be parsed")
 	}

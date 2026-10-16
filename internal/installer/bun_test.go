@@ -15,8 +15,6 @@ import (
 	"github.com/stackmade/driftr/internal/platform"
 )
 
-// bunFixture serves a fake GitHub release index and download host for bun.
-// Point the installer at it with the DRIFTR_BUN_* overrides.
 type bunFixture struct {
 	asset    string
 	archive  []byte
@@ -65,7 +63,6 @@ func newBunFixture(t *testing.T, versions ...string) *bunFixture {
 	}
 }
 
-// serve starts the fixture and points the installer's env overrides at it.
 func (f *bunFixture) serve(t *testing.T) *httptest.Server {
 	t.Helper()
 
@@ -104,7 +101,7 @@ func TestInstallBun_RejectsLTS(t *testing.T) {
 func TestInstallBun_Success(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	f := newBunFixture(t, "1.2.3")
-	f.serve(t)
+	srv := f.serve(t)
 
 	got, err := InstallBun("1.2.3", false)
 	if err != nil {
@@ -126,7 +123,7 @@ func TestInstallBun_Success(t *testing.T) {
 		t.Error("bun binary is not executable")
 	}
 
-	// A second install is a no-op that must not fail.
+	srv.Close()
 	if _, err := InstallBun("1.2.3", false); err != nil {
 		t.Errorf("reinstall failed: %v", err)
 	}
@@ -173,7 +170,6 @@ func TestInstallBun_ChecksumMismatch(t *testing.T) {
 		t.Fatalf("expected checksum mismatch, got: %v", err)
 	}
 
-	// The corrupt archive must not survive in the cache.
 	cacheDir, cErr := platform.CacheDir()
 	if cErr != nil {
 		t.Fatal(cErr)
@@ -186,7 +182,6 @@ func TestInstallBun_ChecksumMismatch(t *testing.T) {
 		t.Errorf("corrupt archive left in cache: %v", entries)
 	}
 
-	// And nothing may look installed.
 	dir, dErr := platform.ToolVersionDir("bun", "1.2.3")
 	if dErr != nil {
 		t.Fatal(dErr)
@@ -252,6 +247,12 @@ func TestListBunReleases_FiltersNonVersionTags(t *testing.T) {
 }
 
 func TestBunEnvOverrides(t *testing.T) {
+	t.Setenv("DRIFTR_BUN_MIRROR", "")
+	t.Setenv("DRIFTR_BUN_RELEASES", "")
+	if bunDownloadBase() != defaultBunDownloadBase || bunReleasesURL() != defaultBunReleasesURL {
+		t.Errorf("unset overrides: got %q, %q", bunDownloadBase(), bunReleasesURL())
+	}
+
 	t.Setenv("DRIFTR_BUN_MIRROR", "http://127.0.0.1:9124/")
 	t.Setenv("DRIFTR_BUN_RELEASES", "http://127.0.0.1:9124/releases/")
 	if got := bunDownloadBase(); got != "http://127.0.0.1:9124" {
@@ -259,5 +260,36 @@ func TestBunEnvOverrides(t *testing.T) {
 	}
 	if got := bunReleasesURL(); got != "http://127.0.0.1:9124/releases" {
 		t.Errorf("bunReleasesURL() = %q, want trailing slash trimmed", got)
+	}
+}
+
+func TestInstallBun_GitHubRateLimit(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"message":"API rate limit exceeded"}`, http.StatusForbidden)
+	}))
+	t.Cleanup(srv.Close)
+	t.Setenv("DRIFTR_BUN_RELEASES", srv.URL)
+
+	_, err := InstallBun("1", false)
+	if err == nil || !strings.Contains(err.Error(), "HTTP 403") {
+		t.Fatalf("got %v, want the HTTP status", err)
+	}
+}
+
+func TestInstallBun_NoBuildForPlatform(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	f := newBunFixture(t, "1.2.3")
+	asset := f.asset
+	f.asset = "bun-other-platform.zip"
+	f.serve(t)
+
+	_, err := InstallBun("1.2.3", false)
+	if err == nil || !strings.Contains(err.Error(), "has no "+asset+" build") || !strings.Contains(err.Error(), "driftr list --remote bun") {
+		t.Fatalf("got %v, want a missing-build error with the remedy", err)
+	}
+	dir, _ := platform.ToolVersionDir("bun", "1.2.3")
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Errorf("version dir exists after a failed install: %v", err)
 	}
 }

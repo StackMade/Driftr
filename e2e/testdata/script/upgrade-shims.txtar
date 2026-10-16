@@ -1,12 +1,10 @@
-# Upgrading driftr by any route refreshes the shims on the first call, with no
-# setup run, and a package shim never takes over a command found elsewhere.
+# Any upgrade refreshes the shims on first call; a package shim never shadows a command elsewhere.
 
 exec driftr setup
 exec driftr install node@22
 exec driftr default node@$NODE_VERSION
 
-# What a driftr from before the version stamp leaves behind: shims, no stamp.
-# A package bin was installed back then and never got a shim.
+# What a pre-stamp driftr leaves: shims, no stamp, and a package bin that never got a shim.
 rm $HOME/.driftr/bin/.driftr-version
 mkdir $HOME/.driftr/tools/node/20.0.0/bin
 cp node20 $HOME/.driftr/tools/node/20.0.0/bin/node
@@ -23,8 +21,7 @@ exists $HOME/.driftr/bin/hello
 exec hello
 stdout 'hello under v20.0.0'
 
-# Another hello later on PATH: the shim comes first on PATH, so it steps aside
-# and runs that one, as if it were not there.
+# Another hello later on PATH: the package shim steps aside and runs that one.
 mkdir $WORK/other
 cp otherhello $WORK/other/hello
 chmod 0755 $WORK/other/hello

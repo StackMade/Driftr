@@ -43,9 +43,7 @@ func TestInstallCmd_ProjectPinsUnknownTool(t *testing.T) {
 	}
 	t.Chdir(proj)
 
-	// An unsupported tool in .driftr.toml is not a pin the resolver reports, so
-	// the command must say there is nothing to install rather than exiting 0
-	// having installed nothing, or attempting a download for "ruby".
+	// An unsupported tool in .driftr.toml is not a pin, so there is nothing to install.
 	err := runCmd(t, "install")
 	if err == nil || !strings.Contains(err.Error(), "no tool versions pinned") {
 		t.Errorf("expected a no-pins error, got: %v", err)

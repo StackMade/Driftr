@@ -1,5 +1,4 @@
-# bun ships as a native binary in a zip on GitHub Releases, so it covers the
-# standalone exec path, where the shim runs the binary without node.
+# bun ships as a native binary, so it covers the shim exec path that runs without node.
 
 exec driftr setup
 
@@ -15,7 +14,6 @@ exec driftr default bun@$BUN_VERSION
 exec driftr which bun
 stdout $BUN_VERSION
 
-# The shim execs the binary directly, so its own output comes back unchanged.
 exec bun --version
 stdout $BUN_VERSION
 

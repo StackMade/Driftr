@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-// writeExe creates an executable file named tool in dir.
 func writeExe(t *testing.T, dir, tool string) {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -44,8 +43,7 @@ func TestCheckShimShadowing_SkipsWhenBinDirNotOnPath(t *testing.T) {
 	shimDir := t.TempDir()
 	otherDir := t.TempDir()
 	writeExe(t, otherDir, "node")
-	// shimDir absent from PATH — checkPath owns that diagnosis, so shadowing
-	// check must stay silent (return 0).
+	// checkPath owns the shimDir-not-on-PATH diagnosis, so the shadowing check stays silent.
 	t.Setenv("PATH", otherDir)
 
 	if got := checkShimShadowing(shimDir, false); got != 0 {

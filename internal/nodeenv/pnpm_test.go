@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-// fakeRunner records invocations and returns scripted output keyed by the joined
-// command line. Missing keys return empty output and no error.
 type fakeRunner struct {
 	calls   []string
 	outputs map[string]string

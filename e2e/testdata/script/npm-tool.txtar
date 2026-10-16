@@ -1,6 +1,4 @@
-# npm as a tool of its own: without a pin the npm and npx shims run the npm
-# bundled with node, exactly as before; with one they run driftr's npm under
-# the resolved node.
+# Unpinned, npm and npx run node's bundled npm; pinned, driftr's npm under the resolved node.
 
 exec driftr setup
 exec driftr install node@22
@@ -25,8 +23,7 @@ stdout $NPM_VERSION
 exec npm -v
 stdout '^10\.99\.0$'
 
-# Pinned, npm and npx run their JS entry under the resolved node. The fixture
-# node echoes the script it was handed.
+# Pinned, npm and npx run their JS entry under node; the fixture node echoes the script.
 cd $WORK/project
 exec driftr pin npm@$NPM_VERSION
 exec npm -v
@@ -50,8 +47,7 @@ env DRIFTR_NODE=
 exec driftr run --node 20.0.0 -- npm -v
 stdout 'v20\.0\.0 ran: .*npm-cli\.js'
 
-# npm -g under a pinned npm still runs as a child and refreshes the shims, so
-# a bin that lands in node's bin dir gets one.
+# npm -g under a pinned npm still refreshes the shims, so a bin in node's bin dir gets one.
 cp $WORK/hello $HOME/.driftr/tools/node/$NODE_VERSION/bin/hello
 chmod 0755 $HOME/.driftr/tools/node/$NODE_VERSION/bin/hello
 ! exists $HOME/.driftr/bin/hello

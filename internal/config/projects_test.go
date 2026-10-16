@@ -84,9 +84,7 @@ func TestRemoveProjects_DropsOnlyGone(t *testing.T) {
 	}
 }
 
-// Every pin and install records its project, so several driftr processes add
-// at once. A read-modify-rename lost all but one or two of them, and prune then
-// deleted versions only the lost projects pinned.
+// Concurrent adds once lost all but one or two projects, and prune deleted versions they pinned.
 func TestAddProject_ConcurrentCallsAllRecorded(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 

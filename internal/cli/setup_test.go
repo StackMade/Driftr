@@ -54,12 +54,65 @@ func TestConfigureSetupPath_AlreadyConfigured(t *testing.T) {
 	if !strings.Contains(out, ".zshrc") {
 		t.Errorf("output = %q, want a note about the legacy .zshrc entry", out)
 	}
-	// Nothing may be appended when the PATH is already there.
 	data, err := os.ReadFile(zshenv)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if strings.Count(string(data), binDir) != 1 {
 		t.Errorf(".zshenv = %q, want the export left untouched", data)
+	}
+}
+
+func TestConfigureSetupPath_ShadowedNodeGetsGuard(t *testing.T) {
+	home := zshHome(t)
+	binDir := filepath.Join(home, ".driftr", "bin")
+	brew := t.TempDir()
+	writeExe(t, binDir, "node")
+	writeExe(t, brew, "node")
+	t.Setenv("PATH", brew+string(os.PathListSeparator)+binDir)
+
+	var buf bytes.Buffer
+	configureSetupPath(&buf, binDir)
+
+	out := buf.String()
+	if !strings.Contains(out, "Added "+binDir+" to PATH in "+filepath.Join(home, ".zshenv")) {
+		t.Errorf("output does not report the .zshenv export: %q", out)
+	}
+	if !strings.Contains(out, "precedence guard") {
+		t.Errorf("output does not report the guard: %q", out)
+	}
+	if rc := readFile(t, filepath.Join(home, ".zshrc")); !strings.Contains(rc, binDir) {
+		t.Errorf(".zshrc lacks the guard: %q", rc)
+	}
+}
+
+func TestConfigureSetupPath_NoShadowLeavesZshrcAlone(t *testing.T) {
+	home := zshHome(t)
+	binDir := filepath.Join(home, ".driftr", "bin")
+	writeExe(t, binDir, "node")
+	t.Setenv("PATH", binDir)
+
+	var buf bytes.Buffer
+	configureSetupPath(&buf, binDir)
+
+	if _, err := os.Stat(filepath.Join(home, ".zshrc")); !os.IsNotExist(err) {
+		t.Errorf(".zshrc was written without a shadowing install: %v", err)
+	}
+}
+
+func TestConfigureSetupPath_ReadOnlyZshenvFallsBackToManual(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("permissions do not bind root")
+	}
+	home := zshHome(t)
+	binDir := filepath.Join(home, ".driftr", "bin")
+	writeFile(t, filepath.Join(home, ".zshenv"), "")
+	os.Chmod(filepath.Join(home, ".zshenv"), 0o444)
+
+	var buf bytes.Buffer
+	configureSetupPath(&buf, binDir)
+
+	if out := buf.String(); !strings.Contains(out, `export PATH="`+binDir+`:$PATH"`) {
+		t.Errorf("no manual export line after a failed write: %q", out)
 	}
 }

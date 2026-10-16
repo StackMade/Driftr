@@ -25,11 +25,7 @@ func TestInstallCleanup_RemovesTmpFile(t *testing.T) {
 	}
 }
 
-// The extraction work dir is named by os.MkdirTemp, so its suffix is random
-// and cleanup can only remove the directory Extract told it about. An earlier
-// version reconstructed the name from the pid and therefore never matched.
-// The version dir itself stays: extraction renames a finished work dir into
-// place, so it is never partial, and it may be another process's install.
+// Only the registered tmp dir goes: its name is random, and the version dir may be another install.
 func TestInstallCleanup_RemovesRegisteredTmpDirKeepsVersionDir(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -87,7 +83,6 @@ func TestInstallCleanup_RunIdempotent(t *testing.T) {
 	cleanup := &installCleanup{}
 	cleanup.setTmpFile(tmpPath)
 
-	// Call run twice — should not panic or error.
 	cleanup.run()
 	cleanup.run()
 
@@ -100,7 +95,6 @@ func TestInstallCleanup_ConcurrentAccess(t *testing.T) {
 	cleanup := &installCleanup{}
 
 	var wg sync.WaitGroup
-	// Hammer set/clear/run concurrently to test for races.
 	for range 50 {
 		wg.Add(3)
 		go func() {
@@ -132,7 +126,6 @@ func TestInstallCleanup_ClearPreventsRemoval(t *testing.T) {
 	cleanup.clearTmpFile()
 	cleanup.run()
 
-	// File should still exist since we cleared it before running cleanup.
 	if _, err := os.Stat(tmpPath); err != nil {
 		t.Errorf("temp file should NOT have been removed after clearTmpFile")
 	}

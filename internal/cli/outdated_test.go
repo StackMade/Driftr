@@ -13,8 +13,6 @@ import (
 	"github.com/stackmade/driftr/internal/platform"
 )
 
-// nodeIndexServer serves a fake nodejs.org release index (newest-first) and
-// points DRIFTR_NODE_MIRROR at it.
 func nodeIndexServer(t *testing.T, releases []map[string]any) {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -24,8 +22,7 @@ func nodeIndexServer(t *testing.T, releases []map[string]any) {
 	t.Setenv("DRIFTR_NODE_MIRROR", srv.URL)
 }
 
-// npmRegistryServer serves a fake npm registry. A version list of nil makes the
-// registry fail with a 500, to exercise the per-tool failure path.
+// A nil version list makes the registry fail with a 500, to exercise the per-tool failure path.
 func npmRegistryServer(t *testing.T, versions []string) {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -44,8 +41,7 @@ func npmRegistryServer(t *testing.T, versions []string) {
 	t.Setenv("DRIFTR_NPM_REGISTRY", srv.URL)
 }
 
-// bunReleasesServer serves a fake GitHub release list (newest-first) and points
-// DRIFTR_BUN_RELEASES at it. bun ships binaries there rather than on npm.
+// bun ships binaries on GitHub releases rather than on npm.
 func bunReleasesServer(t *testing.T, versions []string) {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -59,8 +55,6 @@ func bunReleasesServer(t *testing.T, versions []string) {
 	t.Setenv("DRIFTR_BUN_RELEASES", srv.URL)
 }
 
-// projectWith creates a project dir pinning the given .driftr.toml tools and
-// makes it the working directory.
 func projectWith(t *testing.T, toml string) {
 	t.Helper()
 	proj := t.TempDir()
@@ -77,7 +71,6 @@ func outdatedOutput(t *testing.T, only string, pre, exitCode bool) (string, erro
 	return buf.String(), err
 }
 
-// rowFor returns the report line for a tool.
 func rowFor(t *testing.T, out, tool string) string {
 	t.Helper()
 	for _, line := range strings.Split(out, "\n") {
@@ -223,5 +216,27 @@ func TestOutdated_UnknownTool(t *testing.T) {
 
 	if _, err := outdatedOutput(t, "ruby", false, false); err == nil {
 		t.Error("expected an unknown-tool error")
+	}
+}
+
+func TestOutdated_UnpinnedComparesNewestInstalled(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	fakeNodeInstall(t, "20.9.0")
+	fakeNodeInstall(t, "20.11.0")
+	t.Chdir(t.TempDir())
+	nodeIndexServer(t, []map[string]any{
+		{"version": "v20.12.0", "lts": "Iron"},
+		{"version": "v20.11.0", "lts": "Iron"},
+	})
+
+	out, err := outdatedOutput(t, "node", false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	row := rowFor(t, out, "node")
+	for _, want := range []string{"20.11.0", "installed", "behind: 20.12.0"} {
+		if !strings.Contains(row, want) {
+			t.Errorf("row lacks %q: %q", want, row)
+		}
 	}
 }

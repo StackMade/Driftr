@@ -14,7 +14,6 @@ import (
 )
 
 func TestParseSRI_Valid(t *testing.T) {
-	// A known sha512 hash in SRI format.
 	rawHash := make([]byte, 64) // 512 bits = 64 bytes
 	rawHash[0] = 0xAB
 	rawHash[63] = 0xCD
@@ -79,7 +78,6 @@ func TestVerifyIntegrity_Mismatch(t *testing.T) {
 		t.Fatalf("failed to write test file: %v", err)
 	}
 
-	// Use a wrong hash.
 	wrongHash := make([]byte, 64)
 	integrity := "sha512-" + base64.StdEncoding.EncodeToString(wrongHash)
 
@@ -129,7 +127,6 @@ func TestListRemoteVersions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListRemoteVersions() error: %v", err)
 		}
-		// Expect 3 stable versions, sorted descending, rc excluded.
 		if len(versions) != 3 {
 			t.Fatalf("expected 3 stable versions, got %d: %v", len(versions), versions)
 		}

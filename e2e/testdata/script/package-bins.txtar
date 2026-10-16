@@ -1,12 +1,10 @@
-# Bins from global npm installs get shims, run under the node that installed
-# them, and lose their shims when that node goes away.
+# Package bins get shims, run under the node that installed them, and go with that node.
 
 exec driftr setup
 exec driftr install node@22
 exec driftr default node@$NODE_VERSION
 
-# A second node with a globally installed package, laid out the way npm -g
-# leaves it. The fixture serves one node release, so this one is hand-made.
+# The fixture serves one node release, so this second node is laid out by hand like npm -g.
 mkdir $HOME/.driftr/tools/node/20.0.0/bin
 cp node20 $HOME/.driftr/tools/node/20.0.0/bin/node
 cp hello $HOME/.driftr/tools/node/20.0.0/bin/hello
@@ -29,7 +27,14 @@ exec driftr which hello
 stdout 'global npm package'
 stdout '20\.0\.0'
 
-# Removing node 20 removes the shim of its package bin.
+# A bin named like a file driftr did not write keeps that file, and npm -g says why.
+cp hello $HOME/.driftr/tools/node/20.0.0/bin/greet
+chmod 0755 $HOME/.driftr/tools/node/20.0.0/bin/greet
+cp mine $HOME/.driftr/bin/greet
+exec npm install -g greet
+stderr 'no shim for greet: .* is not a driftr shim'
+grep 'my own greet' $HOME/.driftr/bin/greet
+
 exec driftr uninstall node@20.0.0
 ! exists $HOME/.driftr/bin/hello
 exists $HOME/.driftr/bin/node
@@ -40,3 +45,6 @@ echo "v20.0.0"
 -- hello --
 #!/bin/sh
 echo "hello under $(node -v)"
+-- mine --
+#!/bin/sh
+echo "my own greet"

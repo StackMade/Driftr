@@ -16,8 +16,7 @@ grep $NODE_VERSION $WORK/project/.driftr.toml
 exec driftr which node
 stdout 'project config'
 
-# Verbose resolution prints the chain it walked, which is how you find out why
-# a version was chosen.
+# which -v prints the chain it walked, which is how you find out why a version won.
 exec driftr which node -v
 stdout '\[resolve\]'
 stdout 'Step'

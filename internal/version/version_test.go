@@ -163,6 +163,14 @@ func TestLTSCodenameMajor(t *testing.T) {
 	}
 }
 
+func TestIsLTSMajor(t *testing.T) {
+	for major, want := range map[int]bool{4: true, 22: true, 24: true, 23: false, 26: false, 0: false} {
+		if got := IsLTSMajor(major); got != want {
+			t.Errorf("IsLTSMajor(%d) = %v, want %v", major, got, want)
+		}
+	}
+}
+
 func TestMatches(t *testing.T) {
 	tests := []struct {
 		pattern string
@@ -213,8 +221,7 @@ func TestMatchesMajor(t *testing.T) {
 	}
 }
 
-// FuzzParse asserts that Parse never panics and that a fully specified,
-// non-alias version survives a String()/Parse() round trip.
+// A fully specified, non-alias version must survive a String()/Parse() round trip.
 func FuzzParse(f *testing.F) {
 	seeds := []string{
 		"24", "24.0", "24.0.1", "v24.0.1", "node@24", "node@v24.0.1",

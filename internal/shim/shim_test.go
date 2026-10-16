@@ -60,8 +60,7 @@ func TestWriteShim_RestoresExecutableBit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// os.WriteFile applies its mode argument only when creating the file, so
-	// rewriting over a non-executable shim has to chmod it back explicitly.
+	// os.WriteFile sets the mode only on create, so rewriting a shim must chmod it explicitly.
 	if err := writeShim(dir, "node", "/usr/local/bin/driftr"); err != nil {
 		t.Fatalf("writeShim() error on rewrite: %v", err)
 	}
@@ -87,7 +86,6 @@ func TestWriteShim_AllTools(t *testing.T) {
 		}
 	}
 
-	// Verify all expected tools are in ShimTools().
 	expected := map[string]bool{
 		"node": true, "npm": true, "npx": true,
 		"pnpm": true, "pnpx": true, "yarn": true,
@@ -161,8 +159,7 @@ func TestGenerateShims_PackageBins(t *testing.T) {
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// A shim whose bin is gone, written by an older driftr at another path,
-	// and a file that only looks similar: the first goes, the second stays.
+	// A stale shim from an older driftr path goes; a file that only looks similar stays.
 	stale := "#!/bin/sh\nexec \"/old/driftr\" shim gone \"$@\"\n"
 	if err := os.WriteFile(filepath.Join(binDir, "gone"), []byte(stale), 0o755); err != nil {
 		t.Fatal(err)
@@ -267,8 +264,7 @@ func TestStableExecutable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// A stable symlink to the running binary, the way Homebrew links bin/driftr
-	// to its Cellar copy, and an unrelated file.
+	// A stable symlink to the running binary, as Homebrew links bin/driftr to its Cellar copy.
 	link := filepath.Join(t.TempDir(), "driftr")
 	if err := os.Symlink(exe, link); err != nil {
 		t.Fatal(err)
@@ -333,8 +329,7 @@ func TestGenerateShims_ReleasesTheOldHomebrewKeg(t *testing.T) {
 	}
 }
 
-// The driftr path is baked into every shim, so a $, backtick, quote or
-// backslash in it used to break all of them.
+// The driftr path is baked into every shim; a $, backtick, quote or backslash used to break them.
 func TestWriteShim_PathWithShellMetacharacters(t *testing.T) {
 	dir := t.TempDir()
 	weird := filepath.Join(dir, "a $HOME `x` \"q\" \\b 'c'")
@@ -361,8 +356,7 @@ func TestWriteShim_PathWithShellMetacharacters(t *testing.T) {
 	}
 }
 
-// Shims written before the path was single-quoted must still be recognized,
-// so they get refreshed and their Homebrew keg released.
+// Shims from before single-quoting must still parse, so they refresh and release the Homebrew keg.
 func TestParseShim(t *testing.T) {
 	for _, tt := range []struct {
 		content, path, tool string

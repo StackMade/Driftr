@@ -139,7 +139,6 @@ func TestSavePackageJSON_AddsKey(t *testing.T) {
 		t.Fatalf("invalid JSON after save: %v", err)
 	}
 
-	// Verify driftr key was added.
 	driftrRaw, ok := raw["driftr"]
 	if !ok {
 		t.Fatal("driftr key missing from package.json")
@@ -152,7 +151,6 @@ func TestSavePackageJSON_AddsKey(t *testing.T) {
 		t.Errorf("got %q, want %q", dc.GetTool("node"), "22.14.0")
 	}
 
-	// Verify existing keys are preserved.
 	if _, ok := raw["name"]; !ok {
 		t.Error("name key was lost")
 	}
@@ -429,7 +427,6 @@ func TestSavePackageJSON_PreservesIndentation(t *testing.T) {
 
 	data := readPackageJSONBytes(t, dir)
 
-	// Should detect 4-space indent from the original file.
 	if !bytes.Contains(data, []byte("    \"name\"")) {
 		t.Errorf("expected 4-space indentation to be preserved:\n%s", data)
 	}
@@ -505,9 +502,7 @@ func TestEnginesNode_NilReceiver(t *testing.T) {
 	}
 }
 
-// FuzzLoadPackageJSON feeds arbitrary bytes through the package.json reader and
-// asserts the documented contract: never panic, an error means a nil result,
-// and a non-nil result means at least one of the three fields carries a value.
+// Contract: never panic, an error means a nil result, a non-nil result has a field set.
 func FuzzLoadPackageJSON(f *testing.F) {
 	seeds := []string{
 		`{"name": "myapp", "driftr": {"node": "20.11.0"}}`,
@@ -559,8 +554,7 @@ func FuzzLoadPackageJSON(f *testing.F) {
 	})
 }
 
-// FuzzPatchTopLevelKey asserts that the order-preserving JSON rewriter either
-// fails or emits valid JSON that contains the patched key.
+// The order-preserving rewriter either fails or emits valid JSON containing the patched key.
 func FuzzPatchTopLevelKey(f *testing.F) {
 	seeds := []string{
 		`{"name": "myapp"}`,
@@ -575,8 +569,7 @@ func FuzzPatchTopLevelKey(f *testing.F) {
 	for _, s := range seeds {
 		f.Add([]byte(s), "driftr")
 	}
-	// The production caller only ever patches "driftr", but the rewriter takes
-	// the key as a parameter, so fuzz that too.
+	// Production only patches "driftr", but the rewriter takes the key as a parameter.
 	f.Add([]byte(`{"name": "myapp"}`), "packageManager")
 	f.Add([]byte(`{"a": 1}`), "")
 	f.Add([]byte(`{"a": 1}`), `a"b`)
@@ -593,10 +586,7 @@ func FuzzPatchTopLevelKey(f *testing.F) {
 		if err := json.Unmarshal(out, &got); err != nil {
 			t.Fatalf("patchTopLevelKey(%q) produced invalid JSON %q: %v", data, out, err)
 		}
-		// json.Marshal replaces invalid UTF-8 in a string with U+FFFD, so a key
-		// that is not valid UTF-8 comes back out under a different name. The
-		// output is still valid JSON, which is what this target is about; only
-		// the round-trip stops holding. No caller passes such a key.
+		// json.Marshal turns invalid UTF-8 into U+FFFD, so such a key cannot round-trip.
 		if !utf8.ValidString(key) {
 			return
 		}

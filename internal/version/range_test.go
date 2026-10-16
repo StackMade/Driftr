@@ -309,9 +309,7 @@ func TestRange_LowerBoundMajor(t *testing.T) {
 	}
 }
 
-// FuzzParseRange asserts that ParseRange never panics, that matching a parsed
-// range against an arbitrary version is safe, and that nothing below the
-// range's own lower bound major can satisfy it.
+// Nothing below the range's own lower-bound major may satisfy it.
 func FuzzParseRange(f *testing.F) {
 	seeds := []struct {
 		rng string
@@ -362,9 +360,7 @@ func FuzzParseRange(f *testing.F) {
 		_ = r.Matches(Version{})
 
 		low, ok := r.LowerBoundMajor()
-		// Majors in a range are never negative (parsePartial rejects them), so
-		// anything below the lower bound major cannot satisfy the range.
-		// Negative majors are excluded: compare() subtracts, which overflows.
+		// Negative majors are skipped: compare() subtracts, which overflows.
 		if ok && verErr == nil && v.Major >= 0 && v.Major < low && r.Matches(v) {
 			t.Errorf("ParseRange(%q).Matches(%q) = true, but LowerBoundMajor() = %d", rng, ver, low)
 		}

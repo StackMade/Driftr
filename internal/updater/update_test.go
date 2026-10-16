@@ -9,14 +9,7 @@ import (
 	"testing"
 )
 
-// fakeRelease serves the two endpoints Update talks to — the GitHub release
-// index and the release assets — and points the updater at itself through the
-// DRIFTR_UPDATE_API and DRIFTR_UPDATE_MIRROR overrides.
-//
-// Every case here stops before replaceBinary on purpose: past that point
-// Update overwrites os.Executable(), which during a test run is the test
-// binary itself. The successful replacement is covered by the e2e suite, which
-// runs a second, throwaway binary.
+// Cases stop before replaceBinary: past it Update overwrites os.Executable(), the test binary.
 func fakeRelease(t *testing.T, tag string, assets map[string][]byte) {
 	t.Helper()
 

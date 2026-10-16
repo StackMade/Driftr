@@ -79,7 +79,6 @@ func TestIsTerminal_Pipe(t *testing.T) {
 	}
 }
 
-// captureStderr runs fn and returns everything it wrote to os.Stderr.
 func captureStderr(t *testing.T, fn func()) string {
 	t.Helper()
 	r, w, err := os.Pipe()
@@ -120,8 +119,7 @@ func TestProgressWriter_Finish(t *testing.T) {
 				t.Fatal(err)
 			}
 			got := captureStderr(t, pw.Finish)
-			// Write may have printed a progress line of its own; Finish's
-			// output is the last one, and it is the one that ends in a newline.
+			// Write may print its own progress line; Finish's is the last one and ends in a newline.
 			if !strings.HasSuffix(got, tt.want) {
 				t.Errorf("Finish() wrote %q, want it to end with %q", got, tt.want)
 			}

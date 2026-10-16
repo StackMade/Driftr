@@ -1,5 +1,4 @@
-# The node command group, plus cache and prune. All three touch storage, so
-# these checks are mostly about what they leave alone.
+# node, cache and prune touch storage, so these checks are mostly about what they leave alone.
 
 exec driftr setup
 exec driftr install node@22
@@ -18,8 +17,7 @@ cd $WORK
 exec driftr cache dir
 stdout '\.driftr/cache'
 
-# The node tarball was downloaded through the cache, so there is something to
-# clear — and clearing it must not disturb the install itself.
+# Clearing the download cache must not disturb the install itself.
 exec driftr cache clean
 exec node -v
 stdout 'v'$NODE_VERSION

@@ -1,93 +1,103 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stackmade/driftr/internal/platform"
 )
 
-func TestLoadGlobal_NoDirExists(t *testing.T) {
+func writeGlobal(t *testing.T, content string) {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+	path, err := platform.GlobalConfigPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLoadGlobal_MissingFile(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
 	cfg, err := LoadGlobal()
 	if err != nil {
-		t.Fatalf("LoadGlobal() unexpected error: %v", err)
+		t.Fatal(err)
 	}
-	if cfg.Default.Node != "" {
-		t.Errorf("expected empty default node, got %q", cfg.Default.Node)
+	if got := cfg.Default.GetTool("node"); got != "" {
+		t.Errorf("default node = %q, want empty", got)
 	}
 }
 
-func TestSaveAndLoadGlobal(t *testing.T) {
+func TestGlobal_RoundTrip(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	if err := platform.EnsureDirs(); err != nil {
-		t.Fatalf("EnsureDirs() error: %v", err)
-	}
-
-	cfg := &GlobalConfig{Default: DefaultConfig{Node: "22.14.0"}}
+	cfg := &GlobalConfig{AutoInstall: true}
+	cfg.Default.SetTool("node", "20.0.0")
+	cfg.Default.SetTool("pnpm", "9.15.0")
 	if err := SaveGlobal(cfg); err != nil {
-		t.Fatalf("SaveGlobal() error: %v", err)
+		t.Fatal(err)
+	}
+	cfg.Default.SetTool("node", "22.14.0")
+	if err := SaveGlobal(cfg); err != nil {
+		t.Fatal(err)
 	}
 
 	loaded, err := LoadGlobal()
 	if err != nil {
-		t.Fatalf("LoadGlobal() error: %v", err)
-	}
-	if loaded.Default.Node != "22.14.0" {
-		t.Errorf("LoadGlobal().Default.Node = %q, want %q", loaded.Default.Node, "22.14.0")
-	}
-}
-
-func TestSaveAndLoadGlobal_AutoInstall(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-
-	if err := platform.EnsureDirs(); err != nil {
-		t.Fatalf("EnsureDirs() error: %v", err)
-	}
-
-	cfg := &GlobalConfig{
-		Default:     DefaultConfig{Node: "22.14.0"},
-		AutoInstall: true,
-	}
-	if err := SaveGlobal(cfg); err != nil {
-		t.Fatalf("SaveGlobal() error: %v", err)
-	}
-
-	loaded, err := LoadGlobal()
-	if err != nil {
-		t.Fatalf("LoadGlobal() error: %v", err)
+		t.Fatal(err)
 	}
 	if !loaded.AutoInstall {
-		t.Error("AutoInstall should be true after round-trip")
+		t.Error("auto_install lost in round trip")
 	}
 	if loaded.Default.Node != "22.14.0" {
-		t.Errorf("Default.Node = %q, want %q", loaded.Default.Node, "22.14.0")
+		t.Errorf("legacy node field = %q, want it kept in sync for older driftr builds", loaded.Default.Node)
+	}
+	for tool, want := range map[string]string{"node": "22.14.0", "pnpm": "9.15.0", "yarn": ""} {
+		if got := loaded.Default.GetTool(tool); got != want {
+			t.Errorf("GetTool(%q) = %q, want %q", tool, got, want)
+		}
 	}
 }
 
-func TestSaveGlobal_OverwritesExisting(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+func TestLoadGlobal_FileFromOlderDriftr(t *testing.T) {
+	writeGlobal(t, "[default]\nnode = \"20.11.0\"\n")
 
-	if err := platform.EnsureDirs(); err != nil {
-		t.Fatalf("EnsureDirs() error: %v", err)
-	}
-
-	cfg1 := &GlobalConfig{Default: DefaultConfig{Node: "20.0.0"}}
-	if err := SaveGlobal(cfg1); err != nil {
-		t.Fatalf("SaveGlobal() error: %v", err)
-	}
-
-	cfg2 := &GlobalConfig{Default: DefaultConfig{Node: "22.14.0"}}
-	if err := SaveGlobal(cfg2); err != nil {
-		t.Fatalf("SaveGlobal() error: %v", err)
-	}
-
-	loaded, err := LoadGlobal()
+	cfg, err := LoadGlobal()
 	if err != nil {
-		t.Fatalf("LoadGlobal() error: %v", err)
+		t.Fatal(err)
 	}
-	if loaded.Default.Node != "22.14.0" {
-		t.Errorf("LoadGlobal().Default.Node = %q, want %q", loaded.Default.Node, "22.14.0")
+	if got := cfg.Default.GetTool("node"); got != "20.11.0" {
+		t.Errorf("GetTool(node) = %q, want the legacy field", got)
+	}
+	if got := cfg.Default.GetTool("pnpm"); got != "" {
+		t.Errorf("GetTool(pnpm) = %q, want empty", got)
+	}
+}
+
+func TestLoadGlobal_ToolsTableBeatsLegacyField(t *testing.T) {
+	writeGlobal(t, "[default]\nnode = \"18.0.0\"\n\n[default.tools]\nnode = \"22.14.0\"\n")
+
+	cfg, err := LoadGlobal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Default.GetTool("node"); got != "22.14.0" {
+		t.Errorf("GetTool(node) = %q, want 22.14.0", got)
+	}
+}
+
+func TestLoadGlobal_HandEditedSyntaxError(t *testing.T) {
+	writeGlobal(t, "[default]\nnode = 22.14.0\"\n")
+
+	if _, err := LoadGlobal(); err == nil || !strings.Contains(err.Error(), "failed to parse global config") {
+		t.Errorf("LoadGlobal() error = %v, want a parse error", err)
 	}
 }

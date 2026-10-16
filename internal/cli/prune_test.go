@@ -11,8 +11,7 @@ import (
 	"github.com/stackmade/driftr/internal/resolver"
 )
 
-// pruneEnv gives a test its own driftr home and an empty project directory as
-// the working directory, so no config outside the test can pin anything.
+// An empty working directory, so no config outside the test can pin anything.
 func pruneEnv(t *testing.T) string {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
@@ -21,7 +20,6 @@ func pruneEnv(t *testing.T) string {
 	return project
 }
 
-// nodeInstalled reports whether a fake node version still exists on disk.
 func nodeInstalled(t *testing.T, ver string) bool {
 	t.Helper()
 	dir, err := platform.ToolVersionDir("node", ver)
@@ -109,8 +107,7 @@ func TestPrune_PartialPinKeepsNewestMatch(t *testing.T) {
 	}
 }
 
-// An engines.node range keeps the version the shim runs, the newest installed
-// match, not the lower-bound major driftr install would fetch.
+// The shim runs the newest installed match, not the lower-bound major driftr install fetches.
 func TestPrune_EnginesNodeKeepsNewestMatch(t *testing.T) {
 	project := pruneEnv(t)
 	fakeNodeInstall(t, "18.0.0")
@@ -313,8 +310,7 @@ func TestRecordProject_UsesNearestPinDir(t *testing.T) {
 	}
 }
 
-// sameDir compares two paths after resolving symlinks, since temp dirs on
-// macOS live behind /var -> /private/var.
+// Temp dirs on macOS live behind /var -> /private/var.
 func sameDir(t *testing.T, a, b string) bool {
 	t.Helper()
 	ra, err := filepath.EvalSymlinks(a)

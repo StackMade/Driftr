@@ -1,12 +1,10 @@
-# driftr run --node keeps everything the command starts on that version, takes
-# package bins from that version only, and refreshes shims after npm -g.
+# run --node holds every spawned command and package bin to that version.
 
 exec driftr setup
 exec driftr install node@22
 exec driftr default node@$NODE_VERSION
 
-# A second node, hand-made: its npm and a package bin are "env node" scripts,
-# which find node on PATH the way the real ones do.
+# Hand-made node 20: its npm and package bin are "env node" scripts that find node on PATH.
 mkdir $HOME/.driftr/tools/node/20.0.0/bin
 cp node20 $HOME/.driftr/tools/node/20.0.0/bin/node
 cp npm20 $HOME/.driftr/tools/node/20.0.0/bin/npm
@@ -23,8 +21,7 @@ stdout 'npm on v20\.0\.0'
 exec driftr run --node 20.0.0 -- hello
 stdout 'hello under v20\.0\.0'
 
-# Without --, flags after the command belong to it, not to driftr: -v is
-# node's version flag here, not driftr's --verbose.
+# Without --, flags after the command are its own: -v here is node's, not driftr's --verbose.
 exec driftr run --node 20.0.0 node -v
 stdout '^v20\.0\.0$'
 ! stdout 'resolve'
@@ -33,8 +30,7 @@ stdout '^v20\.0\.0$'
 exec driftr run --node 20 -- sh -c 'node -v'
 stdout '^v20\.0\.0$'
 
-# Even with another node ahead of driftr's shims on PATH, as in a CI image or
-# a shell where Homebrew's node comes first.
+# Even with another node ahead of the shims on PATH, as in CI images or with Homebrew's node.
 mkdir $WORK/othernode
 cp node99 $WORK/othernode/node
 chmod 0755 $WORK/othernode/node
@@ -58,6 +54,16 @@ chmod 0755 $HOME/.driftr/tools/node/20.0.0/bin/fresh
 ! exists $HOME/.driftr/bin/fresh
 exec driftr run --node 20.0.0 -- npm install -g fresh
 exists $HOME/.driftr/bin/fresh
+
+# The command's exit code is driftr's, so CI sees a failing test run fail.
+exec sh -c 'driftr run --node 20 -- sh -c "exit 3"; echo "code=$?"'
+stdout '^code=3$'
+
+! exec driftr run --node 18 -- node -v
+stderr 'driftr install node@18'
+
+! exec driftr run --node 20
+stderr 'no command specified'
 
 -- node20 --
 #!/bin/sh

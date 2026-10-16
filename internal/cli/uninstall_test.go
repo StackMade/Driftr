@@ -11,7 +11,6 @@ import (
 	"github.com/stackmade/driftr/internal/platform"
 )
 
-// captureStdout runs fn and returns everything it printed to os.Stdout.
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	r, w, err := os.Pipe()
@@ -90,8 +89,7 @@ func TestWarnIfPinned_EveryPinSource(t *testing.T) {
 	}
 }
 
-// engines.node warns about the version the shim runs, the newest installed
-// match, not the newest release of the range's lower-bound major.
+// The shim runs the newest installed match, not the newest release of the lower-bound major.
 func TestWarnIfPinned_EnginesWarnsForVersionInUse(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	fakeNodeInstall(t, "18.0.0")
@@ -201,8 +199,7 @@ func TestUninstallCmd_BundledToolResolvesToParent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// npx ships with npm; uninstalling it must act on the npm install, and
-	// leave node alone.
+	// npx ships with npm, so uninstalling it acts on npm and leaves node alone.
 	captureStdout(t, func() {
 		if err := runCmd(t, "uninstall", "npx@10.9.2"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -225,8 +222,7 @@ func TestUninstallCmd_InvalidVersion(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
-	// A traversal attempt must be rejected by version parsing, never reach the
-	// filesystem.
+	// A traversal attempt must be rejected by version parsing, never reach the filesystem.
 	err := runCmd(t, "uninstall", "node@../../etc")
 	if err == nil || !strings.Contains(err.Error(), "invalid version") {
 		t.Errorf("expected an invalid-version error, got: %v", err)

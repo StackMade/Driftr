@@ -12,7 +12,6 @@ import (
 	"github.com/stackmade/driftr/internal/platform"
 )
 
-// setupFakeInstall creates a fake tool installation with a binary file.
 func setupFakeInstall(t *testing.T, home, tool, version string) {
 	t.Helper()
 	dir, _ := platform.ToolVersionDir(tool, version)
@@ -20,7 +19,6 @@ func setupFakeInstall(t *testing.T, home, tool, version string) {
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		t.Fatalf("failed to create dir: %v", err)
 	}
-	// Determine binary name from tool map.
 	entry, ok := platform.LookupTool(tool)
 	binName := tool
 	if ok {
@@ -103,7 +101,6 @@ func TestResolveFromProject_DriftrToml(t *testing.T) {
 	t.Setenv("HOME", home)
 	setupFakeInstall(t, home, "node", "22.14.0")
 
-	// Create project with .driftr.toml.
 	projectDir := t.TempDir()
 	cfg := &config.ProjectConfig{}
 	cfg.Tools.SetTool("node", "22.14.0")
@@ -111,7 +108,6 @@ func TestResolveFromProject_DriftrToml(t *testing.T) {
 		t.Fatalf("SaveProject() error: %v", err)
 	}
 
-	// Chdir to project.
 	origDir, _ := os.Getwd()
 	defer os.Chdir(origDir)
 	os.Chdir(projectDir)
@@ -133,7 +129,6 @@ func TestResolveFromProject_PackageJSON(t *testing.T) {
 	t.Setenv("HOME", home)
 	setupFakeInstall(t, home, "node", "22.14.0")
 
-	// Create project with package.json.
 	projectDir := t.TempDir()
 	pkgJSON := `{"name": "test", "driftr": {"node": "22.14.0"}}`
 	os.WriteFile(filepath.Join(projectDir, "package.json"), []byte(pkgJSON), 0o644)
@@ -160,7 +155,6 @@ func TestResolveFromProject_TomlTakesPriority(t *testing.T) {
 	setupFakeInstall(t, home, "node", "20.0.0")
 	setupFakeInstall(t, home, "node", "22.14.0")
 
-	// Create project with both .driftr.toml and package.json.
 	projectDir := t.TempDir()
 	cfg := &config.ProjectConfig{}
 	cfg.Tools.SetTool("node", "20.0.0")
@@ -176,7 +170,6 @@ func TestResolveFromProject_TomlTakesPriority(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveTool() error: %v", err)
 	}
-	// .driftr.toml should win.
 	if res.Version != "20.0.0" {
 		t.Errorf("version = %q, want %q (.driftr.toml should take priority)", res.Version, "20.0.0")
 	}
@@ -193,12 +186,10 @@ func TestResolveFromGlobal(t *testing.T) {
 	}
 	setupFakeInstall(t, home, "node", "22.14.0")
 
-	// Set global default.
 	globalCfg, _ := config.LoadGlobal()
 	globalCfg.Default.SetTool("node", "22.14.0")
 	config.SaveGlobal(globalCfg)
 
-	// Chdir to a directory with no project config.
 	emptyDir := t.TempDir()
 	origDir, _ := os.Getwd()
 	defer os.Chdir(origDir)
@@ -252,7 +243,6 @@ func TestResolveTool_PnpmIndependent(t *testing.T) {
 	t.Setenv("HOME", home)
 	setupFakeInstall(t, home, "pnpm", "9.15.0")
 
-	// Create project with pnpm pinned.
 	projectDir := t.TempDir()
 	cfg := &config.ProjectConfig{}
 	cfg.Tools.SetTool("pnpm", "9.15.0")
@@ -281,7 +271,6 @@ func TestResolveBinary_NpmResolveViaNode(t *testing.T) {
 		t.Fatal(err)
 	}
 	setupFakeInstall(t, home, "node", "22.14.0")
-	// npm binary is inside the node installation.
 	npmBinDir := filepath.Join(home, ".driftr", "tools", "node", "22.14.0", "bin")
 	os.WriteFile(filepath.Join(npmBinDir, "npm"), []byte("#!/bin/sh\n"), 0o755)
 
@@ -323,9 +312,7 @@ func TestResolveBinaryFull_ExplicitPinsNodeNotTool(t *testing.T) {
 	defer os.Chdir(origDir)
 	os.Chdir(emptyDir)
 
-	// explicit ("20.0.0") comes from `driftr run --node 20.0.0 -- pnpm`.
-	// It must pin the Node.js runtime, not pnpm's own version — pnpm still
-	// resolves to its configured default (9.15.0).
+	// --node pins the Node.js runtime, not pnpm's own version.
 	rb, err := ResolveBinaryFull("pnpm", "20.0.0")
 	if err != nil {
 		t.Fatalf("ResolveBinaryFull(pnpm, 20.0.0) error: %v", err)
@@ -380,8 +367,7 @@ func TestResolveBinaryFull_BunNeedsNoNode(t *testing.T) {
 	defer os.Chdir(origDir)
 	os.Chdir(projectDir)
 
-	// No node version is installed at all: bun is a native binary and must
-	// still resolve.
+	// bun is a native binary, so it resolves with no node installed.
 	rb, err := ResolveBinaryFull("bun", "")
 	if err != nil {
 		t.Fatalf("ResolveBinaryFull(bun) error: %v", err)
@@ -450,8 +436,7 @@ func TestResolveTool_PackageManagerFieldIgnoredForNode(t *testing.T) {
 	defer os.Chdir(origDir)
 	os.Chdir(projectDir)
 
-	// A packageManager field naming pnpm must not affect node resolution —
-	// it should fall through to the global default.
+	// A packageManager field naming pnpm must not affect node resolution.
 	res, err := ResolveTool("node", "", false)
 	if err != nil {
 		t.Fatalf("ResolveTool(node) error: %v", err)
@@ -461,8 +446,6 @@ func TestResolveTool_PackageManagerFieldIgnoredForNode(t *testing.T) {
 	}
 }
 
-// projectWithPin creates a project dir pinning node in .driftr.toml and
-// chdirs into it.
 func projectWithPin(t *testing.T, ver string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -597,7 +580,6 @@ func TestNotInstalledError(t *testing.T) {
 		t.Errorf("error should contain install hint, got: %s", msg)
 	}
 
-	// Without context.
 	e2 := &NotInstalledError{Tool: "pnpm", Version: "9.0.0"}
 	msg2 := e2.Error()
 	if strings.Contains(msg2, "(") {
@@ -660,8 +642,7 @@ func TestResolveFromProject_Nvmrc(t *testing.T) {
 	}
 }
 
-// A pin that is not an exact installed version picks the newest installed
-// match in every project source, the way check and prune already read it.
+// An inexact pin picks the newest installed match, the way check and prune read it.
 func TestResolveFromProject_InexactPins(t *testing.T) {
 	cases := []struct{ file, content string }{
 		{".nvmrc", "22\n"},
@@ -738,7 +719,6 @@ func TestResolveFromProject_NvmrcPriority(t *testing.T) {
 	setupFakeInstall(t, home, "node", "20.0.0")
 	setupFakeInstall(t, home, "node", "22.14.0")
 
-	// .nvmrc should lose to .driftr.toml
 	projectDir := t.TempDir()
 	cfg := &config.ProjectConfig{}
 	cfg.Tools.SetTool("node", "20.0.0")
@@ -765,7 +745,6 @@ func TestResolveFromProject_NvmrcIgnoredForNonNode(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	// Create .nvmrc but resolve pnpm — should not match.
 	projectDir := t.TempDir()
 	os.WriteFile(filepath.Join(projectDir, ".nvmrc"), []byte("22.14.0\n"), 0o644)
 
@@ -773,7 +752,6 @@ func TestResolveFromProject_NvmrcIgnoredForNonNode(t *testing.T) {
 	defer os.Chdir(origDir)
 	os.Chdir(projectDir)
 
-	// pnpm resolution should fall through to global (and fail with no global set).
 	_, err := ResolveTool("pnpm", "", false)
 	if err == nil {
 		t.Fatal("expected error for pnpm with only .nvmrc, got nil")
@@ -963,8 +941,7 @@ func TestResolveFromProject_EnginesNodeLosesToDriftrKey(t *testing.T) {
 	}
 }
 
-// engines.node is a fallback: an explicit pin anywhere up the tree beats it,
-// as in a monorepo package or a dependency running its postinstall.
+// engines.node is a fallback: any explicit pin up the tree beats it, as in a monorepo package.
 func TestResolveFromProject_ParentPinBeatsNearerEnginesNode(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -1062,7 +1039,6 @@ func TestResolveFromProject_EnginesNodeNotInstalled(t *testing.T) {
 			t.Setenv("HOME", home)
 			setupFakeInstall(t, home, "node", "16.20.2")
 			if tt.rangeText == "<21" {
-				// Make sure nothing at all matches.
 				os.RemoveAll(filepath.Join(home, ".driftr", "tools", "node"))
 			}
 			enginesProject(t, tt.rangeText)
@@ -1169,8 +1145,7 @@ func TestResolvePackageBin_OtherInstallOnPathWins(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// The node bin dir on PATH is what a package bin's own commands see; it
-	// does not count as somewhere else.
+	// A package bin's own commands see the node bin dir on PATH; it is not somewhere else.
 	t.Setenv("PATH", filepath.Join(dir, "bin")+string(os.PathListSeparator)+elsewhere)
 
 	t.Setenv("DRIFTR_NODE", "22.0.0")
@@ -1211,9 +1186,7 @@ func TestResolveTool_ExplicitPartialVersion(t *testing.T) {
 	}
 }
 
-// npmProject installs node 22.14.0 (with its bundled npm and npx) as the
-// global default, node 20.0.0, and npm 10.9.2 from the registry, then moves
-// into an empty working directory and returns it.
+// npmProject installs node 22.14.0 (default), node 20.0.0 and npm 10.9.2 in an empty cwd.
 func npmProject(t *testing.T) string {
 	t.Helper()
 	home := t.TempDir()
@@ -1294,8 +1267,7 @@ func TestResolveBinaryFull_PinnedNpmRunsUnderNode(t *testing.T) {
 	}
 }
 
-// A pin that is not installed must surface as NotInstalledError, so the shim
-// can offer to install it, never fall back to the bundled npm.
+// An uninstalled npm pin must surface as NotInstalledError, never fall back to bundled npm.
 func TestResolveBinaryFull_PinnedNpmNotInstalled(t *testing.T) {
 	dir := npmProject(t)
 	cfg := &config.ProjectConfig{}

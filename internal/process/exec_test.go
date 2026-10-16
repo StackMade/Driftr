@@ -9,10 +9,7 @@ import (
 	"time"
 )
 
-// The success path of Exec replaces the process, so it can only be observed
-// from the outside — the e2e suite does that by running a real shim. What is
-// testable here is the failure path, which must name the binary it could not
-// start rather than surfacing a bare errno.
+// Exec replaces the process on success, so only its failure path is testable here.
 func TestExecMissingBinaryNamesIt(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "not-a-binary")
 

@@ -14,7 +14,6 @@ import (
 	"github.com/stackmade/driftr/internal/platform"
 )
 
-// swapHTTPClient routes all installer HTTP traffic to the test server.
 func swapHTTPClient(t *testing.T, srv *httptest.Server) {
 	t.Helper()
 	orig := httpClient
@@ -162,8 +161,6 @@ func TestNodeDistBase_EnvOverride(t *testing.T) {
 	}
 }
 
-// slowServer sends n bytes, one every gap; when stall is set it then hangs
-// until the test ends.
 func slowServer(t *testing.T, n int, gap time.Duration, stall bool) *httptest.Server {
 	t.Helper()
 	release := make(chan struct{})
@@ -186,8 +183,7 @@ func slowServer(t *testing.T, n int, gap time.Duration, stall bool) *httptest.Se
 	return srv
 }
 
-// The client Timeout counts the body read, so it used to kill a node archive
-// on any link slower than ~450 KB/s. A steady download must outlive it.
+// The client Timeout used to count the body read and kill node downloads below ~450 KB/s.
 func TestFetchToCache_SlowSteadyDownloadOutlivesClientTimeout(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	srv := slowServer(t, 40, 20*time.Millisecond, false)

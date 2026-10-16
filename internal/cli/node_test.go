@@ -11,7 +11,6 @@ import (
 	"github.com/stackmade/driftr/internal/nodeenv"
 )
 
-// stubRunner implements nodeenv.Runner for command-level tests.
 type stubRunner struct {
 	calls   []string
 	outputs map[string]string
@@ -50,7 +49,6 @@ func (s *stubRunner) called(cmd string) bool {
 
 func TestRunNodeOptimize_SetsUnconfiguredKeys(t *testing.T) {
 	s := newStubRunner()
-	// both keys read back empty → both should be set
 	var buf bytes.Buffer
 	if err := runNodeOptimize(nodeenv.NewPnpm(s), "/store/pnpm", false, &buf); err != nil {
 		t.Fatal(err)
@@ -144,8 +142,7 @@ func TestRunNodeClean_ExecuteRemovesAndPrunes(t *testing.T) {
 }
 
 func TestRunNodeClean_ExecuteRemovesEmptyNodeModules(t *testing.T) {
-	// Empty node_modules must still be removed and trigger reinstall — the old
-	// size>0 check wrongly treated it as absent.
+	// A past size>0 check treated an empty node_modules as absent and skipped the reinstall.
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "node_modules"), 0o755); err != nil {
 		t.Fatal(err)
@@ -172,8 +169,7 @@ func writePnpmLock(t *testing.T, dir string) {
 }
 
 func TestRunNodeClean_ReinstallsWithProjectManager(t *testing.T) {
-	// An npm project must be reinstalled with npm, not pnpm, and a pnpm that
-	// cannot run must not fail the clean.
+	// An npm project reinstalls with npm, and a pnpm that cannot run must not fail the clean.
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "node_modules", "pkg"), 0o755); err != nil {
 		t.Fatal(err)

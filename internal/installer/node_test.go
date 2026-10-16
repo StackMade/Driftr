@@ -33,7 +33,6 @@ func TestFetchNodeIndex(t *testing.T) {
 		t.Fatalf("expected 3 releases, got %d", len(releases))
 	}
 
-	// "v" prefix must be stripped.
 	if releases[0].Version != "24.1.0" {
 		t.Errorf("version[0] = %q, want 24.1.0", releases[0].Version)
 	}
@@ -41,7 +40,6 @@ func TestFetchNodeIndex(t *testing.T) {
 		t.Errorf("version[1] = %q, want 22.14.0", releases[1].Version)
 	}
 
-	// LTS field should round-trip as string for LTS releases.
 	lts, ok := releases[1].LTS.(string)
 	if !ok || lts != "Jod" {
 		t.Errorf("releases[1].LTS = %v, want \"Jod\"", releases[1].LTS)
@@ -100,7 +98,6 @@ func TestResolveLatestVersion_LTS_NoneFound(t *testing.T) {
 	}
 }
 
-// hostRewriteTransport redirects all requests to a fixed base URL (test server).
 type hostRewriteTransport struct {
 	target string // e.g. "http://127.0.0.1:PORT"
 }
@@ -138,9 +135,7 @@ func TestNodeRelease_LTSName(t *testing.T) {
 	}
 }
 
-// lts/<codename> picks the newest release carrying that codename, not simply
-// the newest LTS. The comparison is case-insensitive, because a user writes
-// "lts/jod" while the index says "Jod".
+// Users write "lts/jod" while the index says "Jod", so the codename match ignores case.
 func TestResolveLatestVersion_LTSCodename(t *testing.T) {
 	payload := []map[string]any{
 		{"version": "v24.1.0", "lts": false},

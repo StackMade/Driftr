@@ -1,5 +1,4 @@
-# pnpm and yarn: npm registry install, SRI verification, and the shim path
-# that runs them under node.
+# pnpm and yarn: registry install, SRI verification, and the shim path that runs them under node.
 
 exec driftr setup
 exec driftr install node@22
@@ -15,9 +14,7 @@ exec driftr default pnpm@$PNPM_VERSION
 exec driftr which pnpm
 stdout $PNPM_VERSION
 
-# pnpm and yarn are JavaScript, so the shim execs node with the tool's script
-# rather than the script file itself. The fixture node echoes the path it was
-# handed, so the assertion below shows which script was chosen.
+# The shim execs node with the tool's script; the fixture node echoes which script it got.
 exec pnpm -v
 stdout 'pnpm\.cjs'
 
@@ -34,8 +31,7 @@ stdout $YARN_VERSION
 exec yarn -v
 stdout 'yarn\.js'
 
-# The packageManager field in package.json pins the package manager, and only
-# the package manager — node keeps resolving through the normal chain.
+# packageManager pins only the package manager; node keeps resolving through the normal chain.
 cd $WORK/app
 exec driftr which pnpm
 stdout $PNPM_VERSION

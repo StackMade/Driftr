@@ -26,8 +26,7 @@ func TestExitError_Error(t *testing.T) {
 }
 
 func TestExitError_SurvivesWrapping(t *testing.T) {
-	// Execute() unwraps the error chain to find the exit code, so an ExitError
-	// wrapped by a command must still be recognized and still carry its code.
+	// Execute() unwraps the chain for the exit code, so a wrapped ExitError must keep its code.
 	wrapped := fmt.Errorf("shim failed: %w", &ExitError{Code: 42})
 
 	var exitErr *ExitError

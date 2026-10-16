@@ -62,9 +62,7 @@ func TestLoadNvmrc_MissingFile(t *testing.T) {
 	}
 }
 
-// FuzzParseVersionFile asserts that the .nvmrc / .node-version parser never
-// panics and never returns a version carrying leading or trailing whitespace,
-// a comment, or an embedded newline.
+// The parser must never return a version with whitespace, a comment, or an embedded newline.
 func FuzzParseVersionFile(f *testing.F) {
 	seeds := []string{
 		"22.14.0\n", "v22.14.0\n", "22\n", "22.14\n", "  22.14.0  \n",
@@ -90,9 +88,7 @@ func FuzzParseVersionFile(f *testing.F) {
 		if strings.TrimSpace(got) != got {
 			t.Errorf("parseVersionFile(%q) = %q, want no surrounding whitespace", content, got)
 		}
-		// Lines are split on "\n" only, so CRLF is handled (the "\r" is trimmed)
-		// but a lone CR is not a separator: "0\r0" comes back verbatim. That is
-		// the parser's actual contract, not an accident worth asserting against.
+		// A lone CR is not a line separator, so "0\r0" comes back verbatim by contract.
 		if strings.Contains(got, "\n") {
 			t.Errorf("parseVersionFile(%q) = %q, want a single line", content, got)
 		}
@@ -131,8 +127,7 @@ func TestSaveVersionFile(t *testing.T) {
 	}
 }
 
-// TestLoadNodeVersion_CommentAndBOM guards that .node-version is read like
-// .nvmrc: both go through parseVersionFile.
+// .node-version is read like .nvmrc: both go through parseVersionFile.
 func TestLoadNodeVersion_CommentAndBOM(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, ".node-version"), []byte("\ufeff22.14.0 # ci\n"), 0o644); err != nil {

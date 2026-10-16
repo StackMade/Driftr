@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-// listRemoteOutput runs a remote listing and returns what it printed.
 func listRemoteOutput(t *testing.T, tool string, pre bool, limit int) (string, error) {
 	t.Helper()
 	var err error
@@ -37,7 +36,6 @@ func TestListRemote_NodeMarksInstalledAndLTS(t *testing.T) {
 	if strings.Contains(out, "24.0.0 (LTS") {
 		t.Errorf("non-LTS release was labeled LTS: %q", out)
 	}
-	// The installed version carries the ● marker; the others do not.
 	for _, line := range strings.Split(out, "\n") {
 		if strings.Contains(line, "22.14.0") && !strings.Contains(line, "●") {
 			t.Errorf("installed version not marked: %q", line)
@@ -84,7 +82,6 @@ func TestListRemote_NpmPackage(t *testing.T) {
 	if !strings.Contains(out, "Available pnpm versions (all 3):") {
 		t.Errorf("unexpected output: %q", out)
 	}
-	// Newest first.
 	if strings.Index(out, "9.15.0") > strings.Index(out, "8.15.0") {
 		t.Errorf("versions are not newest-first: %q", out)
 	}

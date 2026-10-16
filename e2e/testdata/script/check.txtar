@@ -1,13 +1,9 @@
-# driftr check: every source that pins a tool, which one wins, and where they
-# disagree. It reads files only, so nothing here needs the fixture server
-# except the one install that gives a partial pin something to resolve to.
+# check reads files only; the one install gives a partial pin something to resolve to.
 
-# No pins anywhere up the tree is not a problem.
 exec driftr check --exit-code
 stdout 'No version pins found'
 
-# Partial and full versions agree when one contains the other, and the
-# winning pin sits inside engines.node.
+# Partial and full pins agree when one contains the other, and the winner fits engines.node.
 cd $WORK/consistent
 exec driftr check --exit-code
 stdout '^node  22'
@@ -17,8 +13,7 @@ stdout 'package\.json \(engines\.node\)\s+>=22'
 stdout 'All pins agree'
 ! stdout '✗'
 
-# .nvmrc and .driftr.toml name different majors. Without --exit-code the
-# command only reports; with it, CI fails.
+# .nvmrc and .driftr.toml disagree: only --exit-code makes it fail CI.
 cd $WORK/conflict
 exec driftr check
 stdout '\.nvmrc says 20, but \.driftr\.toml says 22\.99\.0 and wins'
@@ -27,8 +22,7 @@ stdout 'Found 1 problem'
 ! exec driftr check --exit-code
 stdout 'Found 1 problem'
 
-# A partial pin is checked against engines.node through the version it
-# resolves to once installed.
+# A partial pin is checked against engines.node through the version it resolves to.
 exec driftr install node@$NODE_VERSION
 cd $WORK/engines
 ! exec driftr check --exit-code
@@ -36,14 +30,12 @@ stdout '^node  22 \(resolves to '$NODE_VERSION'\)'
 stdout 'node 22 from \.driftr\.toml resolves to '$NODE_VERSION', which is outside package\.json \(engines\.node\) ">=24"'
 stdout 'driftr pin node@24'
 
-# The resolver skips an LTS codename it does not know, so .node-version is
-# the pin in use and is what engines.node is checked against.
+# An unknown LTS codename is skipped, so .node-version is the pin checked against engines.node.
 cd $WORK/codename
 ! exec driftr check --exit-code
 stdout '> \.node-version\s+20\.11\.0'
 stdout 'node 20\.11\.0 from \.node-version is outside package\.json \(engines\.node\) ">=24"'
 
-# A file the resolver cannot read is a problem too.
 cd $WORK/broken
 exec driftr check
 stdout 'failed to parse project config'

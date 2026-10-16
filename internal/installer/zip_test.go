@@ -9,7 +9,6 @@ import (
 	"testing"
 )
 
-// writeTestZip builds a zip archive on disk from a name → content map.
 func writeTestZip(t *testing.T, entries map[string]string) string {
 	t.Helper()
 
@@ -102,7 +101,6 @@ func TestExtractZipToBin_MissingBinary(t *testing.T) {
 	if _, err := os.Stat(destDir); err == nil {
 		t.Error("failed extraction left a version directory behind")
 	}
-	// No leftover work dirs either.
 	entries, err := os.ReadDir(parent)
 	if err != nil {
 		t.Fatal(err)
@@ -120,4 +118,125 @@ func TestExtractZipToBin_WrongLayout(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "unexpected layout") {
 		t.Fatalf("expected layout error, got: %v", err)
 	}
+}
+
+func tmpLeftovers(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var left []string
+	for _, e := range entries {
+		if strings.Contains(e.Name(), ".tmp-") {
+			left = append(left, e.Name())
+		}
+	}
+	return left
+}
+
+func TestExtractZipToBin_ConcurrentInstallWins(t *testing.T) {
+	archive := writeTestZip(t, map[string]string{"bun-linux-x64/bun": "ours"})
+	destDir := filepath.Join(t.TempDir(), "bun", "1.2.3")
+	writeFileAll(t, filepath.Join(destDir, "bin", "bun"), "theirs")
+
+	if err := ExtractZipToBin(archive, destDir, "bun-linux-x64/", "bun"); err != nil {
+		t.Fatalf("losing the race should not fail: %v", err)
+	}
+	if got := readString(t, filepath.Join(destDir, "bin", "bun")); got != "theirs" {
+		t.Errorf("winner's binary was replaced: %q", got)
+	}
+	if left := tmpLeftovers(t, filepath.Dir(destDir)); len(left) > 0 {
+		t.Errorf("temp dirs left behind: %v", left)
+	}
+}
+
+func TestExtractZipToBin_DestOccupiedWithoutBinary(t *testing.T) {
+	archive := writeTestZip(t, map[string]string{"bun-linux-x64/bun": "ours"})
+	destDir := filepath.Join(t.TempDir(), "bun", "1.2.3")
+	writeFileAll(t, filepath.Join(destDir, "junk"), "")
+
+	err := ExtractZipToBin(archive, destDir, "bun-linux-x64/", "bun")
+	if err == nil || !strings.Contains(err.Error(), "failed to finalize install") {
+		t.Fatalf("got %v, want a finalize error", err)
+	}
+	if left := tmpLeftovers(t, filepath.Dir(destDir)); len(left) > 0 {
+		t.Errorf("temp dirs left behind: %v", left)
+	}
+}
+
+func TestExtractZipToBin_CorruptDownloads(t *testing.T) {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	w, err := zw.CreateHeader(&zip.FileHeader{Name: "bun-linux-x64/bun", Method: zip.Store})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.Write([]byte("BUNBINARYPAYLOAD"))
+	zw.Close()
+	flipped := bytes.Replace(buf.Bytes(), []byte("BUNBINARYPAYLOAD"), []byte("BUNBINARYPAYLOAX"), 1)
+
+	cases := map[string]struct {
+		data []byte
+		want string
+	}{
+		"crc mismatch":    {flipped, "failed to write file"},
+		"html error page": {[]byte("<html>Not Found</html>"), "failed to open archive"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			archive := filepath.Join(t.TempDir(), "bun.zip")
+			writeFileAll(t, archive, string(tc.data))
+			destDir := filepath.Join(t.TempDir(), "bun", "1.2.3")
+
+			err := ExtractZipToBin(archive, destDir, "bun-linux-x64/", "bun")
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("got %v, want %q", err, tc.want)
+			}
+			if _, err := os.Stat(destDir); !os.IsNotExist(err) {
+				t.Errorf("version dir exists after a failed install: %v", err)
+			}
+		})
+	}
+}
+
+func TestExtractZipToBin_SkipsSymlinkEntries(t *testing.T) {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	bin, _ := zw.Create("bun-linux-x64/bun")
+	bin.Write([]byte("bun"))
+	hdr := &zip.FileHeader{Name: "bun-linux-x64/passwd"}
+	hdr.SetMode(os.ModeSymlink | 0o777)
+	link, _ := zw.CreateHeader(hdr)
+	link.Write([]byte("/etc/passwd"))
+	zw.Close()
+	archive := filepath.Join(t.TempDir(), "bun.zip")
+	writeFileAll(t, archive, buf.String())
+	destDir := filepath.Join(t.TempDir(), "bun", "1.2.3")
+
+	if err := ExtractZipToBin(archive, destDir, "bun-linux-x64/", "bun"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(filepath.Join(destDir, "bin", "passwd")); !os.IsNotExist(err) {
+		t.Errorf("symlink entry was extracted: %v", err)
+	}
+}
+
+func writeFileAll(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func readString(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
 }

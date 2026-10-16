@@ -1,5 +1,4 @@
-# An upgrade that cannot rewrite the shims: tools keep working, driftr
-# commands say so, and doctor reports it until --fix succeeds.
+# Unwritable shims after an upgrade: tools work, commands say so, doctor reports until --fix.
 
 [root] skip 'root ignores file permissions'
 

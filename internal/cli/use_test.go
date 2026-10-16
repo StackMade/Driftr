@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-// runCmdOut executes the root command and returns what it wrote to stdout.
 func runCmdOut(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 	var out bytes.Buffer

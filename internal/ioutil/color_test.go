@@ -8,7 +8,6 @@ import (
 	"testing"
 )
 
-// resetColorCache resets the memoized TTY state so tests get a clean slate.
 func resetColorCache() {
 	ttyOnce = sync.Once{}
 	isTTY = false
@@ -54,7 +53,6 @@ func TestSemanticHelpers_PlainWhenDisabled(t *testing.T) {
 		}
 	}
 
-	// Prefixes/markers must survive regardless of color state.
 	if !strings.HasPrefix(Success("done"), "✓ ") {
 		t.Errorf("Success missing check mark: %q", Success("done"))
 	}
@@ -67,7 +65,6 @@ func TestSemanticHelpers_PlainWhenDisabled(t *testing.T) {
 }
 
 func TestColorDisabled_NonTTY(t *testing.T) {
-	// Reset cached TTY state so this test controls when it fires.
 	resetColorCache()
 	t.Cleanup(resetColorCache)
 
@@ -104,7 +101,6 @@ func TestColorDisabled_NonTTY(t *testing.T) {
 	}
 }
 
-// forceColor makes colorEnabled report true for the rest of the test.
 func forceColor(t *testing.T) {
 	t.Helper()
 	resetColorCache()
@@ -177,8 +173,7 @@ func TestXterm256(t *testing.T) {
 	}
 }
 
-// A cell holding a stem pixel over a bowl pixel would need the terminal's
-// own foreground as a background color, which SGR cannot express.
+// A stem pixel over a bowl pixel would need the terminal foreground as a background; SGR can't.
 func TestSignet_NoMixedCells(t *testing.T) {
 	for i := 0; i+1 < len(signet); i += 2 {
 		for c := range signet[i] {

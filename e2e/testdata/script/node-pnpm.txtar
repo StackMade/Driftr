@@ -1,0 +1,85 @@
+# The pnpm stub keeps its config in a file, so doctor reads back what optimize writes.
+
+chmod 0755 fake/pnpm
+chmod 0755 fake/corepack
+chmod 0755 fake/node
+env PATH=$WORK/fake
+cd app
+
+exec $DRIFTR_BIN node doctor
+stdout 'Package manager: +pnpm'
+stdout 'Node.js: +22.14.0'
+stdout 'Corepack: +available'
+stdout 'pnpm: +9.15.0'
+stdout 'node_modules: +11 B'
+stdout 'global virtual store: disabled'
+stdout 'Run: driftr node optimize'
+
+exec $DRIFTR_BIN node optimize --install
+stdout 'corepack enabled'
+stdout 'set store-dir = .*/\.driftr/stores/pnpm'
+stdout 'set enable-global-virtual-store = true'
+stdout 'dependencies installed'
+exists $HOME/corepack-enabled
+exists $HOME/pnpm-installed
+
+exec $DRIFTR_BIN node optimize
+stdout 'store-dir already .*/\.driftr/stores/pnpm'
+stdout 'enable-global-virtual-store already true'
+! stdout 'set '
+
+exec $DRIFTR_BIN node doctor
+stdout 'pnpm store: +.*/\.driftr/stores/pnpm'
+stdout 'global virtual store: enabled'
+stdout 'Shared dependency storage is enabled'
+
+exec $DRIFTR_BIN node report
+stdout 'Project node_modules: 11 B'
+stdout 'Shared pnpm store: +5 B'
+
+env PATH=$WORK/empty
+! exec $DRIFTR_BIN node optimize
+stdout 'corepack not found, skipping'
+stderr 'pnpm not found'
+
+exec $DRIFTR_BIN node report
+stdout 'Shared pnpm store: +unknown \(pnpm not found\)'
+
+exec $DRIFTR_BIN node doctor
+stdout 'Node.js: +not found'
+stdout 'pnpm: +not found'
+stdout 'corepack enable && driftr node optimize'
+
+-- fake/pnpm --
+#!/bin/sh
+cfg="$HOME/pnpm-config"
+case "$1" in
+--version) echo 9.15.0 ;;
+store) echo "$HOME/.driftr/stores/pnpm" ;;
+install) : > "$HOME/pnpm-installed" ;;
+config)
+	if [ "$2" = set ]; then
+		echo "$3=$4" >> "$cfg"
+		exit 0
+	fi
+	val=undefined
+	if [ -f "$cfg" ]; then
+		while IFS== read -r k v; do
+			[ "$k" = "$3" ] && val=$v
+		done < "$cfg"
+	fi
+	echo "$val"
+	;;
+esac
+-- fake/corepack --
+#!/bin/sh
+: > "$HOME/corepack-enabled"
+-- fake/node --
+#!/bin/sh
+echo v22.14.0
+-- app/pnpm-lock.yaml --
+lockfileVersion: '9.0'
+-- app/node_modules/left-pad/index.js --
+module.x=1
+-- home/.driftr/stores/pnpm/v10/a --
+abcd

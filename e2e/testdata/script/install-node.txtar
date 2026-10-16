@@ -27,15 +27,14 @@ exec driftr install node@$NODE_VERSION
 exec driftr list
 stdout $NODE_VERSION
 
-# The shim execs the real binary. The fixture node prints its own version.
+# The fixture node prints its own version.
 exec node -v
 stdout 'v'$NODE_VERSION
 
 exec npm -v
 stdout '10\.99\.0'
 
-# A partial project pin, the usual nvm .nvmrc, runs the newest installed match
-# through the shim, and resolves the same way in which.
+# A partial .nvmrc pin runs the newest installed match through the shim and in which.
 mkdir $WORK/partial
 cd $WORK/partial
 cp $WORK/nvmrc-22 .nvmrc
@@ -58,5 +57,26 @@ stderr 'lts is only supported for node'
 ! exec driftr install bun@lts
 stderr 'lts is only supported for node'
 
+# A bare install takes every project pin; one failing tool does not stop the others.
+cd $WORK/pins
+! exec driftr install
+stdout 'Installed node '$NODE_VERSION
+stdout 'Failed to install pnpm 8\.0\.0'
+stderr '1 of 2 pinned tools failed'
+! exists $HOME/.driftr/tools/pnpm/8.0.0
+cd $WORK
+
+# Outside any project there is nothing to install, and the error says how to pin.
+mkdir $WORK/empty
+cd $WORK/empty
+! exec driftr install
+stderr 'no tool versions pinned'
+stderr 'driftr pin node@'
+cd $WORK
+
+-- pins/.driftr.toml --
+[tools]
+node = "22"
+pnpm = "8.0.0"
 -- nvmrc-22 --
 22

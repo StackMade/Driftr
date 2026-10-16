@@ -9,8 +9,7 @@ stdout 'No node versions installed'
 ! exec driftr list unknown
 stderr 'unknown tool: unknown'
 
-# Every error path has to exit non-zero. A command that prints a complaint and
-# still returns 0 breaks any script wrapping driftr.
+# A command that complains but exits 0 breaks any script wrapping driftr.
 ! exec driftr install unknown@1.0
 stderr 'unknown tool'
 
@@ -20,7 +19,6 @@ stderr 'not installed'
 ! exec driftr uninstall pnpm
 stderr 'version required'
 
-# self-update is only checked for registration. Running it would replace the
-# binary the rest of the suite executes.
+# self-update is only checked for registration; running it would replace the shared binary.
 exec driftr --help
 stdout 'self-update'

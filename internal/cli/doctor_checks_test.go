@@ -67,7 +67,6 @@ func TestBrokenShims_MissingAndNotExecutable(t *testing.T) {
 		t.Skipf("need at least two shim tools, got %v", tools)
 	}
 
-	// One good shim, one present but not executable, the rest missing.
 	if err := os.WriteFile(filepath.Join(binDir, tools[0]), []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -152,8 +151,7 @@ func TestCheckGlobalDefault(t *testing.T) {
 	}
 }
 
-// A default that was uninstalled behind driftr's back is the failure mode this
-// check exists for.
+// A default uninstalled behind driftr's back is the failure mode this check exists for.
 func TestCheckDefaultsInstalled_ReportsMissingInstall(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
@@ -201,5 +199,148 @@ func TestCheckNeedsNode(t *testing.T) {
 				t.Errorf("checkNeedsNode(%v) = %d, want %d", tt.versions, got, tt.want)
 			}
 		})
+	}
+}
+
+func zshHome(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("ZDOTDIR", "")
+	t.Setenv("SHELL", "/bin/zsh")
+	return home
+}
+
+func TestCheckShellRCPlacement_FixWritesZshenv(t *testing.T) {
+	home := zshHome(t)
+	binDir := filepath.Join(home, ".driftr", "bin")
+
+	var issues int
+	out := captureStdout(t, func() { issues = checkShellRCPlacement(binDir, false) })
+	if issues != 1 || !strings.Contains(out, "not configured in any shell rc file") {
+		t.Fatalf("issues = %d, out = %q", issues, out)
+	}
+
+	out = captureStdout(t, func() { issues = checkShellRCPlacement(binDir, true) })
+	if issues != 0 || !strings.Contains(out, "fixed") {
+		t.Fatalf("fix: issues = %d, out = %q", issues, out)
+	}
+	if data := readFile(t, filepath.Join(home, ".zshenv")); !strings.Contains(data, binDir) {
+		t.Fatalf(".zshenv lacks %s: %q", binDir, data)
+	}
+
+	out = captureStdout(t, func() { issues = checkShellRCPlacement(binDir, false) })
+	if issues != 0 || !strings.Contains(out, "universal shell coverage") {
+		t.Errorf("after fix: issues = %d, out = %q", issues, out)
+	}
+}
+
+func TestCheckShellRCPlacement_FlagsInteractiveOnlyEntry(t *testing.T) {
+	home := zshHome(t)
+	binDir := filepath.Join(home, ".driftr", "bin")
+	writeFile(t, filepath.Join(home, ".zshrc"), "export PATH=\"$HOME/.driftr/bin:$PATH\"\n")
+
+	var issues int
+	out := captureStdout(t, func() { issues = checkShellRCPlacement(binDir, false) })
+	if issues != 1 {
+		t.Errorf("issues = %d, want 1", issues)
+	}
+	if !strings.Contains(out, "interactive rc file(s): "+filepath.Join(home, ".zshrc")) {
+		t.Errorf("output does not name .zshrc: %q", out)
+	}
+}
+
+func TestCheckShimVersion(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	var issues int
+	out := captureStdout(t, func() { issues = checkShimVersion(false) })
+	if issues != 1 || !strings.Contains(out, "an older driftr") {
+		t.Fatalf("no stamp: issues = %d, out = %q", issues, out)
+	}
+
+	if _, err := shim.GenerateShims("0.9.0"); err != nil {
+		t.Fatal(err)
+	}
+	out = captureStdout(t, func() { issues = checkShimVersion(false) })
+	if issues != 1 || !strings.Contains(out, "written by driftr 0.9.0") {
+		t.Fatalf("old stamp: issues = %d, out = %q", issues, out)
+	}
+
+	captureStdout(t, func() { issues = checkShimVersion(true) })
+	if issues != 0 || shim.Stamp() != Version {
+		t.Fatalf("fix: issues = %d, stamp = %q, want %q", issues, shim.Stamp(), Version)
+	}
+	out = captureStdout(t, func() { issues = checkShimVersion(false) })
+	if issues != 0 || !strings.Contains(out, "match") {
+		t.Errorf("after fix: issues = %d, out = %q", issues, out)
+	}
+}
+
+func TestCheckShimBinaryPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	binDir := filepath.Join(home, ".driftr", "bin")
+
+	if got := checkShimBinaryPath(binDir, false); got != 0 {
+		t.Fatalf("missing shim = %d, want 0 (checkShims reports it)", got)
+	}
+
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(binDir, "node"), "#!/bin/sh\nexec '/opt/old/driftr' shim node \"$@\"\n")
+	var issues int
+	out := captureStdout(t, func() { issues = checkShimBinaryPath(binDir, false) })
+	if issues != 1 || !strings.Contains(out, "Shims point to /opt/old/driftr") {
+		t.Fatalf("stale shim: issues = %d, out = %q", issues, out)
+	}
+
+	captureStdout(t, func() { issues = checkShimBinaryPath(binDir, true) })
+	if issues != 0 {
+		t.Fatalf("fix: issues = %d", issues)
+	}
+	exe, _ := os.Executable()
+	exe, _ = filepath.EvalSymlinks(exe)
+	got, _ := filepath.EvalSymlinks(shim.BakedPath(filepath.Join(binDir, "node")))
+	if got != exe {
+		t.Errorf("shim points to %q, want %q", got, exe)
+	}
+	out = captureStdout(t, func() { issues = checkShimBinaryPath(binDir, false) })
+	if issues != 0 || !strings.Contains(out, "current driftr binary") {
+		t.Errorf("after fix: issues = %d, out = %q", issues, out)
+	}
+}
+
+func TestCheckConflictingManagers(t *testing.T) {
+	binDir := t.TempDir()
+	otherDir := t.TempDir()
+	nvmDir := t.TempDir()
+	writeExe(t, otherDir, "fnm")
+	writeExe(t, binDir, "volta")
+	writeFile(t, filepath.Join(nvmDir, "nvm.sh"), "")
+
+	t.Setenv("PATH", "")
+	t.Setenv("NVM_DIR", "")
+	var issues int
+	out := captureStdout(t, func() { issues = checkConflictingManagers(binDir) })
+	if issues != 0 || !strings.Contains(out, "No conflicting") {
+		t.Fatalf("clean env: issues = %d, out = %q", issues, out)
+	}
+
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+otherDir)
+	t.Setenv("NVM_DIR", nvmDir)
+	out = captureStdout(t, func() { issues = checkConflictingManagers(binDir) })
+	if issues != 2 {
+		t.Errorf("issues = %d, want 2 (nvm and fnm; volta in binDir is ours)", issues)
+	}
+	for _, want := range []string{"nvm detected", "fnm detected at " + filepath.Join(otherDir, "fnm")} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %q: %q", want, out)
+		}
+	}
+	if strings.Contains(out, "volta") {
+		t.Errorf("volta inside the shim dir was reported: %q", out)
 	}
 }

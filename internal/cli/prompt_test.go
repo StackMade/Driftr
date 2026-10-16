@@ -10,7 +10,6 @@ import (
 	"github.com/stackmade/driftr/internal/resolver"
 )
 
-// captureStderr runs fn and returns everything it printed to os.Stderr.
 func captureStderr(t *testing.T, fn func()) string {
 	t.Helper()
 	r, w, err := os.Pipe()
@@ -63,8 +62,7 @@ func TestConfirm_Answers(t *testing.T) {
 		{"no", "no\n", false},
 		{"unrelated word", "maybe\n", false},
 		{"eof with no input", "", false},
-		// A final line without a trailing newline still counts: ReadString
-		// returns io.EOF alongside the text, and confirm uses the text.
+		// ReadString returns io.EOF alongside an unterminated last line, and confirm uses the text.
 		{"y without trailing newline", "y", true},
 		{"n without trailing newline", "n", false},
 	}
@@ -117,9 +115,7 @@ func TestPromptInstall_Answers(t *testing.T) {
 		{"no", "no\n", false},
 		{"unrelated word", "maybe\n", false},
 		{"eof with no input", "", false},
-		// ReadString hands back the text along with io.EOF when the input
-		// ends without a newline. A piped answer has to count, the same way
-		// confirm counts it.
+		// A piped answer without a trailing newline counts, the same way confirm counts it.
 		{"y without trailing newline", "y", true},
 		{"n without trailing newline", "n", false},
 	}
@@ -182,8 +178,7 @@ func TestHandleShimError_PassesThroughUnrelatedErrors(t *testing.T) {
 func TestHandleShimError_NonInteractiveDoesNotPrompt(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	// Auto-install is off and stdin under `go test` is not a terminal, so the
-	// missing version must be reported rather than silently installed.
+	// Auto-install is off and go test stdin is not a terminal, so nothing may install silently.
 	notInstalled := &resolver.NotInstalledError{Tool: "node", Version: "22.14.0"}
 	rb, got := HandleShimError(notInstalled, "node")
 	if rb != nil {

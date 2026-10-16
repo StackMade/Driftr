@@ -141,8 +141,7 @@ func TestProjectPins(t *testing.T) {
 				if want.Dir == "." {
 					wantDir = root
 				}
-				// The temp dir may be a symlink (/var vs /private/var on macOS);
-				// compare the resolved paths.
+				// macOS temp dirs sit behind the /var -> /private/var symlink.
 				if !sameDir(t, got.Dir, wantDir) {
 					t.Errorf("pin %d dir = %q, want %q", i, got.Dir, wantDir)
 				}
@@ -164,8 +163,7 @@ func sameDir(t *testing.T, a, b string) bool {
 	return ra == rb
 }
 
-// ProjectPins must not require the version to be installed — that is the whole
-// reason it exists next to resolveFromProject.
+// Not requiring an install is the reason ProjectPins exists next to resolveFromProject.
 func TestProjectPins_DoesNotRequireInstall(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	dir := t.TempDir()
@@ -182,9 +180,7 @@ func TestProjectPins_DoesNotRequireInstall(t *testing.T) {
 	}
 }
 
-// ProjectSources keeps every source, not just the winner, in resolution order:
-// nearer directories first, then source order within a directory, and
-// engines.node behind every explicit pin.
+// Order: nearer directories first, source order within one, engines.node behind every pin.
 func TestProjectSources(t *testing.T) {
 	root := t.TempDir()
 	sub := filepath.Join(root, "sub")
@@ -236,9 +232,7 @@ func TestProjectSources_BrokenFile(t *testing.T) {
 	}
 }
 
-// A broken file above the point where every tool is pinned is never read by
-// the resolver, so it must not fail check. While a tool is still unpinned the
-// resolver reads it for that tool, and so does ProjectSources.
+// The resolver never reads a file above every pin, so a broken one there must not fail check.
 func TestProjectSources_BrokenFileAboveEveryPin(t *testing.T) {
 	root := t.TempDir()
 	sub := filepath.Join(root, "sub")
@@ -272,9 +266,7 @@ func TestProjectSources_BrokenFileAboveEveryPin(t *testing.T) {
 	}
 }
 
-// Only the winner matters to install, outdated and prune, so a file behind it
-// that cannot be read must not fail them. driftr check reads every source and
-// reports it.
+// Install, outdated and prune need only the winner; driftr check reports unreadable files.
 func TestPins_UnreadableFileBehindWinner(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root reads files regardless of their mode")
@@ -314,4 +306,74 @@ func mustLoadProject(t *testing.T, dir string) *config.ProjectConfig {
 		t.Fatalf("LoadProject: %v", err)
 	}
 	return cfg
+}
+
+func TestResolvePin(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	for _, v := range []string{"20.11.0", "22.1.0", "22.14.0", "23.5.0", "26.0.0"} {
+		setupFakeInstall(t, home, "node", v)
+	}
+
+	tests := []struct {
+		spec   string
+		want   string
+		wantOK bool
+	}{
+		{"22", "22.14.0", true},
+		{"22.1.0", "22.1.0", true},
+		{"lts/*", "22.14.0", true},
+		{"lts/iron", "20.11.0", true},
+		{"lts/argon", "", false},
+		{"18", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.spec, func(t *testing.T) {
+			got, ok, err := ResolvePin("node", tt.spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want || ok != tt.wantOK {
+				t.Errorf("ResolvePin(%q) = %q, %v; want %q, %v", tt.spec, got, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+
+	if _, _, err := ResolvePin("node", "not-a-version"); err == nil {
+		t.Error("ResolvePin accepted an unparsable spec")
+	}
+}
+
+func TestResolveRange(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	for _, v := range []string{"18.20.0", "20.11.0", "22.14.0", "24.0.0"} {
+		setupFakeInstall(t, home, "node", v)
+	}
+
+	tests := []struct {
+		rng    string
+		want   string
+		wantOK bool
+	}{
+		{">=20 <23", "22.14.0", true},
+		{"^20.9.0", "20.11.0", true},
+		{"18 || 20", "20.11.0", true},
+		{">=25", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.rng, func(t *testing.T) {
+			got, ok, err := ResolveRange("node", tt.rng)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want || ok != tt.wantOK {
+				t.Errorf("ResolveRange(%q) = %q, %v; want %q, %v", tt.rng, got, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+
+	if _, _, err := ResolveRange("node", "18 - 20"); err == nil {
+		t.Error("ResolveRange accepted an unparsable range")
+	}
 }

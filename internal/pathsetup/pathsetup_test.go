@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-// setHome creates a temp dir, sets HOME to it, and returns the path.
 func setHome(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -409,8 +408,7 @@ func readFile(t *testing.T, path string) string {
 	return string(b)
 }
 
-// A disabled line, or a longer directory that merely starts with binDir, does
-// not put driftr on PATH; Apply must still write the export.
+// A disabled line or a longer dir that starts with binDir does not put driftr on PATH.
 func TestDetect_IgnoresCommentsAndLongerPaths(t *testing.T) {
 	for _, content := range []string{
 		"# export PATH=\"$HOME/.driftr/bin:$PATH\"  (disabled)\n",
@@ -450,8 +448,7 @@ func TestNamesDir(t *testing.T) {
 	}
 }
 
-// fish does not split variables, but it does split a bare word on spaces, so
-// an unquoted home like "/Users/John Doe" became two PATH entries.
+// fish splits a bare word on spaces, so an unquoted "/Users/John Doe" became two PATH entries.
 func TestApply_FishQuotesBinDir(t *testing.T) {
 	for _, dirName := range []string{"John Doe", `O'Brien`, `back\slash`} {
 		home := filepath.Join(t.TempDir(), dirName)
@@ -498,5 +495,39 @@ func TestDetect_FishUnquotedLegacyLine(t *testing.T) {
 	}
 	if !r.InTarget {
 		t.Error("unquoted fish line not detected")
+	}
+}
+
+func TestRootOwnedRcFiles(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("permissions do not bind root")
+	}
+	home := setHome(t)
+	binDir := filepath.Join(home, ".driftr", "bin")
+	zshenv := filepath.Join(home, ".zshenv")
+	zshrc := filepath.Join(home, ".zshrc")
+	writeFile(t, zshenv, "export EDITOR=vim\n")
+	writeFile(t, zshrc, "")
+	os.Chmod(zshenv, 0o444)
+	os.Chmod(zshrc, 0o000)
+	t.Cleanup(func() { os.Chmod(zshrc, 0o644) })
+
+	if _, err := Detect(binDir); err == nil {
+		t.Error("Detect ignored an unreadable .zshrc")
+	}
+	if _, _, err := ApplyGuard(ShellZsh, binDir); err == nil {
+		t.Error("ApplyGuard ignored an unreadable .zshrc")
+	}
+
+	os.Chmod(zshrc, 0o644)
+	r, err := Detect(binDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wrote, _, err := Apply(r); err == nil || wrote {
+		t.Errorf("Apply to read-only .zshenv: wrote=%v err=%v", wrote, err)
+	}
+	if got := readFile(t, zshenv); got != "export EDITOR=vim\n" {
+		t.Errorf(".zshenv changed: %q", got)
 	}
 }

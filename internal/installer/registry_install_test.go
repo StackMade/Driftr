@@ -18,8 +18,6 @@ import (
 	"github.com/stackmade/driftr/internal/version"
 )
 
-// registryFixture serves a fake npm registry for one package version: the
-// version document, the package document, and the tarball itself.
 type registryFixture struct {
 	pkg       string
 	ver       string
@@ -29,8 +27,6 @@ type registryFixture struct {
 	versions  []string
 }
 
-// newRegistryFixture builds a tarball whose only content is the package's
-// binary, and the matching SRI integrity string.
 func newRegistryFixture(t *testing.T, pkg, ver, binName string) *registryFixture {
 	t.Helper()
 
@@ -53,7 +49,6 @@ func newRegistryFixture(t *testing.T, pkg, ver, binName string) *registryFixture
 	}
 }
 
-// serve starts the fixture and points DRIFTR_NPM_REGISTRY at it.
 func (f *registryFixture) serve(t *testing.T) {
 	t.Helper()
 
@@ -143,8 +138,7 @@ func TestInstallPnpm_ResolvesPartialVersion(t *testing.T) {
 	}
 }
 
-// Registry metadata is attacker-controlled input: a tarball URL pointing at
-// another host must be refused before anything is downloaded.
+// Registry metadata is attacker-controlled, so a foreign tarball host is refused before download.
 func TestInstallPnpm_RejectsForeignTarballHost(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	f := newRegistryFixture(t, "pnpm", "9.15.0", "pnpm.cjs")
@@ -160,8 +154,6 @@ func TestInstallPnpm_RejectsForeignTarballHost(t *testing.T) {
 	}
 }
 
-// Without integrity data the package cannot be verified, so it must not be
-// installed — and the unverified download must not stay in the cache.
 func TestInstallPnpm_MissingIntegrityRefusesAndClearsCache(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	f := newRegistryFixture(t, "pnpm", "9.15.0", "pnpm.cjs")
