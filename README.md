@@ -94,6 +94,7 @@ pnpm -v   # resolves automatically
 | `driftr prune [--dry-run] [-y] [--tool <name>]` | Remove installed versions that neither the global default nor any recorded project uses |
 | `driftr default <tool@version>` | Set the global default version for a tool |
 | `driftr pin <tool@version>` | Pin a version to the current project (`.driftr.toml` or `package.json`) |
+| `driftr pin <tool@version> --migrate` | Write this pin in the other format (`.driftr.toml` ↔ `package.json`) and remove the old config; other tools pinned there are not carried over |
 | `driftr pin --bump [tool...] [--major] [--dry-run]` | Move the project's existing pins to the newest release on their major line (`--major`: newest overall), in the file that holds each pin |
 | `driftr use <tool@version>` | Print a shell snippet pinning a version for the current shell: `eval "$(driftr use node@24)"` |
 | `driftr list [tool]` | List installed versions (defaults to node) |
@@ -111,8 +112,9 @@ pnpm -v   # resolves automatically
 | `driftr node optimize [--install]` | Configure pnpm for shared dependency storage (idempotent) |
 | `driftr node clean [--yes]` | Remove `node_modules` and prune the shared store (dry-run by default) |
 | `driftr node report` | Report `node_modules` size and shared pnpm store size |
+| `driftr completion <shell>` | Print a completion script for bash, zsh or fish |
 
-All commands support `-v` / `--verbose` for detailed output including resolver tracing and checksum details.
+All commands support `-v` / `--verbose` for detailed output including resolver tracing and checksum details. `driftr --version` prints the installed version.
 
 Output is colorized when writing to a terminal. Color is disabled automatically when output is piped/redirected, or when the [`NO_COLOR`](https://no-color.org/) environment variable is set.
 
@@ -251,7 +253,7 @@ Shims in `~/.driftr/bin/` intercept calls to `node`, `npm`, `npx`, `pnpm`, `pnpx
 | Auto-install a missing pinned version | Yes, on shim call (prompt, or `auto_install = true`) | No | Yes | `--install-if-missing` | Yes |
 | macOS / Linux | Yes | Yes | Yes | Yes | Yes |
 | Windows | No | No | Yes | Yes | Yes |
-| Latest release | v1.3.1 (2026-10) | v0.40.7 (2026-08) | v2.0.2 (**2024-12**) | v1.39.0 (2026-03) | v2026.9.1 (2026-09) |
+| Latest release | v1.4.0 (2026-10-15) | v0.40.7 (2026-08) | v2.0.2 (**2024-12**) | v1.39.0 (2026-03) | v2026.9.1 (2026-09) |
 | Maintained | Yes | Yes | **No** ([upstream says so](https://github.com/volta-cli/volta)) | Yes | Yes |
 | Self-update | `driftr self-update` | `nvm` install script | No | Package manager | `mise self-update` |
 

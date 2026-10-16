@@ -1,6 +1,7 @@
 # CLI Usage
 
-All commands support the `-v` / `--verbose` flag for detailed output.
+All commands support the `-v` / `--verbose` flag for detailed output. `driftr --version` prints
+the version, commit and build date.
 
 ## driftr install
 
@@ -191,7 +192,9 @@ Subsequent `driftr pin` commands detect the existing format and reuse it automat
 driftr pin node@22.14.0 --migrate
 ```
 
-This writes the version in the other format and removes the old config.
+This writes the version in the other format and removes the old config. Only the tool you name
+is written: pins for other tools in the old config are not carried over, so pin them again
+afterwards.
 
 **Requirements:**
 - The version must already be installed
@@ -300,16 +303,33 @@ driftr list yarn     # list yarn versions
 driftr list bun      # list bun versions
 ```
 
-Output example:
+Output example, in a project that pins 24 with 22.14.0 as the global default:
 
 ```
 Installed node versions:
-    20.11.0
-  * 22.14.0
-    24.0.0
+     20.11.0
+   * 22.14.0
+  >  24.0.0
 
+  > = active (current directory)
   * = global default
 ```
+
+`>` marks the version the current directory resolves to, `*` the global default. A legend line
+is printed only for a marker that appears.
+
+**Remote versions:**
+
+```bash
+driftr list --remote [tool]          # available versions (default: latest 30)
+driftr list --remote --limit 10      # limit output to 10 versions
+driftr list --remote --limit 0       # show all versions (can be 500+ for node)
+driftr list --remote --pre pnpm      # include pre-releases (npm packages only)
+```
+
+`--remote` reads nodejs.org for node, the npm registry for npm, pnpm and yarn, and bun's GitHub
+releases for bun. Installed versions are marked with `●`, the active version with `>`, and the
+global default with `*`. Node.js LTS releases show their codename (e.g. `LTS: Jod`).
 
 **Alias:** `driftr ls`
 
@@ -487,7 +507,7 @@ driftr run --node 20.11.0 -- node script.js
 
 ## driftr setup
 
-Initialize Driftr directories and generate shim scripts.
+Initialize Driftr directories, generate shim scripts, and put the shims on your `PATH`.
 
 ```bash
 driftr setup
@@ -500,7 +520,16 @@ driftr setup
 - `~/.driftr/config/` for global settings
 - `~/.driftr/cache/` for downloads
 
-Run this once after installing Driftr, and again after upgrading to regenerate shims.
+**PATH:** setup appends `export PATH="$HOME/.driftr/bin:$PATH"` (fish: `set -gx PATH ...`) to the
+file every invocation of your shell reads, chosen from `$SHELL`: `~/.zshenv` for zsh
+(`$ZDOTDIR/.zshenv` when set), `~/.bash_profile` for bash, `~/.config/fish/conf.d/driftr.fish`
+for fish, and `~/.profile` otherwise. If the line is already there it writes nothing. If another
+install shadows a shim in the current shell, it also appends a precedence guard to the interactive
+rc file (`.zshrc`, `.bashrc` or fish `config.fish`). When it cannot write the file, it prints the
+line to add by hand. Restart the shell afterwards.
+
+Run this once after installing Driftr. After an upgrade the shims regenerate on their own (see
+[Global npm packages](#global-npm-packages)), so running it again is optional.
 
 ## driftr cache
 
@@ -529,15 +558,102 @@ driftr doctor         # run all checks
 driftr doctor --fix   # auto-fix PATH and shim problems
 ```
 
-Runs 9 checks: PATH presence, shell rc file placement, shim existence, shim binary path,
-global default set, defaults installed, conflicting managers (nvm/fnm/volta/n), installed
-version counts, and pnpm/yarn without node.
+Runs 11 checks, in this order:
 
-The `--fix` flag repairs two kinds of problem. It adds a PATH export to the correct target
-file (e.g. `.zshenv` for zsh users), and it regenerates the shims when one is missing, is not
-executable, or still points at an old driftr binary. A stale export in an old rc file is
-reported as a warning and has to be removed by hand. Everything else needs manual action,
+1. `~/.driftr/bin` is on `PATH`
+2. no other install (Homebrew, Volta, …) comes earlier on `PATH` and shadows a shim
+3. the PATH export is in the file every shell invocation reads, not only an interactive rc file
+4. every shim exists and is executable
+5. the shims point at the current driftr binary
+6. the shims were written by this driftr version
+7. a global default node version is set
+8. every global default version is installed
+9. no conflicting version manager is present: nvm (through `$NVM_DIR/nvm.sh`), or `fnm`, `volta`
+   or `n` on `PATH`
+10. how many versions of each tool are installed
+11. npm, pnpm or yarn is not installed without any Node.js to run it
+
+The `--fix` flag repairs the PATH and shim problems, checks 2 to 6. It adds a PATH export to the
+correct target file (e.g. `.zshenv` for zsh users), appends a precedence guard to the interactive
+rc file when a shim is shadowed, and regenerates the shims when one is missing, is not executable,
+points at an old driftr binary, or was written by another version. A stale export in an old rc
+file is reported as a warning and has to be removed by hand. Everything else needs manual action,
 following the printed suggestion.
+
+## driftr node
+
+Configure and maintain pnpm's shared content-addressable store, so dependencies are stored once
+and reused across every project on the machine. Driftr does not replace pnpm, npm or yarn; these
+commands only set pnpm's own configuration and run pnpm.
+
+```bash
+driftr node doctor             # package manager, Node.js, corepack, pnpm and store settings
+driftr node optimize           # point pnpm at the shared store
+driftr node optimize --install # same, then run pnpm install
+driftr node report             # project node_modules size vs shared store size
+driftr node clean              # dry run: show what would be removed
+driftr node clean --yes        # remove node_modules, reinstall, prune the store
+```
+
+**`driftr node doctor`** reports, for the current directory: the package manager (from the
+`packageManager` field in `package.json`, else from the lockfile), the Node.js version, whether
+corepack and pnpm are available, the `node_modules` size, and pnpm's store path and global
+virtual store setting. It reports missing tools rather than failing on them.
+
+**`driftr node optimize`** runs `corepack enable` when corepack is available, then sets pnpm's
+global config: `store-dir` to `~/.driftr/stores/pnpm` and `enable-global-virtual-store` to
+`true`. A setting that already has that value is left alone, so running it twice changes
+nothing. It needs pnpm; if pnpm is missing after corepack, it stops and says to install it.
+`--install` runs `pnpm install` afterwards.
+
+**`driftr node report`** prints the size of the project's `node_modules` and of the pnpm store.
+The store is shared machine-wide, so its size is not a per-project cost.
+
+**`driftr node clean`** is a dry run by default and changes nothing. With `--yes` it removes
+`node_modules`, runs `pnpm install` to restore it, and runs `pnpm store prune`. Without pnpm it
+still removes `node_modules`, then warns and skips the reinstall and prune.
+
+## driftr completion
+
+Print a shell completion script.
+
+```bash
+# zsh
+echo 'eval "$(driftr completion zsh)"' >> ~/.zshrc
+
+# bash
+echo 'eval "$(driftr completion bash)"' >> ~/.bashrc
+
+# fish
+driftr completion fish | source
+```
+
+`driftr completion powershell` exists as well, from cobra, though Driftr itself does not run on
+Windows. `driftr completion <shell> --help` shows how to load each script permanently.
+
+## Auto-install on shim call
+
+When a shim resolves a version that is not installed, for example after cloning a project that
+pins `node@22.14.0`, Driftr can install it on the spot:
+
+```
+$ node -v
+node 22.14.0 (pinned in /home/user/my-project) is not installed
+Install now? [Y/n]
+```
+
+The prompt appears only when stdin is a terminal. Enter, `y` or `yes` installs the version and
+runs the command; anything else exits with status 1. Without a terminal (scripts, CI) the shim
+fails with the not-installed error and the `driftr install` command to run.
+
+To install without asking, set `auto_install = true` at the top level of
+`~/.driftr/config/config.toml`. No command writes this setting; edit the file by hand:
+
+```toml
+auto_install = true
+```
+
+With it set, the shim installs a missing version without asking, with or without a terminal.
 
 ## driftr self-update
 
@@ -638,17 +754,16 @@ If no version is configured at any level, Driftr prints an actionable error.
 **Tool resolution:**
 
 - `npm` and `npx` resolve via the **npm** version when one is pinned or set as the default, and run under the resolved **node**, like yarn. With no npm configured anywhere they run the npm bundled with the resolved **node** version
-- `pnpm` and `pnpx` resolve via the **pnpm** version (pnpx is a symlink to pnpm)
+- `pnpm` and `pnpx` resolve via the **pnpm** version, and run `pnpm.cjs` and `pnpx.cjs` from it under the resolved **node**
 - `yarn` resolves via the **yarn** version, and also co-resolves **node** because yarn is a JS script that needs `node` to execute
 - `bun` resolves via the **bun** version. It is a native binary, so it runs without `node` installed
 
 ## Typical Workflow
 
 ```bash
-# One-time setup
+# One-time setup (writes the PATH line, e.g. to ~/.zshenv)
 driftr setup
-echo 'export PATH="$HOME/.driftr/bin:$PATH"' >> ~/.zshenv  # zsh — use ~/.bash_profile for bash
-source ~/.zshenv
+exec $SHELL   # or open a new terminal
 
 # Install your toolchain
 driftr install node@22
