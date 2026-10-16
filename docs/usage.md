@@ -411,8 +411,9 @@ depends on a release index the check does not fetch. Each source is compared wit
 one in use, not with every other source.
 
 **`engines.node`:** the version in use must satisfy every `engines.node` range on the way
-up. For a partial pin or an alias that is the installed version it resolves to; with
-nothing installed, the pin passes when any version it accepts is inside the range.
+up. For a partial pin, an alias or an `engines.node` range in use that is the installed
+version it resolves to; with nothing installed, the pin passes when any version it accepts is
+inside the range.
 
 **Behavior:**
 - A file Driftr cannot read or parse, a pin that is not a version, and an LTS codename this

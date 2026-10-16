@@ -85,9 +85,24 @@ func TestCheckToolPins(t *testing.T) {
 			installed: map[string]string{"22": "22.9.0"},
 		},
 		{
-			name: "engines wins, a parent pin falls outside it",
-			pins: []resolver.Pin{engines(">=24"), {Tool: "node", Version: "20", Source: resolver.SourceNvmrc, Dir: "/"}},
-			want: []string{"../.nvmrc says 20, but package.json (engines.node) says >=24 and wins"},
+			name: "a parent pin beats engines and falls outside it",
+			pins: []resolver.Pin{{Tool: "node", Version: "20", Source: resolver.SourceNvmrc, Dir: "/"}, engines(">=24")},
+			want: []string{`node 20 from ../.nvmrc is outside package.json (engines.node) ">=24"`},
+		},
+		{
+			name:      "engines wins, the version it runs is outside a parent's engines",
+			pins:      []resolver.Pin{engines(">=18"), {Tool: "node", Version: "<20", Source: resolver.SourceEnginesNode, Dir: "/"}},
+			installed: map[string]string{">=18": "24.1.0"},
+			want:      []string{`node >=18 from package.json (engines.node) resolves to 24.1.0, which is outside ../package.json (engines.node) "<20"`},
+		},
+		{
+			name:      "engines wins, the version it runs satisfies a parent's engines",
+			pins:      []resolver.Pin{engines(">=18"), {Tool: "node", Version: "<20", Source: resolver.SourceEnginesNode, Dir: "/"}},
+			installed: map[string]string{">=18": "19.0.0"},
+		},
+		{
+			name: "engines wins with nothing installed, overlapping ranges agree",
+			pins: []resolver.Pin{engines(">=18"), {Tool: "node", Version: "<20", Source: resolver.SourceEnginesNode, Dir: "/"}},
 		},
 		{
 			name: "both a conflict and an engines violation",
@@ -126,8 +141,8 @@ func TestCheckToolPins(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resolve := func(_, spec string) (string, bool, error) {
-				v, ok := tt.installed[spec]
+			resolve := func(p resolver.Pin) (string, bool, error) {
+				v, ok := tt.installed[p.Version]
 				return v, ok, nil
 			}
 			got := checkToolPins(cwd, tt.pins, resolve)

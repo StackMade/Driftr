@@ -85,7 +85,7 @@ func runCheck(w io.Writer, cwd string, exitCode bool) error {
 		}
 		toolPins := byTool[tool]
 		printPinSources(w, cwd, toolPins, winnerIndex(toolPins))
-		problems := checkToolPins(cwd, toolPins, resolver.ResolvePin)
+		problems := checkToolPins(cwd, toolPins, pinInUse)
 		for _, p := range problems {
 			fmt.Fprintln(w, "  "+ioutil.Failure(p.msg))
 			fmt.Fprintln(w, "      "+ioutil.Dim(p.hint))
@@ -155,6 +155,16 @@ func pinLabel(cwd string, p resolver.Pin) string {
 	return path
 }
 
+// pinInUse returns the installed version a pin selects, as the shim does:
+// the newest installed match of a partial pin, an alias or an engines.node
+// range.
+func pinInUse(p resolver.Pin) (string, bool, error) {
+	if p.Source == resolver.SourceEnginesNode {
+		return resolver.ResolveRange(p.Tool, p.Version)
+	}
+	return resolver.ResolvePin(p.Tool, p.Version)
+}
+
 // winnerIndex returns the index of the pin the resolver uses: the first one
 // it does not skip, or -1. It skips an LTS codename it does not know in .nvmrc
 // or .node-version, with a warning, and moves on to the next source.
@@ -201,11 +211,11 @@ func pinRange(cwd string, p resolver.Pin) (version.Range, *pinProblem, error) {
 // Two sources agree when at least one version satisfies both: "22" and
 // "22.14.0" agree, "22.14" and "22.15.0" do not, "lts" agrees with any line
 // known to be LTS. engines.node is stricter: the version in use must satisfy
-// it, meaning the installed version the winning pin resolves to, or the pin
-// itself when nothing matching is installed.
+// it, meaning the installed version the winning pin or range resolves to, or
+// the pin itself when nothing matching is installed.
 //
-// resolve is resolver.ResolvePin; tests pass a fake.
-func checkToolPins(cwd string, pins []resolver.Pin, resolve func(tool, spec string) (string, bool, error)) []pinProblem {
+// resolve is pinInUse; tests pass a fake.
+func checkToolPins(cwd string, pins []resolver.Pin, resolve func(resolver.Pin) (string, bool, error)) []pinProblem {
 	var problems []pinProblem
 	ranges := make([]*version.Range, len(pins))
 	for i, p := range pins {
@@ -240,9 +250,9 @@ func checkToolPins(cwd string, pins []resolver.Pin, resolve func(tool, spec stri
 		}
 		label := pinLabel(cwd, p)
 
-		if p.Source == resolver.SourceEnginesNode && win.Source != resolver.SourceEnginesNode {
+		if p.Source == resolver.SourceEnginesNode {
 			inUse, installed := "", version.Version{}
-			if v, found, err := resolve(win.Tool, win.Version); err == nil && found {
+			if v, found, err := resolve(win); err == nil && found {
 				if pv, err := version.Parse(v); err == nil {
 					inUse, installed = v, pv
 				}
