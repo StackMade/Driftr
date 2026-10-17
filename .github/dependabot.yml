@@ -92,3 +92,58 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
+
+  # The 1.x line on release/1.x. Dependabot raises security updates against
+  # the default branch only, so this line takes patch releases instead, which
+  # is where fixes land; govulncheck in CI and the 1.x nightly catch the rest.
+  - package-ecosystem: gomod
+    directory: /
+    target-branch: release/1.x
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Warsaw
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - "1.x"
+    commit-message:
+      prefix: "build(deps)"
+    cooldown:
+      default-days: 3
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+    groups:
+      go-dependencies-1x:
+        patterns:
+          - "*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: release/1.x
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Warsaw
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github_actions
+      - "1.x"
+    commit-message:
+      prefix: "build(deps)"
+    cooldown:
+      default-days: 5
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
+    groups:
+      github-actions-1x:
+        patterns:
+          - "*"
