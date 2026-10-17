@@ -1,5 +1,7 @@
 # Any upgrade refreshes the shims on first call; a package shim never shadows a command elsewhere.
 
+[windows] skip 'the stand-in commands are sh scripts'
+
 exec driftr setup
 exec driftr install node@22
 exec driftr default node@$NODE_VERSION

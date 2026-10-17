@@ -15,7 +15,7 @@ stdout 'Dry run'
 
 cd $WORK
 exec driftr cache dir
-stdout '\.driftr/cache'
+stdout '\.driftr[/\\]cache'
 
 # Clearing the download cache must not disturb the install itself.
 exec driftr cache clean

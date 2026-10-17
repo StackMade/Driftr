@@ -7,25 +7,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"syscall"
-	"unsafe"
 )
-
-// Exec replaces the current process with the given binary.
-// On Unix, this uses syscall.Exec for zero-overhead process replacement.
-// Falls back to exec.Command on systems where Exec is not available.
-func Exec(binary string, args []string) error {
-	// Prepend binary as argv[0].
-	argv := append([]string{binary}, args...)
-
-	// Use syscall.Exec to replace the current process.
-	// This preserves stdin/stdout/stderr and exit codes.
-	// On success this never returns; on failure the raw errno says nothing
-	// about which binary was missing, so name it.
-	if err := syscall.Exec(binary, argv, os.Environ()); err != nil {
-		return fmt.Errorf("failed to execute %s: %w", binary, err)
-	}
-	return nil
-}
 
 // Run executes a binary as a child process and returns the exit code.
 // driftr outlives the child, so it does not die on a signal meant for it, and
@@ -76,17 +58,4 @@ func Run(binary string, args []string) (int, error) {
 	}
 
 	return 0, nil
-}
-
-// inForeground reports whether this process group is the foreground of its
-// controlling terminal. It is a variable so tests can fix the answer.
-var inForeground = func() bool {
-	tty, err := os.Open("/dev/tty")
-	if err != nil {
-		return false // no controlling terminal: a signal came from kill or a supervisor
-	}
-	defer tty.Close()
-	var pgrp int32 // pid_t on Linux and macOS
-	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, tty.Fd(), uintptr(syscall.TIOCGPGRP), uintptr(unsafe.Pointer(&pgrp)))
-	return errno == 0 && int(pgrp) == syscall.Getpgrp()
 }

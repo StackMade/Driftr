@@ -1,3 +1,5 @@
+//go:build !windows
+
 package pathsetup
 
 import (
@@ -5,12 +7,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func setHome(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	t.Setenv("HOME", dir)
+	testutil.SetHome(t, dir)
 	t.Setenv("ZDOTDIR", "")
 	t.Setenv("XDG_CONFIG_HOME", "")
 	return dir
@@ -452,7 +456,7 @@ func TestNamesDir(t *testing.T) {
 func TestApply_FishQuotesBinDir(t *testing.T) {
 	for _, dirName := range []string{"John Doe", `O'Brien`, `back\slash`} {
 		home := filepath.Join(t.TempDir(), dirName)
-		t.Setenv("HOME", home)
+		testutil.SetHome(t, home)
 		t.Setenv("XDG_CONFIG_HOME", "")
 		t.Setenv("SHELL", "/usr/bin/fish")
 		binDir := filepath.Join(home, ".driftr", "bin")
@@ -530,5 +534,28 @@ func TestRootOwnedRcFiles(t *testing.T) {
 	}
 	if got := readFile(t, zshenv); got != "export EDITOR=vim\n" {
 		t.Errorf(".zshenv changed: %q", got)
+	}
+}
+
+func TestApply_NoModifyPath(t *testing.T) {
+	home := t.TempDir()
+	testutil.SetHome(t, home)
+	t.Setenv("SHELL", "/bin/zsh")
+	t.Setenv("ZDOTDIR", "")
+	t.Setenv("DRIFTR_NO_MODIFY_PATH", "1")
+	binDir := filepath.Join(home, ".driftr", "bin")
+
+	r, err := Detect(binDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wrote, _, err := Apply(r); wrote || err == nil {
+		t.Errorf("Apply() = %v, %v; want a refusal", wrote, err)
+	}
+	if wrote, _, err := ApplyGuard(ShellZsh, binDir); wrote || err == nil {
+		t.Errorf("ApplyGuard() = %v, %v; want a refusal", wrote, err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".zshenv")); !os.IsNotExist(err) {
+		t.Errorf(".zshenv written anyway: %v", err)
 	}
 }

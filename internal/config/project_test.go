@@ -5,7 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func writeProjectConfig(t *testing.T, dir, content string) {
@@ -122,7 +123,8 @@ func TestLoadProject_EmptyNode(t *testing.T) {
 
 // Writing in place let a concurrent shim read see a half-written file; a rename makes a new inode.
 func TestSaves_ReplaceTheFileAtomically(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SkipOnWindows(t, "os.SameFile reopens the path, so a replaced file looks the same")
+	testutil.SetHome(t, t.TempDir())
 	dir := t.TempDir()
 	writeProjectConfig(t, dir, "[tools]\nnode = \"20.0.0\"\n")
 	writePackageJSON(t, dir, `{"name": "x"}`)
@@ -163,6 +165,7 @@ func TestSaves_ReplaceTheFileAtomically(t *testing.T) {
 }
 
 func TestSavePackageJSONTool_KeepsModeAndSymlink(t *testing.T) {
+	testutil.SkipOnWindows(t, "permission bits and symlinks")
 	dir := t.TempDir()
 	target := filepath.Join(t.TempDir(), "package.json")
 	if err := os.WriteFile(target, []byte(`{"name": "x"}`), 0o600); err != nil {

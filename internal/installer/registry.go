@@ -14,7 +14,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/stackmade/driftr/internal/version"
+	"github.com/stackmade/driftr/v2/internal/version"
 )
 
 const defaultRegistryBaseURL = "https://registry.npmjs.org"

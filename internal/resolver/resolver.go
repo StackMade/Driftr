@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/stackmade/driftr/internal/config"
-	"github.com/stackmade/driftr/internal/platform"
-	"github.com/stackmade/driftr/internal/version"
+	"github.com/stackmade/driftr/v2/internal/config"
+	"github.com/stackmade/driftr/v2/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/version"
 )
 
 // RequireToolInstalled verifies a tool version is installed, with partial version resolution.
@@ -678,7 +679,12 @@ func resolveBundledNpm(tool, explicit string) (*ResolvedBinary, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ResolvedBinary{ToolPath: toolPath}, nil
+	rb := &ResolvedBinary{ToolPath: toolPath}
+	if runtime.GOOS == "windows" {
+		// On Windows the bundled npm is npm-cli.js, which node has to run.
+		rb.NodePath = res.BinaryPath
+	}
+	return rb, nil
 }
 
 // resolvePackageBin resolves an executable from a global npm install, such as
@@ -695,7 +701,7 @@ func resolvePackageBin(bin, explicit string) (*ResolvedBinary, error) {
 		if err != nil {
 			return false
 		}
-		_, err = os.Stat(filepath.Join(dir, "bin", bin))
+		_, err = os.Stat(filepath.Join(dir, "bin", platform.PackageBinFile(bin)))
 		return err == nil
 	}
 
@@ -742,5 +748,16 @@ func packageBinIn(nodeVersion, bin string) (*ResolvedBinary, error) {
 		return nil, err
 	}
 	binDir := filepath.Join(dir, "bin")
-	return &ResolvedBinary{ToolPath: filepath.Join(binDir, bin), PathPrefix: binDir}, nil
+	if runtime.GOOS != "windows" {
+		return &ResolvedBinary{ToolPath: filepath.Join(binDir, bin), PathPrefix: binDir}, nil
+	}
+	target, needsNode, err := cmdShimTarget(binDir, bin)
+	if err != nil {
+		return nil, err
+	}
+	rb := &ResolvedBinary{ToolPath: target, PathPrefix: binDir}
+	if needsNode {
+		rb.NodePath = filepath.Join(binDir, "node.exe")
+	}
+	return rb, nil
 }

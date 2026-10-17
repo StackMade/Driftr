@@ -6,15 +6,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/config"
-	"github.com/stackmade/driftr/internal/platform"
-	"github.com/stackmade/driftr/internal/resolver"
+	"github.com/stackmade/driftr/v2/internal/config"
+	"github.com/stackmade/driftr/v2/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/resolver"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 // An empty working directory, so no config outside the test can pin anything.
 func pruneEnv(t *testing.T) string {
 	t.Helper()
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	project := t.TempDir()
 	t.Chdir(project)
 	return project
@@ -276,7 +277,7 @@ func TestPrune_UnreadableRecordedProjectRemovesNothing(t *testing.T) {
 }
 
 func TestPinCmd_RecordsProject(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	fakeNodeInstall(t, "22.14.0")
 	proj := t.TempDir()
 	t.Chdir(proj)
@@ -295,7 +296,7 @@ func TestPinCmd_RecordsProject(t *testing.T) {
 }
 
 func TestRecordProject_UsesNearestPinDir(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	recordProject([]resolver.Pin{
 		{Tool: "node", Version: "22", Dir: "/work/repo"},
 		{Tool: "pnpm", Version: "9", Dir: "/work/repo/app"},
@@ -305,7 +306,7 @@ func TestRecordProject_UsesNearestPinDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(dirs) != 1 || dirs[0] != "/work/repo/app" {
+	if len(dirs) != 1 || dirs[0] != filepath.FromSlash("/work/repo/app") {
 		t.Errorf("registry = %v, want [/work/repo/app]", dirs)
 	}
 }

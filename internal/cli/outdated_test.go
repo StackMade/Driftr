@@ -10,7 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func nodeIndexServer(t *testing.T, releases []map[string]any) {
@@ -83,7 +84,7 @@ func rowFor(t *testing.T, out, tool string) string {
 }
 
 func TestOutdated_BehindOnPatch(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	fakeNodeInstall(t, "22.14.0")
 	projectWith(t, "[tools]\nnode = \"22.14.0\"\n")
 	nodeIndexServer(t, []map[string]any{
@@ -102,7 +103,7 @@ func TestOutdated_BehindOnPatch(t *testing.T) {
 }
 
 func TestOutdated_BehindOnMajorButCurrentInLine(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	fakeNodeInstall(t, "22.21.0")
 	projectWith(t, "[tools]\nnode = \"22.21.0\"\n")
 	nodeIndexServer(t, []map[string]any{
@@ -125,7 +126,7 @@ func TestOutdated_BehindOnMajorButCurrentInLine(t *testing.T) {
 }
 
 func TestOutdated_UpToDate(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	fakeNodeInstall(t, "24.1.0")
 	projectWith(t, "[tools]\nnode = \"24.1.0\"\n")
 	nodeIndexServer(t, []map[string]any{
@@ -143,7 +144,7 @@ func TestOutdated_UpToDate(t *testing.T) {
 }
 
 func TestOutdated_OneToolFailsOthersSucceed(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	fakeNodeInstall(t, "24.1.0")
 	projectWith(t, "[tools]\nnode = \"24.1.0\"\npnpm = \"9.0.0\"\n")
 	nodeIndexServer(t, []map[string]any{{"version": "v24.1.0", "lts": false}})
@@ -162,7 +163,7 @@ func TestOutdated_OneToolFailsOthersSucceed(t *testing.T) {
 }
 
 func TestOutdated_ExitCodeWhenBehind(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	fakeNodeInstall(t, "22.14.0")
 	projectWith(t, "[tools]\nnode = \"22.14.0\"\n")
 	nodeIndexServer(t, []map[string]any{{"version": "v22.21.0", "lts": "Jod"}})
@@ -173,7 +174,7 @@ func TestOutdated_ExitCodeWhenBehind(t *testing.T) {
 }
 
 func TestOutdated_NothingInstalled(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 
 	out, err := outdatedOutput(t, "", false, true)
@@ -186,7 +187,7 @@ func TestOutdated_NothingInstalled(t *testing.T) {
 }
 
 func TestOutdated_BunUsesGitHubReleases(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	bin, err := platform.ToolBinary("bun", "1.2.0")
 	if err != nil {
 		t.Fatal(err)
@@ -211,7 +212,7 @@ func TestOutdated_BunUsesGitHubReleases(t *testing.T) {
 }
 
 func TestOutdated_UnknownTool(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 
 	if _, err := outdatedOutput(t, "ruby", false, false); err == nil {
@@ -220,7 +221,7 @@ func TestOutdated_UnknownTool(t *testing.T) {
 }
 
 func TestOutdated_UnpinnedComparesNewestInstalled(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	fakeNodeInstall(t, "20.9.0")
 	fakeNodeInstall(t, "20.11.0")
 	t.Chdir(t.TempDir())

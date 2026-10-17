@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/stackmade/driftr/internal/ioutil"
+	"github.com/stackmade/driftr/v2/internal/ioutil"
 )
 
 // flagName matches the flag column of a pflag usage line: "  -v, --verbose"

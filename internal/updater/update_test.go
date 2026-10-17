@@ -33,7 +33,11 @@ func fakeRelease(t *testing.T, tag string, assets map[string][]byte) {
 }
 
 func archiveName(version string) string {
-	return fmt.Sprintf("driftr_%s_%s_%s.tar.gz", version, runtime.GOOS, runtime.GOARCH)
+	ext := "tar.gz"
+	if runtime.GOOS == "windows" {
+		ext = "zip"
+	}
+	return fmt.Sprintf("driftr_%s_%s_%s.%s", version, runtime.GOOS, runtime.GOARCH, ext)
 }
 
 func TestUpdate_AlreadyCurrent(t *testing.T) {
@@ -126,5 +130,66 @@ func TestUpdate_ArchiveWithoutBinary(t *testing.T) {
 	_, err := Update("1.0.0", false)
 	if err == nil || !strings.Contains(err.Error(), "extraction failed") {
 		t.Fatalf("Update() error = %v, want an extraction failure", err)
+	}
+}
+
+// fakeReleases serves a stable release at /releases/latest and the given tags
+// as the release list, and records which archive Update asks for.
+func fakeReleases(t *testing.T, latest string, list ...string) *string {
+	t.Helper()
+
+	var requested string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/releases/latest":
+			fmt.Fprintf(w, `{"tag_name":%q}`, latest)
+		case "/releases":
+			items := make([]string, 0, len(list))
+			for _, tag := range list {
+				items = append(items, fmt.Sprintf(`{"tag_name":%q,"draft":false}`, tag))
+			}
+			fmt.Fprintf(w, "[%s]", strings.Join(items, ","))
+		default:
+			requested = r.URL.Path
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	t.Setenv("DRIFTR_UPDATE_API", srv.URL)
+	t.Setenv("DRIFTR_UPDATE_MIRROR", srv.URL)
+	return &requested
+}
+
+func TestUpdate_PreReleaseFollowsPreReleases(t *testing.T) {
+	requested := fakeReleases(t, "v1.5.2", "nightly", "v1.5.2", "v2.0.0-rc.2", "v2.0.0-rc.1")
+
+	_, err := Update("2.0.0-rc.1", false)
+	if err == nil || !strings.Contains(err.Error(), "download failed") {
+		t.Fatalf("Update() error = %v, want a download failure", err)
+	}
+	if want := "/v2.0.0-rc.2/" + archiveName("2.0.0-rc.2"); *requested != want {
+		t.Errorf("Update() fetched %q, want %q", *requested, want)
+	}
+}
+
+func TestUpdate_StableIgnoresPreReleases(t *testing.T) {
+	fakeReleases(t, "v1.5.2", "v2.0.0-rc.1", "v1.5.2")
+
+	version, err := Update("1.5.2", false)
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+	if version != "" {
+		t.Errorf("Update() = %q, want \"\": a stable build never moves to a pre-release", version)
+	}
+}
+
+func TestUpdate_RefusesNightlyBuild(t *testing.T) {
+	fakeReleases(t, "v1.5.2")
+
+	_, err := Update("1.5.1-SNAPSHOT-abc1234", false)
+	if err == nil || !strings.Contains(err.Error(), "not a release build") {
+		t.Fatalf("Update() error = %v, want a refusal", err)
 	}
 }

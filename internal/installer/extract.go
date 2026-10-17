@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/platform"
 )
 
 // symlinkEscapes reports whether a symlink created at linkPath and pointing at
@@ -161,6 +161,20 @@ func Extract(archivePath, version string, verbose bool, cleanup *installCleanup)
 		return nil
 	}
 
+	// The archive contains "node-v<version>-<os>-<arch>/" as prefix.
+	prefix := fmt.Sprintf("node-v%s-%s-%s/", version, platform.OS(), platform.Arch())
+
+	if platform.ArchiveExt() == "zip" {
+		if verbose {
+			fmt.Printf("  Extracting to: %s\n", destDir)
+		}
+		// The Windows archive keeps node.exe and npm at its top level, not in
+		// bin/. Unpacking it into bin/ keeps one layout for every platform,
+		// and npm, whose global prefix is node.exe's dir, puts package bins
+		// there too.
+		return extractZipToBin(archivePath, destDir, prefix, platform.ExeName("node"), cleanup)
+	}
+
 	if err := os.MkdirAll(filepath.Dir(destDir), 0o755); err != nil {
 		return fmt.Errorf("failed to create tools dir: %w", err)
 	}
@@ -209,8 +223,6 @@ func Extract(archivePath, version string, verbose bool, cleanup *installCleanup)
 
 	tr := tar.NewReader(gz)
 
-	// The archive contains "node-v<version>-<os>-<arch>/" as prefix.
-	prefix := fmt.Sprintf("node-v%s-%s-%s/", version, platform.OS(), platform.Arch())
 	matched := false
 
 	for {

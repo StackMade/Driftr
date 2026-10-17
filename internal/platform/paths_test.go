@@ -6,12 +6,23 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 // Shims, docs and the installer all assume these directory names under ~/.driftr.
+// bundledNpm is where node 22.14.0 under root keeps the npm or npx a shim runs.
+func bundledNpm(root, tool string) string {
+	bin := filepath.Join(root, "tools", "node", "22.14.0", "bin")
+	if runtime.GOOS == "windows" {
+		return filepath.Join(bin, "node_modules", "npm", "bin", tool+"-cli.js")
+	}
+	return filepath.Join(bin, tool)
+}
+
 func TestPaths_LayoutUnderHome(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	root := filepath.Join(home, ".driftr")
 
 	tests := []struct {
@@ -31,11 +42,11 @@ func TestPaths_LayoutUnderHome(t *testing.T) {
 		{"ToolVersionDir", func() (string, error) { return ToolVersionDir("bun", "1.2.3") },
 			filepath.Join(root, "tools", "bun", "1.2.3")},
 		{"NodeBinary", func() (string, error) { return NodeBinary("22.14.0") },
-			filepath.Join(root, "tools", "node", "22.14.0", "bin", "node")},
+			filepath.Join(root, "tools", "node", "22.14.0", "bin", ExeName("node"))},
 		{"BundledNpmBinary npm", func() (string, error) { return BundledNpmBinary("npm", "22.14.0") },
-			filepath.Join(root, "tools", "node", "22.14.0", "bin", "npm")},
+			bundledNpm(root, "npm")},
 		{"BundledNpmBinary npx", func() (string, error) { return BundledNpmBinary("npx", "22.14.0") },
-			filepath.Join(root, "tools", "node", "22.14.0", "bin", "npx")},
+			bundledNpm(root, "npx")},
 	}
 
 	for _, tt := range tests {
@@ -92,7 +103,7 @@ func TestPaths_NoHomeDirectory(t *testing.T) {
 
 func TestEnsureDirs_CreatesNodeLayout(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	if err := EnsureDirs(); err != nil {
 		t.Fatalf("EnsureDirs() error: %v", err)
@@ -113,7 +124,7 @@ func TestEnsureDirs_CreatesNodeLayout(t *testing.T) {
 
 func TestEnsureToolDirs_Idempotent(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	if err := EnsureToolDirs("bun"); err != nil {
 		t.Fatalf("first EnsureToolDirs() error: %v", err)
@@ -134,7 +145,7 @@ func TestEnsureToolDirs_Idempotent(t *testing.T) {
 // A file where a directory belongs cannot be repaired silently; the error must name the path.
 func TestEnsureToolDirs_FileInTheWay(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	if err := os.MkdirAll(filepath.Join(home, ".driftr"), 0o755); err != nil {
 		t.Fatal(err)
@@ -164,18 +175,21 @@ func TestArchAndOS_NodeDistNaming(t *testing.T) {
 		t.Errorf("Arch() = %q, want %q for GOARCH %q", got, wantArch, runtime.GOARCH)
 	}
 
-	if got := OS(); got != runtime.GOOS {
-		t.Errorf("OS() = %q, want %q", got, runtime.GOOS)
+	wantOS, wantExt := runtime.GOOS, "tar.gz"
+	if runtime.GOOS == "windows" {
+		wantOS, wantExt = "win", "zip"
 	}
-
-	if got := ArchiveExt(); got != "tar.gz" {
-		t.Errorf("ArchiveExt() = %q, want %q", got, "tar.gz")
+	if got := OS(); got != wantOS {
+		t.Errorf("OS() = %q, want %q", got, wantOS)
+	}
+	if got := ArchiveExt(); got != wantExt {
+		t.Errorf("ArchiveExt() = %q, want %q", got, wantExt)
 	}
 }
 
 func TestListToolVersions_SkipsExtractionWorkDirs(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	nodeDir := filepath.Join(home, ".driftr", "tools", "node")
 	for _, name := range []string{"22.14.0", "22.15.0.tmp-4711"} {

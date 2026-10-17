@@ -33,7 +33,7 @@ Driftr is a new project. It doesn't have Volta's years of polish or fnm's commun
 - **Shim-based** -- `node`, `npm`, `npx`, `pnpm`, `pnpx`, `yarn`, and `bun` just work, resolved per-project or globally
 - **Global packages** -- bins from `npm install -g` (`tsc`, `nest`, `corepack`) get shims and run under the Node.js version that installed them
 - **Fast** -- near-zero overhead via `syscall.Exec` process replacement
-- **Minimal** -- 2 external dependencies (cobra + toml), everything else is Go stdlib
+- **Minimal** -- 2 external dependencies (cobra + toml), plus golang.org/x/sys on Windows; everything else is Go stdlib
 - **Deterministic** -- explicit resolution chain: `DRIFTR_<TOOL>` (one shell, via `driftr use`) > project config > `package.json` (`driftr` key, then `packageManager` field for npm/pnpm/yarn/bun) > `.nvmrc` / `.node-version` (node) > `package.json` `engines.node` (node) > global default. Each directory is checked for every source before moving to its parent; the closest directory with a pin wins, except that `engines.node` only applies when no explicit node pin exists anywhere up the tree.
 - **nvm-compatible pins** -- `.nvmrc` and `.node-version` are read as they are, including the `lts`, `lts/*` and `lts/<codename>` aliases
 - **Secure** -- SHA256 and SHA-512 SRI checksum verification on every download
@@ -57,6 +57,14 @@ curl -fsSL https://raw.githubusercontent.com/StackMade/driftr/main/install.sh | 
 ```
 
 This downloads the latest release, verifies its checksum, and configures your PATH automatically. See [docs/installation.md](docs/installation.md) for all installation methods.
+
+### Windows (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/StackMade/driftr/main/install.ps1 | iex
+```
+
+The same steps as `install.sh`: it verifies the checksum, installs `driftr.exe` to `%USERPROFILE%\.driftr\bin`, and runs `driftr setup`, which puts that directory on your user `Path`. Open a new terminal afterwards. See [docs/installation.md](docs/installation.md#windows).
 
 ## Quick Start
 
@@ -193,6 +201,11 @@ echo 'eval "$(driftr completion bash)"' >> ~/.bashrc
 driftr completion fish | source
 ```
 
+```powershell
+# PowerShell: add to your $PROFILE
+driftr completion powershell | Out-String | Invoke-Expression
+```
+
 ## How It Works
 
 ```mermaid
@@ -215,11 +228,13 @@ The project sources (3 to 7) are read per directory: each directory is checked f
 
 Shims in `~/.driftr/bin/` intercept calls to `node`, `npm`, `npx`, `pnpm`, `pnpx`, `yarn`, and `bun`. The resolver determines the correct version, and `syscall.Exec` replaces the process with the real binary. Standalone tools (node, bun) are exec'd directly. Tools that need Node.js (pnpm, yarn, and a pinned npm) are exec'd as `node <tool-script>`. With no npm pinned, `npm` and `npx` run the copy bundled with the resolved Node.js.
 
+On Windows a shim is `driftr.exe` itself, hard-linked or copied as `node.exe`, `npm.exe` and so on, and driftr tells the tool from the name it was started under; `.cmd` shims would let `cmd.exe` reparse every argument. Windows cannot replace a running process, so the shim starts the real binary as a child and exits with its exit code.
+
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [Installation](docs/installation.md) | Detailed install guide for macOS and Linux |
+| [Installation](docs/installation.md) | Detailed install guide for macOS, Linux and Windows |
 | [Usage](docs/usage.md) | Full CLI reference with examples |
 | [Configuration](docs/configuration.md) | Global and project config format |
 | [Architecture](docs/architecture.md) | Internal design and module overview |
@@ -250,7 +265,7 @@ Shims in `~/.driftr/bin/` intercept calls to `node`, `npm`, `npx`, `pnpm`, `pnpx
 | Language | Go | Shell | Rust | Rust | Rust |
 | Mechanism | Shims | Shell function | Shims | PATH via shell hook | PATH via shell hook (shims optional) |
 | Cost model | ~5ms per tool call, nothing at shell startup | 200-500ms per shell startup | per tool call | per prompt / directory change | per prompt / directory change |
-| Direct dependencies | **2** (cobra, toml) | 0 (shell) | 12 | 27 | 79 |
+| Direct dependencies | **2** (cobra, toml; 3 on Windows) | 0 (shell) | 12 | 27 | 79 |
 | Tools managed | node, npm, npx, pnpm, pnpx, yarn, bun | node + its bundled npm | node, npm, yarn; pnpm experimental (`VOLTA_FEATURE_PNPM=1`) | node only | node, pnpm, yarn, bun + hundreds of others |
 | Reads `.nvmrc` / `.node-version` | Yes | Yes | No | Yes | Yes |
 | Reads `engines.node` | Yes (installed versions) | No | No | Yes (default on) | No |
@@ -259,7 +274,7 @@ Shims in `~/.driftr/bin/` intercept calls to `node`, `npm`, `npx`, `pnpm`, `pnpx
 | Checksum verification | Always: SHA-256 (node, bun), SHA-512 SRI (npm, pnpm, yarn) | Yes, SHA-256 | [No](https://github.com/volta-cli/volta/issues/134) | No | Opt-in via `mise.lock` |
 | Auto-install a missing pinned version | Yes, on shim call (prompt, or `auto_install = true`) | No | Yes | `--install-if-missing` | Yes |
 | macOS / Linux | Yes | Yes | Yes | Yes | Yes |
-| Windows | No | No | Yes | Yes | Yes |
+| Windows | Yes | No | Yes | Yes | Yes |
 | Latest release | v1.4.0 (2026-10-15) | v0.40.7 (2026-08) | v2.0.2 (**2024-12**) | v1.39.0 (2026-03) | v2026.9.1 (2026-09) |
 | Maintained | Yes | Yes | **No** ([upstream says so](https://github.com/volta-cli/volta)) | Yes | Yes |
 | Self-update | `driftr self-update` | `nvm` install script | No | Package manager | `mise self-update` |
@@ -272,12 +287,12 @@ open a shell.
 
 **When to choose Driftr**: You want a shim-based manager for Node.js, npm, pnpm, yarn and bun that behaves the way Volta did: pin a version to a project, and the tools follow. Driftr adds nothing to your shell startup, so the same pins hold in scripts, cron jobs and CI without an `activate` step. It checks the checksum of every download before unpacking it, ships with two library dependencies, and `driftr node` can point pnpm at one shared store instead of a separate `node_modules` copy per project.
 
-**When to choose something else**: fnm if you need Windows. mise if you want one tool for Node, Python, Ruby and everything else; Volta's own README now sends people there. nvm if it already works for you and shell startup time doesn't bother you.
+**When to choose something else**: mise if you want one tool for Node, Python, Ruby and everything else; Volta's own README now sends people there. nvm if it already works for you and shell startup time doesn't bother you.
 
 ## Requirements
 
-- macOS or Linux
-- `curl` or `wget` (for the install script)
+- macOS, Linux, or Windows 10 and later (x64 or arm64)
+- `curl` or `wget` (for `install.sh`), PowerShell 5.1 or later (for `install.ps1`)
 - Internet access (to download releases from nodejs.org, GitHub, and the npm registry)
 - Go 1.27+ (only if building from source)
 

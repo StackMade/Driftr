@@ -194,8 +194,9 @@ git commit -m "Pin Node.js version with Driftr"
 | `DRIFTR_NPM_REGISTRY` | `https://registry.npmjs.org` | Alternative npm registry for npm/pnpm/yarn installs. Tarball URLs in registry metadata must point back at the same host. |
 | `DRIFTR_BUN_RELEASES` | `https://api.github.com/repos/oven-sh/bun/releases` | Alternative source for the bun release list. Must answer with the same JSON shape: an array of objects carrying `tag_name`, `draft` and `prerelease`. |
 | `DRIFTR_BUN_MIRROR` | `https://github.com/oven-sh/bun/releases/download` | Alternative host for bun release assets. Must serve `bun-v<version>/bun-<os>-<arch>.zip` and `bun-v<version>/SHASUMS256.txt`. |
-| `DRIFTR_UPDATE_API` | `https://api.github.com/repos/stackmade/driftr` | Alternative source for the Driftr release index used by `driftr self-update`. `/releases/latest` is appended, and the answer must carry a `tag_name`. |
-| `DRIFTR_UPDATE_MIRROR` | `https://github.com/stackmade/driftr/releases/download` | Alternative host for Driftr's own release assets. `/v<version>` is appended, and the directory must hold `driftr_<version>_<os>_<arch>.tar.gz` and `checksums.txt`. |
+| `DRIFTR_UPDATE_API` | `https://api.github.com/repos/stackmade/driftr` | Alternative source for the Driftr release index used by `driftr self-update`. `/releases/latest` is appended, and the answer must carry a `tag_name`. A pre-release build reads `/releases` instead, a list of such objects. |
+| `DRIFTR_UPDATE_MIRROR` | `https://github.com/stackmade/driftr/releases/download` | Alternative host for Driftr's own release assets. `/v<version>` is appended, and the directory must hold `driftr_<version>_<os>_<arch>.tar.gz` (`.zip` on Windows) and `checksums.txt`. `install.ps1` reads this and `DRIFTR_UPDATE_API` too. |
+| `DRIFTR_NO_MODIFY_PATH` | unset | When set to anything, `driftr setup`, `driftr doctor --fix` and `driftr self-update` leave shell rc files and the Windows registry alone; setup prints the line to add yourself instead. For dotfiles you manage by hand. |
 | `NO_COLOR` | unset | Any non-empty value turns off colored output. Color is also off when stdout or stderr is not a terminal. |
 | `SHELL` | set by your login | Picks the rc file `driftr setup`, `driftr doctor --fix` and `driftr self-update` write the PATH line to: `.zshenv` for zsh, `.bash_profile` for bash, `conf.d/driftr.fish` for fish, `.profile` for anything else. Also sets the syntax `driftr use` prints, unless `--shell` is given. |
 | `ZDOTDIR` | `$HOME` | zsh only: the directory holding `.zshenv` and `.zshrc`, for the PATH line and the precedence guard. |
@@ -256,6 +257,16 @@ Driftr stores all data under `~/.driftr/`:
   stores/
     pnpm/                     shared pnpm store, used once driftr node optimize points pnpm here
 ```
+
+On Windows the layout is the same with these differences:
+
+- Each shim is `<tool>.exe`, a hard link to (or copy of) `driftr.exe`, and `bin\.driftr-shims`
+  lists the package shims driftr wrote, so it never deletes an `.exe` it did not create.
+- Node.js unpacks into `tools\node\<version>\bin\`: `node.exe`, `npm.cmd`, and
+  `node_modules\npm\`, whose `npm-cli.js` the `npm` shim runs under `node.exe`. Global packages land
+  in that same `bin\` (`tsc.cmd` and `node_modules\typescript\`), because npm's prefix is the
+  directory of `node.exe`.
+- Archives are `.zip`: `node-v<version>-win-<arch>.zip`, `bun-windows-<arch>.zip`.
 
 ### Cache
 

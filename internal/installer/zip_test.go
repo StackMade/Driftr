@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stackmade/driftr/v2/internal/platform"
 )
 
 func writeTestZip(t *testing.T, entries map[string]string) string {
@@ -56,7 +58,7 @@ func TestExtractZipToBin_Success(t *testing.T) {
 	if !strings.Contains(string(got), "fake") {
 		t.Errorf("unexpected binary content: %q", got)
 	}
-	if info, err := os.Stat(filepath.Join(destDir, "bin", "bun")); err != nil || info.Mode().Perm()&0o111 == 0 {
+	if info, err := os.Stat(filepath.Join(destDir, "bin", "bun")); err != nil || !platform.IsExecutable(info) {
 		t.Errorf("binary is not executable: %v %v", info, err)
 	}
 	if _, err := os.Stat(filepath.Join(destDir, "bin", "sub", "thing")); err != nil {

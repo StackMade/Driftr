@@ -7,8 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/config"
-	"github.com/stackmade/driftr/internal/resolver"
+	"github.com/stackmade/driftr/v2/internal/config"
+	"github.com/stackmade/driftr/v2/internal/resolver"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func TestBumpTarget(t *testing.T) {
@@ -149,7 +150,7 @@ func bumpOutput(t *testing.T, tools []string, allowMajor, dryRun bool) string {
 }
 
 func TestRunPinBump_RewritesAndDryRun(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	nodeIndexServer(t, []map[string]any{
 		{"version": "v24.2.0", "lts": false},
 		{"version": "v22.21.1", "lts": "Jod"},
@@ -188,7 +189,7 @@ func TestRunPinBump_RewritesAndDryRun(t *testing.T) {
 }
 
 func TestRunPinBump_ReportsReadOnlySources(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	nodeIndexServer(t, []map[string]any{{"version": "v24.2.0", "lts": false}})
 	npmRegistryServer(t, []string{"9.0.0", "9.15.0", "10.0.0"})
 	dir := t.TempDir()
@@ -210,7 +211,7 @@ func TestRunPinBump_ReportsReadOnlySources(t *testing.T) {
 }
 
 func TestRunPinBump_NoPins(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 	out := bumpOutput(t, []string{"yarn"}, false, false)
 	if !strings.Contains(out, "yarn: not pinned") || !strings.Contains(out, "Nothing to bump") {
@@ -219,7 +220,7 @@ func TestRunPinBump_NoPins(t *testing.T) {
 }
 
 func TestPinCmd_BumpFlagRules(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 	tests := []struct {
 		args []string

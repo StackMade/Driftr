@@ -6,12 +6,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func writeGlobal(t *testing.T, content string) {
 	t.Helper()
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	path, err := platform.GlobalConfigPath()
 	if err != nil {
 		t.Fatal(err)
@@ -25,7 +26,7 @@ func writeGlobal(t *testing.T, content string) {
 }
 
 func TestLoadGlobal_MissingFile(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	cfg, err := LoadGlobal()
 	if err != nil {
@@ -37,7 +38,7 @@ func TestLoadGlobal_MissingFile(t *testing.T) {
 }
 
 func TestGlobal_RoundTrip(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	cfg := &GlobalConfig{AutoInstall: true}
 	cfg.Default.SetTool("node", "20.0.0")

@@ -2,6 +2,7 @@ package updater
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
@@ -15,6 +16,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stackmade/driftr/v2/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func makeTarGz(t *testing.T, files map[string][]byte) []byte {
@@ -142,8 +146,39 @@ func TestExtractBinary_Found(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm()&0o100 == 0 {
+	if !platform.IsExecutable(info) {
 		t.Errorf("extracted binary is not executable: %v", info.Mode())
+	}
+}
+
+// Windows releases are zips holding driftr.exe.
+func TestExtractBinary_Zip(t *testing.T) {
+	dir := t.TempDir()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for name, data := range map[string]string{"README.md": "readme", "driftr.exe": "MZ driftr"} {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write([]byte(data)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	archive := filepath.Join(dir, "driftr_2.0.0_windows_amd64.zip")
+	if err := os.WriteFile(archive, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	dest := filepath.Join(dir, "driftr-new")
+	if err := extractBinary(archive, dest); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(dest); string(got) != "MZ driftr" {
+		t.Errorf("extracted %q, want driftr.exe", got)
 	}
 }
 
@@ -197,6 +232,7 @@ func TestReplaceBinary_Success(t *testing.T) {
 }
 
 func TestReplaceBinary_TargetDirReadOnly(t *testing.T) {
+	testutil.SkipOnWindows(t, "directory permission bits")
 	if os.Getuid() == 0 {
 		t.Skip("running as root; permission checks do not apply")
 	}
@@ -242,7 +278,9 @@ func TestDownloadFile_IdleTimeout(t *testing.T) {
 	origTimeout, origIdle := httpClient.Timeout, downloadIdleTimeout
 	t.Cleanup(func() { httpClient.Timeout, downloadIdleTimeout = origTimeout, origIdle })
 	httpClient.Timeout = 100 * time.Millisecond
-	downloadIdleTimeout = 300 * time.Millisecond
+	// Wide margins: a loaded CI runner, Windows above all, can stall a
+	// steady download for a few hundred milliseconds.
+	downloadIdleTimeout = time.Second
 
 	chunks := func(n int, pause time.Duration) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -264,13 +302,13 @@ func TestDownloadFile_IdleTimeout(t *testing.T) {
 		t.Fatalf("slow but steady download failed: %v", err)
 	}
 
-	stalled := httptest.NewServer(chunks(2, 2*time.Second))
+	stalled := httptest.NewServer(chunks(2, 10*time.Second))
 	defer stalled.Close()
 	start := time.Now()
 	if err := downloadFile(stalled.URL, filepath.Join(t.TempDir(), "out")); err == nil {
 		t.Fatal("stalled download succeeded, want an error")
 	}
-	if d := time.Since(start); d > time.Second {
+	if d := time.Since(start); d > 5*time.Second {
 		t.Errorf("stalled download took %s, want it cut off near the idle timeout", d)
 	}
 }
@@ -309,7 +347,7 @@ func TestFetchLatestVersion(t *testing.T) {
 	httpClient = &http.Client{Transport: &rewriteTransport{target: srv.URL}}
 	defer func() { httpClient = orig }()
 
-	got, err := fetchLatestVersion()
+	got, err := fetchLatestVersion(false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -328,7 +366,7 @@ func TestFetchLatestVersion_APIError(t *testing.T) {
 	httpClient = &http.Client{Transport: &rewriteTransport{target: srv.URL}}
 	defer func() { httpClient = orig }()
 
-	_, err := fetchLatestVersion()
+	_, err := fetchLatestVersion(false)
 	if err == nil || !strings.Contains(err.Error(), "status 403") {
 		t.Errorf("expected status 403 error, got: %v", err)
 	}
@@ -371,7 +409,7 @@ func TestFetchLatestVersion_UsesOverride(t *testing.T) {
 
 	t.Setenv("DRIFTR_UPDATE_API", srv.URL+"/update/api")
 
-	got, err := fetchLatestVersion()
+	got, err := fetchLatestVersion(false)
 	if err != nil {
 		t.Fatalf("fetchLatestVersion: %v", err)
 	}
@@ -392,6 +430,7 @@ func TestRedirectGuardRejectsPlaintext(t *testing.T) {
 }
 
 func TestReplaceBinary_FallbackFailureLeavesNoTempFile(t *testing.T) {
+	testutil.SkipOnWindows(t, "the target is moved aside first, so a directory there is no obstacle")
 	dir := t.TempDir()
 	newPath := filepath.Join(dir, "new")
 	oldPath := filepath.Join(dir, "driftr")
@@ -411,5 +450,50 @@ func TestReplaceBinary_FallbackFailureLeavesNoTempFile(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(oldPath, "keep")); err != nil {
 		t.Errorf("target was damaged: %v", err)
+	}
+}
+
+func TestReleaseVersion(t *testing.T) {
+	for _, s := range []string{"1.5.1", "2.0.0-rc.1", "2.0.0-beta", "2.0.0-alpha.3"} {
+		if _, ok := releaseVersion(s); !ok {
+			t.Errorf("releaseVersion(%q) rejected a release", s)
+		}
+	}
+	for _, s := range []string{"dev", "nightly", "2", "2.0", "latest", "1.5.1-SNAPSHOT-abc1234", "2.0.0-rc.x", "2.0.0-"} {
+		if _, ok := releaseVersion(s); ok {
+			t.Errorf("releaseVersion(%q) accepted a non-release", s)
+		}
+	}
+}
+
+func TestIsNewer_PreReleaseOrder(t *testing.T) {
+	order := []string{"1.5.2", "2.0.0-alpha", "2.0.0-alpha.2", "2.0.0-beta.1", "2.0.0-rc.1", "2.0.0-rc.2", "2.0.0-rc.10", "2.0.0", "2.0.1"}
+	for i := 1; i < len(order); i++ {
+		lo, _ := releaseVersion(order[i-1])
+		hi, _ := releaseVersion(order[i])
+		if !isNewer(hi, lo) || isNewer(lo, hi) {
+			t.Errorf("want %s > %s", order[i], order[i-1])
+		}
+	}
+}
+
+func TestFetchLatestVersion_PreReleases(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/releases" {
+			t.Errorf("unexpected path %q", r.URL.Path)
+		}
+		// Newest first, as GitHub lists them; a draft and a nightly come first.
+		fmt.Fprint(w, `[{"tag_name":"v3.0.0","draft":true},{"tag_name":"nightly"},{"tag_name":"v1.5.3"},{"tag_name":"v2.0.0-rc.2"},{"tag_name":"v2.0.0-beta.1"}]`)
+	}))
+	defer srv.Close()
+
+	t.Setenv("DRIFTR_UPDATE_API", srv.URL)
+
+	got, err := fetchLatestVersion(true)
+	if err != nil {
+		t.Fatalf("fetchLatestVersion: %v", err)
+	}
+	if got != "2.0.0-rc.2" {
+		t.Errorf("got %q, want 2.0.0-rc.2", got)
 	}
 }

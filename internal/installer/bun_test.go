@@ -12,7 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 type bunFixture struct {
@@ -32,7 +33,7 @@ func newBunFixture(t *testing.T, versions ...string) *bunFixture {
 
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
-	hdr := &zip.FileHeader{Name: strings.TrimSuffix(asset, ".zip") + "/bun", Method: zip.Deflate}
+	hdr := &zip.FileHeader{Name: strings.TrimSuffix(asset, ".zip") + "/" + platform.ExeName("bun"), Method: zip.Deflate}
 	hdr.SetMode(0o755)
 	w, err := zw.CreateHeader(hdr)
 	if err != nil {
@@ -91,7 +92,7 @@ func (f *bunFixture) serve(t *testing.T) *httptest.Server {
 }
 
 func TestInstallBun_RejectsLTS(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 
 	if _, err := InstallBun("lts", false); err == nil {
 		t.Fatal("InstallBun(lts) expected error, got nil")
@@ -99,7 +100,7 @@ func TestInstallBun_RejectsLTS(t *testing.T) {
 }
 
 func TestInstallBun_Success(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	f := newBunFixture(t, "1.2.3")
 	srv := f.serve(t)
 
@@ -119,7 +120,7 @@ func TestInstallBun_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bun binary not installed: %v", err)
 	}
-	if info.Mode().Perm()&0o111 == 0 {
+	if !platform.IsExecutable(info) {
 		t.Error("bun binary is not executable")
 	}
 
@@ -132,7 +133,7 @@ func TestInstallBun_Success(t *testing.T) {
 func TestInstallBun_ResolvesPartialAndLatest(t *testing.T) {
 	for _, spec := range []string{"1", "1.2", "latest"} {
 		t.Run(spec, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.SetHome(t, t.TempDir())
 			// Newest first, as the GitHub API returns them.
 			f := newBunFixture(t, "1.2.3", "1.1.0", "0.9.0")
 			f.serve(t)
@@ -149,7 +150,7 @@ func TestInstallBun_ResolvesPartialAndLatest(t *testing.T) {
 }
 
 func TestInstallBun_UnknownVersion(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	f := newBunFixture(t, "1.2.3")
 	f.serve(t)
 
@@ -160,7 +161,7 @@ func TestInstallBun_UnknownVersion(t *testing.T) {
 }
 
 func TestInstallBun_ChecksumMismatch(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	f := newBunFixture(t, "1.2.3")
 	f.shasums = fmt.Sprintf("%064d  %s\n", 0, f.asset)
 	f.serve(t)
@@ -192,7 +193,7 @@ func TestInstallBun_ChecksumMismatch(t *testing.T) {
 }
 
 func TestInstallBun_MissingChecksums(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	f := newBunFixture(t, "1.2.3")
 	f.shasums = "" // release publishes no SHASUMS256.txt
 	f.serve(t)
@@ -213,7 +214,7 @@ func TestInstallBun_MissingChecksums(t *testing.T) {
 }
 
 func TestInstallBun_ChecksumMissingForAsset(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	f := newBunFixture(t, "1.2.3")
 	f.shasums = "0000  bun-some-other-platform.zip\n"
 	f.serve(t)
@@ -225,7 +226,7 @@ func TestInstallBun_ChecksumMissingForAsset(t *testing.T) {
 }
 
 func TestListBunReleases_FiltersNonVersionTags(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	f := newBunFixture(t)
 	f.releases = `[
 		{"tag_name":"bun-v1.2.3"},
@@ -264,7 +265,7 @@ func TestBunEnvOverrides(t *testing.T) {
 }
 
 func TestInstallBun_GitHubRateLimit(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"API rate limit exceeded"}`, http.StatusForbidden)
 	}))
@@ -278,7 +279,7 @@ func TestInstallBun_GitHubRateLimit(t *testing.T) {
 }
 
 func TestInstallBun_NoBuildForPlatform(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	f := newBunFixture(t, "1.2.3")
 	asset := f.asset
 	f.asset = "bun-other-platform.zip"

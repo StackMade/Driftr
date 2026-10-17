@@ -4,7 +4,7 @@ exec driftr setup
 
 exec driftr install node@22 -v
 stdout 'Checksum verified OK'
-exists $HOME/.driftr/tools/node/$NODE_VERSION/bin/node
+exists $HOME/.driftr/tools/node/$NODE_VERSION/bin/node$exe
 
 exec driftr list
 stdout $NODE_VERSION

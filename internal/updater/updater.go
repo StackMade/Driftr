@@ -2,6 +2,7 @@ package updater
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -12,13 +13,16 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/stackmade/driftr/internal/ioutil"
-	"github.com/stackmade/driftr/internal/version"
+	"github.com/stackmade/driftr/v2/internal/ioutil"
+	"github.com/stackmade/driftr/v2/internal/version"
 )
 
 const (
@@ -63,6 +67,7 @@ var httpClient = &http.Client{
 // githubRelease represents the relevant fields from the GitHub releases API.
 type githubRelease struct {
 	TagName string `json:"tag_name"`
+	Draft   bool   `json:"draft"`
 }
 
 // Update checks for a newer version and replaces the current binary.
@@ -77,7 +82,9 @@ func Update(currentVersion string, verbose bool) (string, error) {
 
 	fmt.Println("Checking for updates...")
 
-	latest, err := fetchLatestVersion()
+	// A pre-release build follows the pre-releases too, so a release
+	// candidate moves on to the next candidate and then to the stable release.
+	latest, err := fetchLatestVersion(current.stage != stable)
 	if err != nil {
 		return "", fmt.Errorf("failed to check for updates: %w", err)
 	}
@@ -97,7 +104,7 @@ func Update(currentVersion string, verbose bool) (string, error) {
 
 	fmt.Printf("Updating driftr v%s → v%s...\n", currentVersion, latest)
 
-	archiveName := fmt.Sprintf("driftr_%s_%s_%s.tar.gz", latest, runtime.GOOS, runtime.GOARCH)
+	archiveName := assetName(latest)
 	baseURL := fmt.Sprintf("%s/v%s", releaseBase(), latest)
 
 	tmpDir, err := os.MkdirTemp("", "driftr-update-*")
@@ -147,8 +154,24 @@ func Update(currentVersion string, verbose bool) (string, error) {
 	return latest, nil
 }
 
-func fetchLatestVersion() (string, error) {
-	resp, err := httpClient.Get(apiBase() + "/releases/latest")
+// assetName returns the name of the release archive for this platform.
+func assetName(version string) string {
+	ext := "tar.gz"
+	if runtime.GOOS == "windows" {
+		ext = "zip"
+	}
+	return fmt.Sprintf("driftr_%s_%s_%s.%s", version, runtime.GOOS, runtime.GOARCH, ext)
+}
+
+// fetchLatestVersion returns the newest stable release, or with
+// prereleases the newest release of any kind. /releases/latest never names a
+// pre-release, so the second case reads the release list instead.
+func fetchLatestVersion(prereleases bool) (string, error) {
+	endpoint := "/releases/latest"
+	if prereleases {
+		endpoint = "/releases?per_page=100"
+	}
+	resp, err := httpClient.Get(apiBase() + endpoint)
 	if err != nil {
 		return "", err
 	}
@@ -158,12 +181,34 @@ func fetchLatestVersion() (string, error) {
 		return "", fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
 	}
 
-	var release githubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		return "", fmt.Errorf("failed to parse release info: %w", err)
+	if !prereleases {
+		var release githubRelease
+		if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+			return "", fmt.Errorf("failed to parse release info: %w", err)
+		}
+		return strings.TrimPrefix(release.TagName, "v"), nil
 	}
 
-	return strings.TrimPrefix(release.TagName, "v"), nil
+	var releases []githubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
+		return "", fmt.Errorf("failed to parse release info: %w", err)
+	}
+	// The nightly tags are not versions and drop out here.
+	newestTag, newest := "", releaseTag{}
+	for _, r := range releases {
+		tag := strings.TrimPrefix(r.TagName, "v")
+		v, ok := releaseVersion(tag)
+		if r.Draft || !ok {
+			continue
+		}
+		if newestTag == "" || isNewer(v, newest) {
+			newestTag, newest = tag, v
+		}
+	}
+	if newestTag == "" {
+		return "", fmt.Errorf("no release found")
+	}
+	return newestTag, nil
 }
 
 // downloadIdleTimeout aborts a release download that receives no data for
@@ -272,6 +317,9 @@ func verifyChecksum(archivePath, checksumsPath string) error {
 }
 
 func extractBinary(archivePath, destPath string) error {
+	if strings.HasSuffix(archivePath, ".zip") {
+		return extractZipBinary(archivePath, destPath)
+	}
 	f, err := os.Open(archivePath)
 	if err != nil {
 		return err
@@ -295,25 +343,68 @@ func extractBinary(archivePath, destPath string) error {
 		}
 
 		if filepath.Base(hdr.Name) == "driftr" && hdr.Typeflag == tar.TypeReg {
-			out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
-			if err != nil {
-				return err
-			}
-			if _, err := io.Copy(out, tr); err != nil {
-				out.Close()
-				return err
-			}
-			// A failed close means a truncated binary on disk.
-			if err := out.Close(); err != nil {
-				return err
-			}
-			return nil
+			return writeBinary(destPath, tr)
 		}
 	}
 	return fmt.Errorf("driftr binary not found in archive")
 }
 
+// extractZipBinary copies driftr.exe out of a Windows release zip.
+func extractZipBinary(archivePath, destPath string) error {
+	zr, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return err
+	}
+	defer zr.Close()
+	for _, f := range zr.File {
+		if path.Base(f.Name) != "driftr.exe" || !f.Mode().IsRegular() {
+			continue
+		}
+		src, err := f.Open()
+		if err != nil {
+			return err
+		}
+		defer src.Close()
+		return writeBinary(destPath, src)
+	}
+	return fmt.Errorf("driftr binary not found in archive")
+}
+
+func writeBinary(destPath string, r io.Reader) error {
+	out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, r); err != nil {
+		out.Close()
+		return err
+	}
+	// A failed close means a truncated binary on disk.
+	return out.Close()
+}
+
+// replaceBinary puts the binary at newPath in place of oldPath. Windows will
+// not overwrite a running .exe but lets it be renamed, so there the old one
+// is moved to oldPath.old first; the next update deletes that copy.
 func replaceBinary(newPath, oldPath string) error {
+	if runtime.GOOS != "windows" {
+		return swapIn(newPath, oldPath)
+	}
+	aside := oldPath + ".old"
+	os.Remove(aside)
+	if err := os.Rename(oldPath, aside); err != nil {
+		return fmt.Errorf("cannot move the running binary aside: %w", err)
+	}
+	if err := swapIn(newPath, oldPath); err != nil {
+		if restoreErr := os.Rename(aside, oldPath); restoreErr != nil {
+			return fmt.Errorf("%w; restoring %s from %s also failed: %w", err, oldPath, aside, restoreErr)
+		}
+		return err
+	}
+	return nil
+}
+
+func swapIn(newPath, oldPath string) error {
 	if err := os.Rename(newPath, oldPath); err != nil {
 		tmpPath := oldPath + ".driftr-update"
 		if err2 := ioutil.CopyFile(newPath, tmpPath); err2 != nil {
@@ -331,21 +422,62 @@ func replaceBinary(newPath, oldPath string) error {
 
 // releaseVersion parses an exact X.Y.Z version; ok is false for anything else,
 // such as "dev" or a snapshot build.
-func releaseVersion(s string) (version.Version, bool) {
-	v, err := version.Parse(s)
+// Pre-release stages in ascending order; a stable release outranks them all.
+const (
+	alpha = iota + 1
+	beta
+	rc
+	stable
+)
+
+var stages = map[string]int{"alpha": alpha, "beta": beta, "rc": rc}
+
+// preReleaseRe matches the suffix of a pre-release tag: rc, rc.1, beta.2.
+// Nightly builds ("1.5.1-SNAPSHOT-<sha>") do not match and are no release.
+var preReleaseRe = regexp.MustCompile(`^(alpha|beta|rc)(?:\.(\d+))?$`)
+
+// releaseTag is a release version: X.Y.Z, optionally a pre-release of it.
+type releaseTag struct {
+	version.Version
+	stage int // alpha, beta, rc or stable
+	n     int // the pre-release number: 2 in rc.2
+}
+
+func releaseVersion(s string) (releaseTag, bool) {
+	core, suffix, isPre := strings.Cut(s, "-")
+	v, err := version.Parse(core)
 	if err != nil || v.Latest || v.LTS || v.IsPartial() {
-		return version.Version{}, false
+		return releaseTag{}, false
 	}
-	return v, true
+	r := releaseTag{Version: v, stage: stable}
+	if isPre {
+		m := preReleaseRe.FindStringSubmatch(suffix)
+		if m == nil {
+			return releaseTag{}, false
+		}
+		r.stage = stages[m[1]]
+		if m[2] != "" {
+			if r.n, err = strconv.Atoi(m[2]); err != nil {
+				return releaseTag{}, false
+			}
+		}
+	}
+	return r, true
 }
 
 // isNewer reports whether a is a strictly higher version than b.
-func isNewer(a, b version.Version) bool {
+func isNewer(a, b releaseTag) bool {
 	if a.Major != b.Major {
 		return a.Major > b.Major
 	}
 	if a.Minor != b.Minor {
 		return a.Minor > b.Minor
 	}
-	return a.Patch > b.Patch
+	if a.Patch != b.Patch {
+		return a.Patch > b.Patch
+	}
+	if a.stage != b.stage {
+		return a.stage > b.stage
+	}
+	return a.n > b.n
 }

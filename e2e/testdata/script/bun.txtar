@@ -5,7 +5,7 @@ exec driftr setup
 exec driftr install bun@1 -v
 stdout 'Checksum verified OK'
 stdout '✓ Installed'
-exists $HOME/.driftr/tools/bun/$BUN_VERSION/bin/bun
+exists $HOME/.driftr/tools/bun/$BUN_VERSION/bin/bun$exe
 
 exec driftr list bun
 stdout $BUN_VERSION

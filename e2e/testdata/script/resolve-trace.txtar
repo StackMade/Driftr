@@ -6,16 +6,16 @@ exec driftr default node@$NODE_VERSION
 
 cd $WORK/app/sub
 exec driftr which node -v
-stdout 'Checking: .*/app/sub/\.driftr\.toml'
-stdout 'Checking: .*/app/sub/\.nvmrc'
-stdout 'Checking: .*/app/sub/\.node-version'
+stdout 'Checking: .*[/\\]app[/\\]sub[/\\]\.driftr\.toml'
+stdout 'Checking: .*[/\\]app[/\\]sub[/\\]\.nvmrc'
+stdout 'Checking: .*[/\\]app[/\\]sub[/\\]\.node-version'
 stdout 'engines\.node = >=20'
 stdout 'Source: +package.json \(engines\.node\)'
 
 # A typo in .driftr.toml stops the shim with the file named, not a quiet global default.
 cd $WORK/broken
 ! exec node -v
-stderr 'failed to parse project config .*/broken/\.driftr\.toml'
+stderr 'failed to parse project config .*[/\\]broken[/\\]\.driftr\.toml'
 ! stdout 'v'$NODE_VERSION
 
 -- app/package.json --

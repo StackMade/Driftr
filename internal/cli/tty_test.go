@@ -1,3 +1,5 @@
+//go:build darwin || linux
+
 package cli
 
 import (
@@ -9,9 +11,11 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/stackmade/driftr/v2/internal/testutil"
+
 	"github.com/spf13/cobra"
 
-	"github.com/stackmade/driftr/internal/resolver"
+	"github.com/stackmade/driftr/v2/internal/resolver"
 )
 
 func openSlave(t *testing.T, name string) *os.File {
@@ -73,14 +77,14 @@ func TestHintEval_OnlyWhenStdoutIsTerminal(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.SetErr(&stderr)
 
-	hintEval(cmd, "node@22", true)
+	hintEval(cmd, "node@22", true, syntaxPOSIX)
 	if stderr.Len() != 0 {
 		t.Fatalf("hint printed while stdout is a pipe: %q", stderr.String())
 	}
 
 	orig := os.Stdout
 	os.Stdout = slave
-	hintEval(cmd, "node@22", true)
+	hintEval(cmd, "node@22", true, syntaxPOSIX)
 	os.Stdout = orig
 	if want := `eval "$(driftr use --unset node@22)"`; !strings.Contains(stderr.String(), want) {
 		t.Errorf("hint = %q, want %q", stderr.String(), want)
@@ -88,7 +92,7 @@ func TestHintEval_OnlyWhenStdoutIsTerminal(t *testing.T) {
 }
 
 func TestHandleShimError_DeclinedPromptInstallsNothing(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	ttyStdin(t, "n\n")
 	notInstalled := &resolver.NotInstalledError{Tool: "node", Version: "22.14.0", Context: ".nvmrc"}
 

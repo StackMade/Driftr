@@ -21,7 +21,7 @@ stdout 'Bumped 2 pin'
 stdout 'driftr install'
 grep 'node = "'$NODE_VERSION'"' .driftr.toml
 grep 'pnpm = "'$PNPM_VERSION'"' .driftr.toml
-grep $WORK/toml $HOME/.driftr/config/projects
+grep ${WORK@R}[/\\]toml $HOME/.driftr/config/projects
 
 # A second run has nothing left to do and still exits 0.
 exec driftr pin --bump

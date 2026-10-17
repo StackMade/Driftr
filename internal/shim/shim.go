@@ -3,14 +3,15 @@ package shim
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 
-	"github.com/stackmade/driftr/internal/ioutil"
-	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/ioutil"
+	"github.com/stackmade/driftr/v2/internal/platform"
 )
 
 // shimTools lists the tools for which shims are created.
@@ -45,7 +46,8 @@ func GenerateShims(version string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot determine driftr executable path: %w", err)
 	}
-	previous := BakedPath(filepath.Join(binDir, "node"))
+	previous := BakedPath(Path(binDir, "node"))
+	owned := shimOwner(binDir)
 
 	for _, tool := range shimTools {
 		if err := writeShim(binDir, tool, driftrBin); err != nil {
@@ -62,8 +64,8 @@ func GenerateShims(version string) ([]string, error) {
 	for name := range packageBins {
 		// A file the user keeps here, such as the driftr binary itself, is
 		// never overwritten by a package that happens to share its name.
-		path := filepath.Join(binDir, name)
-		if _, err := os.Lstat(path); err == nil && !isShimFile(path, name) {
+		path := Path(binDir, name)
+		if _, err := os.Lstat(path); err == nil && !owned(path, name) {
 			skipped = append(skipped, fmt.Sprintf("%s: %s already exists and is not a driftr shim", name, path))
 			delete(packageBins, name)
 			continue
@@ -74,7 +76,10 @@ func GenerateShims(version string) ([]string, error) {
 	}
 	slices.Sort(skipped)
 
-	if err := removeStaleShims(binDir, packageBins); err != nil {
+	if err := removeStaleShims(binDir, packageBins, owned); err != nil {
+		return nil, err
+	}
+	if err := recordShims(binDir, slices.Collect(maps.Keys(packageBins))); err != nil {
 		return nil, err
 	}
 	if err := ioutil.WriteFileAtomic(filepath.Join(binDir, stampFile), []byte(version+"\n"), 0o644); err != nil {
@@ -84,43 +89,6 @@ func GenerateShims(version string) ([]string, error) {
 		releaseHomebrewKeg(previous)
 	}
 	return skipped, nil
-}
-
-// BakedPath returns the driftr path a shim execs, or "".
-func BakedPath(shimPath string) string {
-	data, err := os.ReadFile(shimPath)
-	if err != nil {
-		return ""
-	}
-	path, _, _ := parseShim(string(data))
-	return path
-}
-
-// parseShim returns the driftr path and tool of a shim writeShim made. Shims
-// from older versions double-quote the path instead; they parse too, so they
-// are still recognized as ours and refreshed.
-func parseShim(content string) (driftrBin, tool string, ok bool) {
-	line, ok := strings.CutPrefix(content, "#!/bin/sh\nexec ")
-	if !ok || strings.Count(line, "\n") != 1 {
-		return "", "", false
-	}
-	line, ok = strings.CutSuffix(line, ` "$@"`+"\n")
-	if !ok {
-		return "", "", false
-	}
-	i := strings.LastIndex(line, " shim ")
-	if i < 2 {
-		return "", "", false
-	}
-	quoted, tool := line[:i], line[i+len(" shim "):]
-	inner := quoted[1 : len(quoted)-1]
-	switch {
-	case quoted[0] == '\'' && quoted[len(quoted)-1] == '\'':
-		return strings.ReplaceAll(inner, `'\''`, "'"), tool, true
-	case quoted[0] == '"' && quoted[len(quoted)-1] == '"':
-		return inner, tool, true
-	}
-	return "", "", false
 }
 
 // releaseHomebrewKeg lets Homebrew clean up the keg old shims pointed at.
@@ -174,44 +142,26 @@ func RefreshIfStale(version string) error {
 // any more, e.g. after `npm uninstall -g` or `driftr uninstall node@<ver>`.
 // Only files that are a driftr shim for their own name are touched, so the
 // driftr binary or anything else a user keeps in the bin dir stays put.
-func removeStaleShims(binDir string, packageBins map[string][]string) error {
+func removeStaleShims(binDir string, packageBins map[string][]string, owned func(path, tool string) bool) error {
 	entries, err := os.ReadDir(binDir)
 	if err != nil {
 		return fmt.Errorf("failed to read bin dir: %w", err)
 	}
 	for _, e := range entries {
-		name := e.Name()
-		if _, core := platform.LookupTool(name); core || packageBins[name] != nil || !e.Type().IsRegular() {
+		name := shimTool(e.Name())
+		if _, core := platform.LookupTool(name); name == "" || core || packageBins[name] != nil || !e.Type().IsRegular() {
 			continue
 		}
-		path := filepath.Join(binDir, name)
-		if !isShimFile(path, name) {
+		path := filepath.Join(binDir, e.Name())
+		if !owned(path, name) {
 			continue
 		}
 		// A concurrent refresh may have removed it first.
-		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err := removeShim(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("failed to remove stale shim %s: %w", name, err)
 		}
 	}
 	return nil
-}
-
-// isShimFile reports whether path holds the shim writeShim makes for tool.
-// The size check keeps it from reading a binary such as driftr itself.
-func isShimFile(path, tool string) bool {
-	info, err := os.Lstat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Size() > 4096 {
-		return false
-	}
-	data, err := os.ReadFile(path)
-	return err == nil && isShimFor(string(data), tool)
-}
-
-// isShimFor matches what writeShim produces for tool, with any driftr path:
-// the path changes when driftr moves, and an old shim is still ours.
-func isShimFor(content, tool string) bool {
-	_, t, ok := parseShim(content)
-	return ok && t == tool
 }
 
 // stableExecutable returns the path driftr was invoked by, with symlinks left
@@ -257,14 +207,9 @@ func sameFile(a, b string) bool {
 	return errA == nil && errB == nil && os.SameFile(ia, ib)
 }
 
-func writeShim(binDir, tool, driftrBin string) error {
-	// Single quotes keep $, `, " and \ in the path literal; a ' inside ends
-	// the quote, adds an escaped ', and reopens it.
-	quoted := "'" + strings.ReplaceAll(driftrBin, "'", `'\''`) + "'"
-	content := fmt.Sprintf(`#!/bin/sh
-exec %s shim %s "$@"
-`, quoted, tool)
-	return ioutil.WriteFileAtomic(filepath.Join(binDir, tool), []byte(content), 0o755)
+// Path returns the path of tool's shim in binDir.
+func Path(binDir, tool string) string {
+	return filepath.Join(binDir, shimFile(tool))
 }
 
 // ShimDir returns the path to the shim directory for display purposes.

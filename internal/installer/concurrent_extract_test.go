@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/stackmade/driftr/v2/internal/platform"
 )
 
 // Racing installs of one version must all succeed: each unpacks to a temp dir, then renames.
@@ -41,7 +43,7 @@ func assertSoleInstall(t *testing.T, destDir, binPath, wantContent string) {
 	if err != nil {
 		t.Fatalf("binary missing after concurrent extraction: %v", err)
 	}
-	if info.Mode().Perm()&0o111 == 0 {
+	if !platform.IsExecutable(info) {
 		t.Errorf("binary is not executable: mode %v", info.Mode())
 	}
 	got, err := os.ReadFile(binPath)

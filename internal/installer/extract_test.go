@@ -11,7 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 type tarEntry struct {
@@ -64,7 +65,8 @@ func nodePrefix(version string) string {
 }
 
 func TestExtract_Success(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SkipOnWindows(t, "Node.js ships a zip there, see extract_windows_test.go")
+	testutil.SetHome(t, t.TempDir())
 	const ver = "99.0.0"
 	prefix := nodePrefix(ver)
 
@@ -102,7 +104,8 @@ func TestExtract_Success(t *testing.T) {
 }
 
 func TestExtract_MissingNodeBinary(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SkipOnWindows(t, "Node.js ships a zip there, see extract_windows_test.go")
+	testutil.SetHome(t, t.TempDir())
 	const ver = "99.0.0"
 	prefix := nodePrefix(ver)
 
@@ -126,8 +129,9 @@ func TestExtract_MissingNodeBinary(t *testing.T) {
 }
 
 func TestExtract_PathTraversalBlocked(t *testing.T) {
+	testutil.SkipOnWindows(t, "Node.js ships a zip there, see extract_windows_test.go")
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	const ver = "99.0.0"
 	prefix := nodePrefix(ver)
 
@@ -182,8 +186,9 @@ func TestSymlinkEscapes(t *testing.T) {
 }
 
 func TestExtract_EscapingSymlinkRejected(t *testing.T) {
+	testutil.SkipOnWindows(t, "creating symlinks needs a privilege")
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	const ver = "99.0.0"
 	prefix := nodePrefix(ver)
 
@@ -208,6 +213,7 @@ func TestExtract_EscapingSymlinkRejected(t *testing.T) {
 
 // Each link passes symlinkEscapes alone; only following the links on disk reveals the escape.
 func TestExtract_SymlinkChainEscapeRejected(t *testing.T) {
+	testutil.SkipOnWindows(t, "creating symlinks needs a privilege")
 	const ver = "99.0.0"
 	prefix := nodePrefix(ver)
 	chains := map[string][]tarEntry{
@@ -226,7 +232,7 @@ func TestExtract_SymlinkChainEscapeRejected(t *testing.T) {
 	}
 	for name, links := range chains {
 		t.Run(name, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.SetHome(t, t.TempDir())
 			entries := append([]tarEntry{{Name: prefix + "bin/node", Data: []byte("node binary"), Typeflag: tar.TypeReg}}, links...)
 			err := Extract(buildTarGz(t, entries), ver, false, nil)
 			if err == nil || !strings.Contains(err.Error(), "symlink pointing outside") {
@@ -244,7 +250,8 @@ func TestExtract_SymlinkChainEscapeRejected(t *testing.T) {
 }
 
 func TestExtract_InternalSymlinkKept(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SkipOnWindows(t, "creating symlinks needs a privilege")
+	testutil.SetHome(t, t.TempDir())
 	const ver = "99.0.0"
 	prefix := nodePrefix(ver)
 
@@ -272,7 +279,7 @@ func TestExtract_InternalSymlinkKept(t *testing.T) {
 }
 
 func TestExtract_AlreadyExtracted(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	const ver = "99.0.0"
 
 	nodeBin, err := platform.NodeBinary(ver)
@@ -376,6 +383,7 @@ func TestRemoveCorruptArchive_AlreadyGone(t *testing.T) {
 }
 
 func TestRemoveCorruptArchive_Undeletable(t *testing.T) {
+	testutil.SkipOnWindows(t, "directory permission bits")
 	if os.Getuid() == 0 {
 		t.Skip("running as root; permission checks do not apply")
 	}
@@ -403,7 +411,8 @@ func TestRemoveCorruptArchive_Undeletable(t *testing.T) {
 }
 
 func TestExtract_WrongArchiveLayout(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SkipOnWindows(t, "Node.js ships a zip there, see extract_windows_test.go")
+	testutil.SetHome(t, t.TempDir())
 	const ver = "99.0.0"
 
 	// No entry carries the expected node-v<ver>-<os>-<arch>/ prefix.
@@ -426,6 +435,7 @@ func TestExtract_WrongArchiveLayout(t *testing.T) {
 }
 
 func TestExtract_CorruptDownloadLeavesNothingBehind(t *testing.T) {
+	testutil.SkipOnWindows(t, "Node.js ships a zip there, see extract_windows_test.go")
 	const ver = "99.0.0"
 	prefix := nodePrefix(ver)
 	valid, err := os.ReadFile(buildTarGz(t, []tarEntry{
@@ -444,7 +454,7 @@ func TestExtract_CorruptDownloadLeavesNothingBehind(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.SetHome(t, t.TempDir())
 			archive := filepath.Join(t.TempDir(), "node.tar.gz")
 			if err := os.WriteFile(archive, tc.data, 0o644); err != nil {
 				t.Fatal(err)
@@ -483,6 +493,7 @@ func TestExtractRegistryPackage_ConcurrentInstallWins(t *testing.T) {
 }
 
 func TestExtractRegistryPackage_EscapingSymlinkRejected(t *testing.T) {
+	testutil.SkipOnWindows(t, "creating symlinks needs a privilege")
 	destDir := filepath.Join(t.TempDir(), "pnpm", "9.0.0")
 	archive := buildTarGz(t, []tarEntry{
 		{Name: "package/x/b", Link: "..", Typeflag: tar.TypeSymlink},

@@ -9,9 +9,18 @@ import (
 	"strings"
 )
 
+// HomeDir returns the user's home directory: the parent of ~/.driftr and of
+// the shell rc files driftr edits.
+func HomeDir() (string, error) {
+	// On Windows this is USERPROFILE, never HOME: Git Bash and Cygwin may set
+	// HOME to another directory, and cmd and PowerShell would then see a
+	// different ~/.driftr than the shells that have it.
+	return os.UserHomeDir()
+}
+
 // DriftrHome returns the root directory for Driftr storage (~/.driftr).
 func DriftrHome() (string, error) {
-	home, err := os.UserHomeDir()
+	home, err := HomeDir()
 	if err != nil {
 		return "", fmt.Errorf("cannot determine home directory: %w", err)
 	}
@@ -61,6 +70,11 @@ func BundledNpmBinary(tool, nodeVersion string) (string, error) {
 	dir, err := NodeVersionDir(nodeVersion)
 	if err != nil {
 		return "", err
+	}
+	if runtime.GOOS == "windows" {
+		// Windows has npm.cmd, which only cmd.exe can run, so the shims run
+		// the script it wraps under node instead.
+		return filepath.Join(dir, "bin", "node_modules", "npm", "bin", tool+"-cli.js"), nil
 	}
 	return filepath.Join(dir, "bin", tool), nil
 }
@@ -164,6 +178,8 @@ func OS() string {
 		return "darwin"
 	case "linux":
 		return "linux"
+	case "windows":
+		return "win"
 	default:
 		return runtime.GOOS
 	}
@@ -207,7 +223,39 @@ func ToolBinary(tool, version string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "bin", entry.Binary), nil
+	binary := entry.Binary
+	if !entry.NeedsNode {
+		binary = ExeName(binary)
+	}
+	return filepath.Join(dir, "bin", binary), nil
+}
+
+// ExeName returns the file name of the native program name: name itself, or
+// name.exe on Windows.
+func ExeName(name string) string {
+	if runtime.GOOS == "windows" {
+		return name + ".exe"
+	}
+	return name
+}
+
+// IsExecutable reports whether info describes a file the shell can run.
+// Windows has no execute bit: there, the file extension decides.
+func IsExecutable(info os.FileInfo) bool {
+	if runtime.GOOS == "windows" {
+		return info.Mode().IsRegular()
+	}
+	return info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0
+}
+
+// SamePath reports whether a and b name the same path, ignoring case on
+// Windows, whose file system does.
+func SamePath(a, b string) bool {
+	a, b = filepath.Clean(a), filepath.Clean(b)
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
 }
 
 // ListToolVersions returns all installed version strings for a tool.
@@ -260,14 +308,37 @@ func NodePackageBins() (map[string][]string, error) {
 			return nil, fmt.Errorf("failed to read node %s bin dir: %w", v, err)
 		}
 		for _, e := range entries {
-			name := e.Name()
-			if _, core := toolBinaryMap[name]; core || e.IsDir() || !IsSafeBinName(name) {
+			name, ok := packageBinName(e.Name())
+			if _, core := toolBinaryMap[name]; !ok || core || e.IsDir() || !IsSafeBinName(name) {
 				continue
 			}
 			bins[name] = append(bins[name], v)
 		}
 	}
 	return bins, nil
+}
+
+// packageBinName returns the command a file in a node bin dir provides. On
+// Windows, npm writes each bin as name.cmd next to a sh script and a
+// PowerShell one, so only the .cmd counts.
+func packageBinName(file string) (string, bool) {
+	if runtime.GOOS != "windows" {
+		return file, true
+	}
+	ext := filepath.Ext(file)
+	if !strings.EqualFold(ext, ".cmd") {
+		return "", false
+	}
+	return strings.TrimSuffix(file, ext), true
+}
+
+// PackageBinFile returns the file a global npm install writes for the
+// command bin in a node bin dir.
+func PackageBinFile(bin string) string {
+	if runtime.GOOS == "windows" {
+		return bin + ".cmd"
+	}
+	return bin
 }
 
 // FindOutsideDriftr returns the first executable called name on PATH that is
@@ -295,11 +366,6 @@ func FindOutsideDriftr(name string) string {
 		if err != nil {
 			continue
 		}
-		candidate := filepath.Join(abs, name)
-		info, err := os.Stat(candidate)
-		if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
-			continue
-		}
 		// Driftr's own files do not count, under any name a symlink gives
 		// them: the shim dir, and node bin dirs a package bin puts on PATH for
 		// the commands it runs. Counting a symlinked alias of the shim dir
@@ -307,16 +373,45 @@ func FindOutsideDriftr(name string) string {
 		if within(abs, home) {
 			continue
 		}
-		if real, err := filepath.EvalSymlinks(candidate); err != nil || within(real, realHome) {
-			continue
+		for _, file := range commandFiles(name) {
+			candidate := filepath.Join(abs, file)
+			info, err := os.Stat(candidate)
+			if err != nil || !IsExecutable(info) {
+				continue
+			}
+			if real, err := filepath.EvalSymlinks(candidate); err != nil || within(real, realHome) {
+				continue
+			}
+			return candidate
 		}
-		return candidate
 	}
 	return ""
 }
 
+// commandFiles returns the file names the shell tries for the command name,
+// in its order: name itself, or on Windows name plus each PATHEXT extension.
+func commandFiles(name string) []string {
+	if runtime.GOOS != "windows" {
+		return []string{name}
+	}
+	pathext := os.Getenv("PATHEXT")
+	if pathext == "" {
+		pathext = ".COM;.EXE;.BAT;.CMD"
+	}
+	var files []string
+	for _, ext := range filepath.SplitList(pathext) {
+		if ext != "" {
+			files = append(files, name+strings.ToLower(ext))
+		}
+	}
+	return files
+}
+
 func within(path, dir string) bool {
 	path = filepath.Clean(path)
+	if runtime.GOOS == "windows" {
+		path, dir = strings.ToLower(path), strings.ToLower(dir)
+	}
 	return path == dir || strings.HasPrefix(path, dir+string(filepath.Separator))
 }
 
@@ -340,5 +435,8 @@ func IsSafeBinName(name string) bool {
 
 // ArchiveExt returns the archive extension for the current platform.
 func ArchiveExt() string {
+	if runtime.GOOS == "windows" {
+		return "zip"
+	}
 	return "tar.gz"
 }

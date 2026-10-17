@@ -8,17 +8,23 @@ builds:
     goos:
       - linux
       - darwin
+      - windows
     goarch:
       - amd64
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/stackmade/driftr/internal/cli.Version={{.Version}}
-      - -X github.com/stackmade/driftr/internal/cli.Commit={{.ShortCommit}}
-      - -X github.com/stackmade/driftr/internal/cli.Date={{.Date}}
+      - -X github.com/stackmade/driftr/v2/internal/cli.Version={{.Version}}
+      - -X github.com/stackmade/driftr/v2/internal/cli.Commit={{.ShortCommit}}
+      - -X github.com/stackmade/driftr/v2/internal/cli.Date={{.Date}}
 
 archives:
-  - format: tar.gz
+  - formats: [tar.gz]
+    # Windows has no tar in older releases and no execute bit to keep, and
+    # self-update looks for driftr.exe in a zip there.
+    format_overrides:
+      - goos: windows
+        formats: [zip]
     name_template: >-
       driftr_{{ .Version }}_{{ .Os }}_{{ .Arch }}
 
@@ -33,7 +39,7 @@ brews:
     homepage: "https://github.com/StackMade/driftr"
     description: "Fast JavaScript toolchain versioning without the friction"
     license: "MIT"
-    skip_upload: auto
+    skip_upload: '{{ if eq (index .Env "DRIFTR_SUPERSEDED") "true" }}true{{ else }}auto{{ end }}'
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
@@ -96,3 +102,6 @@ changelog:
 
 release:
   prerelease: auto
+  # release.yml sets DRIFTR_SUPERSEDED for a patch to an older major line once
+  # a newer one has a stable release.
+  make_latest: '{{ if or .Prerelease (eq (index .Env "DRIFTR_SUPERSEDED") "true") }}false{{ else }}true{{ end }}'

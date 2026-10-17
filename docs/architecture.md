@@ -140,6 +140,18 @@ The shim dir comes first on `PATH`, so a package shim could silently replace a c
 
 One invocation does not exec: `npm` with `-g`, `--global` or `--location=global` runs as a child process, because the shims have to be regenerated after npm adds or removes bins. Its exit code is passed through.
 
+#### Windows
+
+Windows has neither `#!/bin/sh` scripts nor `exec`, and `.cmd` scripts are a poor substitute: `cmd.exe` parses every argument a second time with its own quoting rules and asks "Terminate batch job (Y/N)?" on Ctrl-C. So a Windows shim is `driftr.exe` itself, hard-linked as `node.exe`, `npm.exe` and so on, or copied where a hard link is impossible (another volume). `main` asks `shim.InvokedAs` which tool it is: an executable named after a tool and sitting in the shim directory runs that tool, and anything else is the `driftr` CLI.
+
+The differences that follow from it:
+
+- **A child, not an exec.** `process.Exec` starts the tool as a child and exits with its code. Ctrl-C reaches every process on the console, so the shim does not forward it.
+- **Rewriting a running shim.** A running `.exe` cannot be overwritten or deleted, but it can be renamed, so `writeShim` moves a busy shim to `<name>.exe.<random>.old` before putting the new one in place, and the next refresh deletes those copies. `self-update` does the same with `driftr.exe`.
+- **Ownership.** A copy of `driftr.exe` does not say which tool it is, so `bin\.driftr-shims` lists the package shims driftr wrote. Only those are ever removed or overwritten.
+- **Package bins.** npm writes a package's bin as `tsc.cmd`. Rather than run that through `cmd.exe`, the resolver reads it (`resolver.cmdShimTarget`), takes the script it launches, and runs that script under the `node.exe` beside it. The bundled npm runs the same way, as `node.exe node_modules\npm\bin\npm-cli.js`.
+- **Node.js layout.** The Windows zip keeps `node.exe` and npm at its top level. `Extract` unpacks it into `bin\`, so every platform shares one layout, and npm, whose global prefix is the directory of `node.exe`, puts global packages there too.
+
 ### `DisableFlagParsing` on Shim Command
 
 The hidden `driftr shim` command sets `DisableFlagParsing: true` in cobra. This is critical because tool arguments like `node -v` or `npm --version` must pass through untouched. Without this, cobra would consume flags like `-v` as Driftr's own `--verbose` flag.
@@ -241,7 +253,9 @@ The `platform` package translates between Go's `runtime.GOOS`/`runtime.GOARCH` a
 | `amd64` | `x64` |
 | `arm64` | `arm64` |
 
-Archive format is `.tar.gz` on Unix and `.zip` on Windows (future). Binary paths differ by OS (`bin/node` vs `node.exe`).
+Archive format is `.tar.gz` on Unix and `.zip` on Windows. Native binaries get `.exe` on Windows (`platform.ExeName`), Windows has no execute bit (`platform.IsExecutable`), and paths compare without regard to case there (`platform.SamePath`). The home directory comes from `os.UserHomeDir`, which on Windows is `%USERPROFILE%` and never `%HOME%`.
+
+`pathsetup` has a Unix and a Windows half behind the same `Detect`/`Apply` API: shell rc files on Unix, the user `Path` value in `HKCU\Environment` on Windows, followed by a `WM_SETTINGCHANGE` broadcast.
 
 ## Dependencies
 
@@ -251,5 +265,6 @@ Driftr uses minimal external dependencies:
 |---------|---------|
 | `github.com/spf13/cobra` | CLI framework |
 | `github.com/BurntSushi/toml` | TOML config parsing |
+| `golang.org/x/sys/windows` | Windows only: console mode and the user `Path` in the registry |
 
 Everything else uses the Go standard library: `net/http` for downloads, `crypto/sha256` for checksums, `archive/tar` + `compress/gzip` for extraction, `syscall` for exec.

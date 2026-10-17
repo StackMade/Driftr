@@ -3,13 +3,14 @@ package cli
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
 
-	"github.com/stackmade/driftr/internal/ioutil"
-	"github.com/stackmade/driftr/internal/pathsetup"
-	"github.com/stackmade/driftr/internal/resolver"
+	"github.com/stackmade/driftr/v2/internal/ioutil"
+	"github.com/stackmade/driftr/v2/internal/pathsetup"
+	"github.com/stackmade/driftr/v2/internal/resolver"
 )
 
 func newUseCmd() *cobra.Command {
@@ -31,10 +32,15 @@ Nothing changes unless you evaluate the output:
   eval "$(driftr use pnpm@9)"
   eval "$(driftr use --unset node)"
 
-The syntax follows $SHELL. Pass --shell to say which one to write for.`,
+In PowerShell:
+
+  driftr use node@24 | Invoke-Expression
+
+The syntax follows $SHELL, or is PowerShell's on Windows when $SHELL is not
+set. Pass --shell to say which one to write for.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fish, err := useFishSyntax(shellFlag)
+			syntax, err := useSyntax(shellFlag)
 			if err != nil {
 				return err
 			}
@@ -54,8 +60,8 @@ The syntax follows $SHELL. Pass --shell to say which one to write for.`,
 			envVar := resolver.EnvVarName(tool)
 
 			if unset {
-				fmt.Fprintln(cmd.OutOrStdout(), unsetSnippet(envVar, fish))
-				hintEval(cmd, args[0], true)
+				fmt.Fprintln(cmd.OutOrStdout(), unsetSnippet(envVar, syntax))
+				hintEval(cmd, args[0], true, syntax)
 				return nil
 			}
 
@@ -68,28 +74,43 @@ The syntax follows $SHELL. Pass --shell to say which one to write for.`,
 				return err
 			}
 
-			fmt.Fprintln(cmd.OutOrStdout(), setSnippet(envVar, ver, fish))
-			hintEval(cmd, args[0], false)
+			fmt.Fprintln(cmd.OutOrStdout(), setSnippet(envVar, ver, syntax))
+			hintEval(cmd, args[0], false, syntax)
 			return nil
 		},
 	}
 
 	cmd.Flags().BoolVar(&unset, "unset", false, "print the snippet that drops the override")
-	cmd.Flags().StringVar(&shellFlag, "shell", "", "shell syntax to print: bash, zsh, fish or sh (default: $SHELL)")
+	cmd.Flags().StringVar(&shellFlag, "shell", "", "shell syntax to print: bash, zsh, fish, sh or powershell (default: $SHELL)")
 
 	return cmd
 }
 
-func setSnippet(envVar, ver string, fish bool) string {
-	if fish {
+// snippetSyntax is the shell language driftr use prints.
+type snippetSyntax int
+
+const (
+	syntaxPOSIX snippetSyntax = iota
+	syntaxFish
+	syntaxPowerShell
+)
+
+func setSnippet(envVar, ver string, syntax snippetSyntax) string {
+	switch syntax {
+	case syntaxFish:
 		return fmt.Sprintf("set -gx %s %s", envVar, ver)
+	case syntaxPowerShell:
+		return fmt.Sprintf("$env:%s = '%s'", envVar, ver)
 	}
 	return fmt.Sprintf("export %s=%s", envVar, ver)
 }
 
-func unsetSnippet(envVar string, fish bool) string {
-	if fish {
+func unsetSnippet(envVar string, syntax snippetSyntax) string {
+	switch syntax {
+	case syntaxFish:
 		return fmt.Sprintf("set -e %s", envVar)
+	case syntaxPowerShell:
+		return fmt.Sprintf("Remove-Item Env:%s -ErrorAction SilentlyContinue", envVar)
 	}
 	return fmt.Sprintf("unset %s", envVar)
 }
@@ -97,7 +118,7 @@ func unsetSnippet(envVar string, fish bool) string {
 // hintEval reminds the user to wrap the command in eval, but only when stdout
 // is a terminal: the snippet is the whole output, so the hint must stay on
 // stderr and stay out of the way when the shell is actually reading it.
-func hintEval(cmd *cobra.Command, arg string, unset bool) {
+func hintEval(cmd *cobra.Command, arg string, unset bool, syntax snippetSyntax) {
 	if !ioutil.IsTerminal(os.Stdout) {
 		return
 	}
@@ -105,21 +126,34 @@ func hintEval(cmd *cobra.Command, arg string, unset bool) {
 	if unset {
 		flag = "--unset "
 	}
+	if syntax == syntaxPowerShell {
+		fmt.Fprintf(cmd.ErrOrStderr(), "This only prints the snippet. Apply it with: driftr use %s%s | Invoke-Expression\n", flag, arg)
+		return
+	}
 	fmt.Fprintf(cmd.ErrOrStderr(), "This only prints the snippet. Apply it with: eval \"$(driftr use %s%s)\"\n", flag, arg)
 }
 
-// useFishSyntax reports whether to print fish syntax, from the --shell flag or
-// $SHELL. Every other supported shell takes the POSIX form.
-func useFishSyntax(shellFlag string) (bool, error) {
+// useSyntax picks the snippet language from the --shell flag or $SHELL. Every
+// other supported Unix shell takes the POSIX form; on Windows, where only Git
+// Bash and the like set $SHELL, it is PowerShell's.
+func useSyntax(shellFlag string) (snippetSyntax, error) {
 	if shellFlag == "" {
-		return pathsetup.DetectShell() == pathsetup.ShellFish, nil
+		switch {
+		case pathsetup.DetectShell() == pathsetup.ShellFish:
+			return syntaxFish, nil
+		case runtime.GOOS == "windows" && os.Getenv("SHELL") == "":
+			return syntaxPowerShell, nil
+		}
+		return syntaxPOSIX, nil
 	}
 	switch shellFlag {
 	case "fish":
-		return true, nil
+		return syntaxFish, nil
 	case "bash", "zsh", "sh", "posix":
-		return false, nil
+		return syntaxPOSIX, nil
+	case "powershell", "pwsh":
+		return syntaxPowerShell, nil
 	default:
-		return false, fmt.Errorf("unknown shell: %s. Use bash, zsh, fish or sh", shellFlag)
+		return syntaxPOSIX, fmt.Errorf("unknown shell: %s. Use bash, zsh, fish, sh or powershell", shellFlag)
 	}
 }

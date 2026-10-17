@@ -1,5 +1,7 @@
 # run --node holds every spawned command and package bin to that version.
 
+[windows] skip 'hand-made node versions and the commands they spawn are sh scripts'
+
 exec driftr setup
 exec driftr install node@22
 exec driftr default node@$NODE_VERSION

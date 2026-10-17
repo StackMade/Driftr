@@ -18,7 +18,7 @@ func colorEnabled() bool {
 	// One switch for both streams: helpers do not know where their string
 	// goes, and warnings go to stderr. Checking stdout alone wrote escape
 	// codes into `driftr ... 2>log`.
-	ttyOnce.Do(func() { isTTY = IsTerminal(os.Stdout) && IsTerminal(os.Stderr) })
+	ttyOnce.Do(func() { isTTY = IsTerminal(os.Stdout) && IsTerminal(os.Stderr) && enableANSI() })
 	return isTTY
 }
 

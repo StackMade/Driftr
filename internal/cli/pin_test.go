@@ -6,7 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/config"
+	"github.com/stackmade/driftr/v2/internal/config"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func TestMigratePin_TOMLToPackageJSON(t *testing.T) {
@@ -177,7 +178,7 @@ func TestMigratePin_NoPackageJSONToMigrateInto(t *testing.T) {
 }
 
 func TestPinCmd_MigrateWithoutConfig(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	fakeNodeInstall(t, "22.14.0")
 	t.Chdir(t.TempDir())
 
@@ -188,7 +189,7 @@ func TestPinCmd_MigrateWithoutConfig(t *testing.T) {
 }
 
 func TestPinCmd_MigrateSwitchesFormat(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	fakeNodeInstall(t, "22.14.0")
 
 	proj := t.TempDir()
@@ -216,7 +217,7 @@ func TestPinCmd_MigrateSwitchesFormat(t *testing.T) {
 }
 
 func TestPinCmd_UnknownTool(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Chdir(t.TempDir())
 
 	err := runCmd(t, "pin", "ruby@3.0.0")

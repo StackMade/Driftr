@@ -9,7 +9,7 @@
 //
 //	/index.json                                     node release index
 //	/v<ver>/SHASUMS256.txt                          node checksums, all platforms
-//	/v<ver>/node-v<ver>-<os>-<arch>.tar.gz          node tarball
+//	/v<ver>/node-v<ver>-<os>-<arch>.tar.gz          node tarball (.zip for win)
 //	/registry/<pkg>                                 npm package metadata
 //	/registry/<pkg>/<version>                       npm version metadata
 //	/registry/<pkg>/-/<pkg>-<version>.tgz           npm tarball
@@ -18,11 +18,12 @@
 //	/bun/download/bun-v<ver>/bun-<os>-<arch>.zip    bun asset
 //	/update/api/releases/latest                     driftr release index
 //	/update/download/v<ver>/checksums.txt           driftr release checksums
-//	/update/download/v<ver>/driftr_<ver>_<os>_<arch>.tar.gz  driftr release archive
+//	/update/download/v<ver>/driftr_<ver>_<os>_<arch>.tar.gz  driftr release archive (.zip for windows)
 //
 // The archives hold shell scripts rather than real binaries. Each one prints a
 // version string and echoes the arguments it received, which is enough to
-// assert which file the shim actually exec'd.
+// assert which file the shim actually exec'd. Windows cannot run those, so
+// its archives carry test/fakebin, which the caller builds and passes in.
 package fixture
 
 import (
@@ -128,20 +129,22 @@ func buildTarGz(files []tarFile) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// buildZip packs a single executable entry into a zip archive, the shape bun
-// ships its releases in.
-func buildZip(name, content string) ([]byte, error) {
+// buildZip packs executable entries into a zip archive, the shape bun ships
+// its releases in and Node.js and driftr their Windows ones.
+func buildZip(files ...tarFile) ([]byte, error) {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 
-	hdr := &zip.FileHeader{Name: name, Method: zip.Deflate}
-	hdr.SetMode(0o755)
-	w, err := zw.CreateHeader(hdr)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := w.Write([]byte(content)); err != nil {
-		return nil, err
+	for _, f := range files {
+		hdr := &zip.FileHeader{Name: f.name, Method: zip.Deflate}
+		hdr.SetMode(0o755)
+		w, err := zw.CreateHeader(hdr)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := w.Write([]byte(f.content)); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := zw.Close(); err != nil {
@@ -196,26 +199,28 @@ type npmPackage struct {
 	integrity string
 }
 
-// Handler returns the HTTP handler serving every fixture route.
-func Handler() (http.Handler, error) {
+// Handler returns the HTTP handler serving every fixture route. windowsExe is
+// test/fakebin built for Windows; when it is nil, no Windows archives are
+// served.
+func Handler(windowsExe []byte) (http.Handler, error) {
 	mux := http.NewServeMux()
 
-	if err := registerNode(mux); err != nil {
+	if err := registerNode(mux, windowsExe); err != nil {
 		return nil, err
 	}
 	if err := registerNpm(mux); err != nil {
 		return nil, err
 	}
-	if err := registerBun(mux); err != nil {
+	if err := registerBun(mux, windowsExe); err != nil {
 		return nil, err
 	}
-	if err := registerUpdate(mux); err != nil {
+	if err := registerUpdate(mux, windowsExe); err != nil {
 		return nil, err
 	}
 	return mux, nil
 }
 
-func registerNode(mux *http.ServeMux) error {
+func registerNode(mux *http.ServeMux, windowsExe []byte) error {
 	tarballs := map[string][]byte{}
 	var shasums bytes.Buffer
 
@@ -225,6 +230,21 @@ func registerNode(mux *http.ServeMux) error {
 			return fmt.Errorf("build node tarball %s-%s: %w", p.os, p.arch, err)
 		}
 		filename := fmt.Sprintf("node-v%s-%s-%s.tar.gz", NodeVersion, p.os, p.arch)
+		tarballs[filename] = data
+		fmt.Fprintf(&shasums, "%x  %s\n", sha256.Sum256(data), filename)
+	}
+	for _, arch := range windowsArchs(windowsExe, "x64", "arm64") {
+		// The Windows zip keeps node.exe and npm at its top level.
+		prefix := fmt.Sprintf("node-v%s-win-%s/", NodeVersion, arch)
+		data, err := buildZip(
+			tarFile{prefix + "node.exe", string(windowsExe)},
+			tarFile{prefix + "node_modules/npm/bin/npm-cli.js", "// driftr-fixture-prints: 10.99.0\n"},
+			tarFile{prefix + "node_modules/npm/bin/npx-cli.js", "// driftr-fixture-prints: 10.99.0\n"},
+		)
+		if err != nil {
+			return fmt.Errorf("build node zip win-%s: %w", arch, err)
+		}
+		filename := fmt.Sprintf("node-v%s-win-%s.zip", NodeVersion, arch)
 		tarballs[filename] = data
 		fmt.Fprintf(&shasums, "%x  %s\n", sha256.Sum256(data), filename)
 	}
@@ -355,16 +375,23 @@ func versionMetadata(p *npmPackage, tarball string) map[string]any {
 	}
 }
 
-func registerBun(mux *http.ServeMux) error {
+func registerBun(mux *http.ServeMux, windowsExe []byte) error {
 	assets := map[string][]byte{}
 	var shasums bytes.Buffer
 
-	for _, p := range bunPlatforms {
+	platforms := bunPlatforms
+	for _, arch := range windowsArchs(windowsExe, "x64", "aarch64") {
+		platforms = append(platforms, struct{ os, arch string }{"windows", arch})
+	}
+	for _, p := range platforms {
 		asset := fmt.Sprintf("bun-%s-%s.zip", p.os, p.arch)
 		// bun's archive keeps the binary one directory down, named after the
 		// asset: "bun-linux-x64/bun".
-		entry := strings.TrimSuffix(asset, ".zip") + "/bun"
-		data, err := buildZip(entry, fmt.Sprintf("#!/bin/sh\necho \"%s\"\n", BunVersion))
+		entry := tarFile{strings.TrimSuffix(asset, ".zip") + "/bun", fmt.Sprintf("#!/bin/sh\necho \"%s\"\n", BunVersion)}
+		if p.os == "windows" {
+			entry = tarFile{strings.TrimSuffix(asset, ".zip") + "/bun.exe", string(windowsExe)}
+		}
+		data, err := buildZip(entry)
 		if err != nil {
 			return fmt.Errorf("build bun asset %s: %w", asset, err)
 		}
@@ -399,7 +426,7 @@ func registerBun(mux *http.ServeMux) error {
 // self-update reads the tag from, and the release archive plus checksums.txt
 // it downloads. The archive holds a shell script named "driftr" — that is the
 // name the updater extracts by, and running it proves the replacement landed.
-func registerUpdate(mux *http.ServeMux) error {
+func registerUpdate(mux *http.ServeMux, windowsExe []byte) error {
 	archives := map[string][]byte{}
 	var checksums bytes.Buffer
 
@@ -408,6 +435,15 @@ func registerUpdate(mux *http.ServeMux) error {
 		data, err := buildTarGz([]tarFile{
 			{"driftr", fmt.Sprintf("#!/bin/sh\necho \"driftr version %s\"\n", DriftrVersion)},
 		})
+		if err != nil {
+			return fmt.Errorf("build driftr archive %s: %w", name, err)
+		}
+		archives[name] = data
+		fmt.Fprintf(&checksums, "%x  %s\n", sha256.Sum256(data), name)
+	}
+	for _, arch := range windowsArchs(windowsExe, "amd64", "arm64") {
+		name := fmt.Sprintf("driftr_%s_windows_%s.zip", DriftrVersion, arch)
+		data, err := buildZip(tarFile{"driftr.exe", string(windowsExe)})
 		if err != nil {
 			return fmt.Errorf("build driftr archive %s: %w", name, err)
 		}
@@ -441,4 +477,13 @@ func registerUpdate(mux *http.ServeMux) error {
 func writeJSON(w http.ResponseWriter, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(body)
+}
+
+// windowsArchs returns archs when there is a Windows executable to serve, and
+// nothing otherwise.
+func windowsArchs(windowsExe []byte, archs ...string) []string {
+	if windowsExe == nil {
+		return nil
+	}
+	return archs
 }

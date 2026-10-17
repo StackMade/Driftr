@@ -284,6 +284,14 @@ the detection is wrong or when you are writing the line into a script:
 driftr use node@24 --shell fish
 ```
 
+In PowerShell, which Windows uses when `$SHELL` is not set, the snippet is
+`$env:DRIFTR_NODE = '24.1.0'`, applied with `Invoke-Expression`:
+
+```powershell
+driftr use node@24 | Invoke-Expression
+driftr use --unset node | Invoke-Expression
+```
+
 **A shell function, if you type this often:**
 
 ```bash
@@ -669,7 +677,12 @@ driftr self-update
 ```
 
 It only updates when the latest release is newer than the running version, so a build ahead of
-the release is never downgraded. A development build (`dev`) is refused; install a release instead.
+the release is never downgraded. A development build (`dev`) or a nightly is refused; install a
+release instead.
+
+A stable build only moves to stable releases. A pre-release build (`2.0.0-rc.1`) follows the
+pre-releases as well: it moves to the next release candidate, and on to the stable release once
+that is out.
 
 After a successful update, automatically migrates PATH configuration if it was placed in an
 interactive-only file (e.g. `.zshrc`) to the universal target (`.zshenv` for zsh). Prints a

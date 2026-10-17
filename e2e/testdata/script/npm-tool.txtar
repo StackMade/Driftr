@@ -1,5 +1,7 @@
 # Unpinned, npm and npx run node's bundled npm; pinned, driftr's npm under the resolved node.
 
+[windows] skip 'the hand-made node 20 and package bin are sh scripts'
+
 exec driftr setup
 exec driftr install node@22
 exec driftr default node@$NODE_VERSION

@@ -9,20 +9,21 @@ stdout 'PATH'
 
 exec driftr doctor --fix
 
-rm $HOME/.driftr/bin/node
+rm $HOME/.driftr/bin/node$exe
 exec driftr doctor
 stdout 'Shim broken or missing: node'
-! exists $HOME/.driftr/bin/node
+! exists $HOME/.driftr/bin/node$exe
 
 exec driftr doctor --fix
 stdout 'regenerated'
-exists $HOME/.driftr/bin/node
+exists $HOME/.driftr/bin/node$exe
 exec node -v
 stdout 'v'$NODE_VERSION
 
-chmod 0644 $HOME/.driftr/bin/npm
-exec driftr doctor --fix
-stdout 'regenerated'
+# Windows has no execute bit to lose.
+[!windows] chmod 0644 $HOME/.driftr/bin/npm
+[!windows] exec driftr doctor --fix
+[!windows] stdout 'regenerated'
 exec npm -v
 stdout '10\.99\.0'
 

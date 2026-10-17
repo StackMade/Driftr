@@ -6,14 +6,14 @@ exists $HOME/.driftr/bin
 exists $HOME/.driftr/tools/node
 exists $HOME/.driftr/config
 
-exists $HOME/.driftr/bin/node
-exists $HOME/.driftr/bin/npm
-exists $HOME/.driftr/bin/npx
-exists $HOME/.driftr/bin/pnpm
-exists $HOME/.driftr/bin/pnpx
-exists $HOME/.driftr/bin/yarn
-exists $HOME/.driftr/bin/bun
+exists $HOME/.driftr/bin/node$exe
+exists $HOME/.driftr/bin/npm$exe
+exists $HOME/.driftr/bin/npx$exe
+exists $HOME/.driftr/bin/pnpm$exe
+exists $HOME/.driftr/bin/pnpx$exe
+exists $HOME/.driftr/bin/yarn$exe
+exists $HOME/.driftr/bin/bun$exe
 
 # Re-running must not fail or duplicate anything.
 exec driftr setup
-exists $HOME/.driftr/bin/node
+exists $HOME/.driftr/bin/node$exe

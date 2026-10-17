@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func TestInstallCleanup_RemovesTmpFile(t *testing.T) {
@@ -28,7 +30,7 @@ func TestInstallCleanup_RemovesTmpFile(t *testing.T) {
 // Only the registered tmp dir goes: its name is random, and the version dir may be another install.
 func TestInstallCleanup_RemovesRegisteredTmpDirKeepsVersionDir(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	toolsDir := filepath.Join(home, ".driftr", "tools", "node")
 	versionDir := filepath.Join(toolsDir, "99.0.0")

@@ -17,14 +17,14 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/stackmade/driftr/test/fixture"
+	"github.com/stackmade/driftr/v2/test/fixture"
 )
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:9123", "listen address")
 	flag.Parse()
 
-	handler, err := fixture.Handler()
+	handler, err := fixture.Handler(nil)
 	if err != nil {
 		log.Fatalf("build fixture: %v", err)
 	}

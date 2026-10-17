@@ -6,18 +6,18 @@ exec driftr install node@22
 # No global default and nothing pinned outside a, so a alone keeps this version.
 cd $WORK/a
 exec driftr pin node@$NODE_VERSION
-grep $WORK/a $HOME/.driftr/config/projects
+grep ${WORK@R}[/\\]a $HOME/.driftr/config/projects
 
 # Installing from a project's pins records it too.
 cd $WORK/c
 exec driftr install
-grep $WORK/c $HOME/.driftr/config/projects
+grep ${WORK@R}[/\\]c $HOME/.driftr/config/projects
 
 # Pruning from an unrelated directory keeps what a pins.
 cd $WORK/b
 exec driftr prune --dry-run
 stdout 'Checked 2 recorded project'
-stdout $WORK/a
+stdout ${WORK@R}[/\\]a
 exec driftr prune -y
 stdout 'Nothing to prune'
 exec driftr list
@@ -28,10 +28,10 @@ rm $WORK/a
 rm $WORK/c
 exec driftr prune --dry-run
 stdout 'would be forgotten'
-grep $WORK/a $HOME/.driftr/config/projects
+grep ${WORK@R}[/\\]a $HOME/.driftr/config/projects
 exec driftr prune -y
 stdout 'Forgot 2 recorded project'
-! grep $WORK/a $HOME/.driftr/config/projects
+! grep ${WORK@R}[/\\]a $HOME/.driftr/config/projects
 exec driftr list
 ! stdout $NODE_VERSION
 

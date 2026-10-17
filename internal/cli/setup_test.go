@@ -6,9 +6,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func TestManualPathInstructions_ShowsExportLine(t *testing.T) {
+	testutil.SkipOnWindows(t, "shell rc files")
 	var buf bytes.Buffer
 	manualPathInstructions(&buf, "/home/someone/.driftr/bin")
 
@@ -26,8 +29,9 @@ func TestManualPathInstructions_ShowsExportLine(t *testing.T) {
 }
 
 func TestConfigureSetupPath_AlreadyConfigured(t *testing.T) {
+	testutil.SkipOnWindows(t, "shell rc files")
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	t.Setenv("SHELL", "/bin/zsh")
 	t.Setenv("ZDOTDIR", "")
 
@@ -64,6 +68,7 @@ func TestConfigureSetupPath_AlreadyConfigured(t *testing.T) {
 }
 
 func TestConfigureSetupPath_ShadowedNodeGetsGuard(t *testing.T) {
+	testutil.SkipOnWindows(t, "shell rc files")
 	home := zshHome(t)
 	binDir := filepath.Join(home, ".driftr", "bin")
 	brew := t.TempDir()
@@ -87,6 +92,7 @@ func TestConfigureSetupPath_ShadowedNodeGetsGuard(t *testing.T) {
 }
 
 func TestConfigureSetupPath_NoShadowLeavesZshrcAlone(t *testing.T) {
+	testutil.SkipOnWindows(t, "shell rc files")
 	home := zshHome(t)
 	binDir := filepath.Join(home, ".driftr", "bin")
 	writeExe(t, binDir, "node")
@@ -101,6 +107,7 @@ func TestConfigureSetupPath_NoShadowLeavesZshrcAlone(t *testing.T) {
 }
 
 func TestConfigureSetupPath_ReadOnlyZshenvFallsBackToManual(t *testing.T) {
+	testutil.SkipOnWindows(t, "shell rc files")
 	if os.Geteuid() == 0 {
 		t.Skip("permissions do not bind root")
 	}

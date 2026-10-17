@@ -10,8 +10,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/stackmade/driftr/internal/platform"
-	"github.com/stackmade/driftr/internal/version"
+	"github.com/stackmade/driftr/v2/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/version"
 )
 
 // bun ships as a native binary in a zip on GitHub Releases, not as an npm
@@ -64,7 +64,7 @@ func BunAssetName() (string, error) {
 	}
 
 	switch runtime.GOOS {
-	case "darwin", "linux":
+	case "darwin", "linux", "windows":
 	default:
 		return "", fmt.Errorf("bun has no release build for %s", runtime.GOOS)
 	}
@@ -207,7 +207,7 @@ func InstallBun(versionStr string, verbose bool) (string, error) {
 	// The archive holds a single top-level directory named after the asset,
 	// e.g. "bun-linux-x64/bun".
 	prefix := strings.TrimSuffix(asset, ".zip") + "/"
-	if err := ExtractZipToBin(archivePath, versionDir, prefix, "bun"); err != nil {
+	if err := ExtractZipToBin(archivePath, versionDir, prefix, platform.ExeName("bun")); err != nil {
 		return "", fmt.Errorf("extraction failed: %w", err)
 	}
 
