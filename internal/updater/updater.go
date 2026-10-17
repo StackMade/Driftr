@@ -15,7 +15,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -65,6 +67,7 @@ var httpClient = &http.Client{
 // githubRelease represents the relevant fields from the GitHub releases API.
 type githubRelease struct {
 	TagName string `json:"tag_name"`
+	Draft   bool   `json:"draft"`
 }
 
 // Update checks for a newer version and replaces the current binary.
@@ -79,7 +82,9 @@ func Update(currentVersion string, verbose bool) (string, error) {
 
 	fmt.Println("Checking for updates...")
 
-	latest, err := fetchLatestVersion()
+	// A pre-release build follows the pre-releases too, so a release
+	// candidate moves on to the next candidate and then to the stable release.
+	latest, err := fetchLatestVersion(current.stage != stable)
 	if err != nil {
 		return "", fmt.Errorf("failed to check for updates: %w", err)
 	}
@@ -158,8 +163,15 @@ func assetName(version string) string {
 	return fmt.Sprintf("driftr_%s_%s_%s.%s", version, runtime.GOOS, runtime.GOARCH, ext)
 }
 
-func fetchLatestVersion() (string, error) {
-	resp, err := httpClient.Get(apiBase() + "/releases/latest")
+// fetchLatestVersion returns the newest stable release, or with
+// prereleases the newest release of any kind. /releases/latest never names a
+// pre-release, so the second case reads the release list instead.
+func fetchLatestVersion(prereleases bool) (string, error) {
+	endpoint := "/releases/latest"
+	if prereleases {
+		endpoint = "/releases?per_page=100"
+	}
+	resp, err := httpClient.Get(apiBase() + endpoint)
 	if err != nil {
 		return "", err
 	}
@@ -169,12 +181,34 @@ func fetchLatestVersion() (string, error) {
 		return "", fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
 	}
 
-	var release githubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		return "", fmt.Errorf("failed to parse release info: %w", err)
+	if !prereleases {
+		var release githubRelease
+		if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+			return "", fmt.Errorf("failed to parse release info: %w", err)
+		}
+		return strings.TrimPrefix(release.TagName, "v"), nil
 	}
 
-	return strings.TrimPrefix(release.TagName, "v"), nil
+	var releases []githubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
+		return "", fmt.Errorf("failed to parse release info: %w", err)
+	}
+	// The nightly tags are not versions and drop out here.
+	newestTag, newest := "", releaseTag{}
+	for _, r := range releases {
+		tag := strings.TrimPrefix(r.TagName, "v")
+		v, ok := releaseVersion(tag)
+		if r.Draft || !ok {
+			continue
+		}
+		if newestTag == "" || isNewer(v, newest) {
+			newestTag, newest = tag, v
+		}
+	}
+	if newestTag == "" {
+		return "", fmt.Errorf("no release found")
+	}
+	return newestTag, nil
 }
 
 // downloadIdleTimeout aborts a release download that receives no data for
@@ -388,21 +422,62 @@ func swapIn(newPath, oldPath string) error {
 
 // releaseVersion parses an exact X.Y.Z version; ok is false for anything else,
 // such as "dev" or a snapshot build.
-func releaseVersion(s string) (version.Version, bool) {
-	v, err := version.Parse(s)
+// Pre-release stages in ascending order; a stable release outranks them all.
+const (
+	alpha = iota + 1
+	beta
+	rc
+	stable
+)
+
+var stages = map[string]int{"alpha": alpha, "beta": beta, "rc": rc}
+
+// preReleaseRe matches the suffix of a pre-release tag: rc, rc.1, beta.2.
+// Nightly builds ("1.5.1-SNAPSHOT-<sha>") do not match and are no release.
+var preReleaseRe = regexp.MustCompile(`^(alpha|beta|rc)(?:\.(\d+))?$`)
+
+// releaseTag is a release version: X.Y.Z, optionally a pre-release of it.
+type releaseTag struct {
+	version.Version
+	stage int // alpha, beta, rc or stable
+	n     int // the pre-release number: 2 in rc.2
+}
+
+func releaseVersion(s string) (releaseTag, bool) {
+	core, suffix, isPre := strings.Cut(s, "-")
+	v, err := version.Parse(core)
 	if err != nil || v.Latest || v.LTS || v.IsPartial() {
-		return version.Version{}, false
+		return releaseTag{}, false
 	}
-	return v, true
+	r := releaseTag{Version: v, stage: stable}
+	if isPre {
+		m := preReleaseRe.FindStringSubmatch(suffix)
+		if m == nil {
+			return releaseTag{}, false
+		}
+		r.stage = stages[m[1]]
+		if m[2] != "" {
+			if r.n, err = strconv.Atoi(m[2]); err != nil {
+				return releaseTag{}, false
+			}
+		}
+	}
+	return r, true
 }
 
 // isNewer reports whether a is a strictly higher version than b.
-func isNewer(a, b version.Version) bool {
+func isNewer(a, b releaseTag) bool {
 	if a.Major != b.Major {
 		return a.Major > b.Major
 	}
 	if a.Minor != b.Minor {
 		return a.Minor > b.Minor
 	}
-	return a.Patch > b.Patch
+	if a.Patch != b.Patch {
+		return a.Patch > b.Patch
+	}
+	if a.stage != b.stage {
+		return a.stage > b.stage
+	}
+	return a.n > b.n
 }

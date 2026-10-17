@@ -347,7 +347,7 @@ func TestFetchLatestVersion(t *testing.T) {
 	httpClient = &http.Client{Transport: &rewriteTransport{target: srv.URL}}
 	defer func() { httpClient = orig }()
 
-	got, err := fetchLatestVersion()
+	got, err := fetchLatestVersion(false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -366,7 +366,7 @@ func TestFetchLatestVersion_APIError(t *testing.T) {
 	httpClient = &http.Client{Transport: &rewriteTransport{target: srv.URL}}
 	defer func() { httpClient = orig }()
 
-	_, err := fetchLatestVersion()
+	_, err := fetchLatestVersion(false)
 	if err == nil || !strings.Contains(err.Error(), "status 403") {
 		t.Errorf("expected status 403 error, got: %v", err)
 	}
@@ -409,7 +409,7 @@ func TestFetchLatestVersion_UsesOverride(t *testing.T) {
 
 	t.Setenv("DRIFTR_UPDATE_API", srv.URL+"/update/api")
 
-	got, err := fetchLatestVersion()
+	got, err := fetchLatestVersion(false)
 	if err != nil {
 		t.Fatalf("fetchLatestVersion: %v", err)
 	}
@@ -450,5 +450,50 @@ func TestReplaceBinary_FallbackFailureLeavesNoTempFile(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(oldPath, "keep")); err != nil {
 		t.Errorf("target was damaged: %v", err)
+	}
+}
+
+func TestReleaseVersion(t *testing.T) {
+	for _, s := range []string{"1.5.1", "2.0.0-rc.1", "2.0.0-beta", "2.0.0-alpha.3"} {
+		if _, ok := releaseVersion(s); !ok {
+			t.Errorf("releaseVersion(%q) rejected a release", s)
+		}
+	}
+	for _, s := range []string{"dev", "nightly", "2", "2.0", "latest", "1.5.1-SNAPSHOT-abc1234", "2.0.0-rc.x", "2.0.0-"} {
+		if _, ok := releaseVersion(s); ok {
+			t.Errorf("releaseVersion(%q) accepted a non-release", s)
+		}
+	}
+}
+
+func TestIsNewer_PreReleaseOrder(t *testing.T) {
+	order := []string{"1.5.2", "2.0.0-alpha", "2.0.0-alpha.2", "2.0.0-beta.1", "2.0.0-rc.1", "2.0.0-rc.2", "2.0.0-rc.10", "2.0.0", "2.0.1"}
+	for i := 1; i < len(order); i++ {
+		lo, _ := releaseVersion(order[i-1])
+		hi, _ := releaseVersion(order[i])
+		if !isNewer(hi, lo) || isNewer(lo, hi) {
+			t.Errorf("want %s > %s", order[i], order[i-1])
+		}
+	}
+}
+
+func TestFetchLatestVersion_PreReleases(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/releases" {
+			t.Errorf("unexpected path %q", r.URL.Path)
+		}
+		// Newest first, as GitHub lists them; a draft and a nightly come first.
+		fmt.Fprint(w, `[{"tag_name":"v3.0.0","draft":true},{"tag_name":"nightly"},{"tag_name":"v1.5.3"},{"tag_name":"v2.0.0-rc.2"},{"tag_name":"v2.0.0-beta.1"}]`)
+	}))
+	defer srv.Close()
+
+	t.Setenv("DRIFTR_UPDATE_API", srv.URL)
+
+	got, err := fetchLatestVersion(true)
+	if err != nil {
+		t.Fatalf("fetchLatestVersion: %v", err)
+	}
+	if got != "2.0.0-rc.2" {
+		t.Errorf("got %q, want 2.0.0-rc.2", got)
 	}
 }
