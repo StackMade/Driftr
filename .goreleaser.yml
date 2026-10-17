@@ -33,7 +33,7 @@ brews:
     homepage: "https://github.com/StackMade/driftr"
     description: "Fast JavaScript toolchain versioning without the friction"
     license: "MIT"
-    skip_upload: auto
+    skip_upload: '{{ if eq (index .Env "DRIFTR_SUPERSEDED") "true" }}true{{ else }}auto{{ end }}'
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
@@ -96,3 +96,6 @@ changelog:
 
 release:
   prerelease: auto
+  # release.yml sets DRIFTR_SUPERSEDED for a patch to an older major line once
+  # a newer one has a stable release.
+  make_latest: '{{ if or .Prerelease (eq (index .Env "DRIFTR_SUPERSEDED") "true") }}false{{ else }}true{{ end }}'

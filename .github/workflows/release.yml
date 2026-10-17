@@ -39,6 +39,29 @@ jobs:
           go-version-file: go.mod
           check-latest: true
           cache: true
+      - name: Place the tag among the release lines
+        # A patch to an older major line must take neither "latest" nor the
+        # Homebrew formula from a newer stable line. The changelog starts at
+        # the previous v* tag: nightly tags never count, and for a stable
+        # release neither do release candidates.
+        run: |
+          tag="$GITHUB_REF_NAME"
+          major="${tag#v}"
+          major="${major%%.*}"
+          newer=$(git tag -l 'v[0-9]*' | grep -v -- '-' | sed 's/^v//' | awk -F. -v m="$major" '$1 > m' | sort -V | tail -1)
+          if [ -n "$newer" ]; then
+            echo "v$newer is on a newer major line: $tag is not marked latest and leaves the Homebrew tap alone."
+            echo "DRIFTR_SUPERSEDED=true" >> "$GITHUB_ENV"
+          fi
+          args=(--tags --abbrev=0 --match='v[0-9]*')
+          case "$tag" in
+            *-*) ;;
+            *) args+=(--exclude='*-*') ;;
+          esac
+          if prev=$(git describe "${args[@]}" "$tag^" 2>/dev/null); then
+            echo "Changelog from $prev"
+            echo "GORELEASER_PREVIOUS_TAG=$prev" >> "$GITHUB_ENV"
+          fi
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
