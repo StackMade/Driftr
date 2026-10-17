@@ -66,6 +66,17 @@ irm https://raw.githubusercontent.com/StackMade/driftr/main/install.ps1 | iex
 
 The same steps as `install.sh`: it verifies the checksum, installs `driftr.exe` to `%USERPROFILE%\.driftr\bin`, and runs `driftr setup`, which puts that directory on your user `Path`. Open a new terminal afterwards. See [docs/installation.md](docs/installation.md#windows).
 
+Windows support starts with Driftr 2.0, which is in release candidates. Until 2.0.0 is out, the script installs the newest 2.0 pre-release and says so.
+
+### Release lines
+
+| Line | Status | Gets |
+|---|---|---|
+| 2.x | pre-release (`2.0.0-rc.N`), from `main` | new features, Windows |
+| 1.x | stable, from `release/1.x` | fixes only |
+
+Homebrew, `install.sh` and `driftr self-update` on a stable build stay on the latest stable release. To try 2.0 on macOS or Linux now, pin it: `curl -fsSL https://raw.githubusercontent.com/StackMade/driftr/main/install.sh | DRIFTR_VERSION=2.0.0-rc.1 sh`. A pre-release build then updates itself to newer candidates and on to 2.0.0. Untested nightly builds of both lines are on the [`nightly`](https://github.com/StackMade/Driftr/releases/tag/nightly) and [`nightly-1.x`](https://github.com/StackMade/Driftr/releases/tag/nightly-1.x) releases.
+
 ## Quick Start
 
 ```bash
@@ -114,7 +125,7 @@ pnpm -v   # resolves automatically
 | `driftr setup` | Initialize Driftr, generate shims, and configure your shell PATH |
 | `driftr cache clean` | Remove all cached downloads to free disk space |
 | `driftr cache dir` | Print the cache directory path |
-| `driftr self-update` | Update Driftr to the latest version |
+| `driftr self-update` | Update Driftr to the latest version; a pre-release build also follows newer pre-releases |
 | `driftr doctor [--fix]` | Check your Driftr installation for common problems; `--fix` repairs PATH and shims |
 | `driftr node doctor` | Analyze the project's Node.js / pnpm dependency environment |
 | `driftr node optimize [--install]` | Configure pnpm for shared dependency storage (idempotent) |
