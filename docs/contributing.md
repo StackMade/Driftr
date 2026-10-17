@@ -313,23 +313,41 @@ Adding a version or a package to the fixture means editing `test/fixture/fixture
 Releases are fully automated — no version bump in source; build metadata is
 injected via ldflags.
 
+There are two release lines. `main` carries 2.x; `release/1.x` takes fixes for
+1.x and nothing else. Tag the branch the release belongs to:
+
 ```bash
+# 2.x, from main. A suffix makes a pre-release: v2.0.0-rc.1, v2.1.0-beta.1
 git checkout main && git pull
 git tag vX.Y.Z
 git push origin vX.Y.Z
+
+# 1.x, from release/1.x
+git checkout release/1.x && git pull
+git tag v1.Y.Z
+git push origin v1.Y.Z
 ```
+
+A fix lands on the branch of the oldest line it affects and is carried forward
+with `git cherry-pick -x`.
 
 The tag push triggers `.github/workflows/release.yml`, which:
 
 1. Runs the full test suite (a failing suite blocks the release)
-2. Runs GoReleaser: builds linux/darwin × amd64/arm64 archives, generates
-   `checksums.txt`, signs it with keyless cosign, publishes the GitHub
-   release, and updates the Homebrew tap formula
+2. Runs GoReleaser: builds linux/darwin/windows × amd64/arm64 archives (zip
+   on Windows), generates `checksums.txt`, signs it with keyless cosign,
+   publishes the GitHub release, and updates the Homebrew tap formula
 3. Attests build provenance for all artifacts (verify with
    `gh attestation verify`)
 
-Nightly pre-releases build automatically from main at 02:00 UTC when new
-commits exist.
+A tag with a suffix (`-rc.1`, `-beta.1`) becomes a GitHub pre-release:
+`install.sh`, `self-update` on a stable build and the Homebrew tap all skip it.
+Once a newer major line has a stable release, a tag on an older line is not
+marked "latest" and leaves the Homebrew formula alone, so a 1.x patch never
+pulls new installs back from 2.x.
+
+Nightly pre-releases build at 02:00 UTC from each line that has new commits:
+`nightly` from `main`, `nightly-1.x` from `release/1.x`.
 
 ## Reporting Bugs
 
