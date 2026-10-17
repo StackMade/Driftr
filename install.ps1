@@ -6,7 +6,8 @@
 #   irm https://raw.githubusercontent.com/StackMade/driftr/main/install.ps1 | iex
 #
 # Environment variables:
-#   DRIFTR_VERSION       pin a version (e.g. "1.6.0"); default: the latest release
+#   DRIFTR_VERSION       pin a version (e.g. "2.0.0"); default: the latest release
+#                        with a Windows build
 #   DRIFTR_INSTALL_DIR   where driftr.exe goes; default: %USERPROFILE%\.driftr\bin
 #   DRIFTR_UPDATE_API    release index base URL, for mirrors (as for self-update)
 #   DRIFTR_UPDATE_MIRROR release download base URL, for mirrors (as for self-update)
@@ -40,6 +41,20 @@ function Install-Driftr {
         $release = Invoke-RestMethod -UseBasicParsing "$apiBase/releases/latest"
         $version = $release.tag_name -replace '^v', ''
         if (-not $version) { throw 'could not determine the latest version (GitHub API rate limit?)' }
+        # Windows builds start with 2.0. While the latest stable release is a
+        # 1.x without one, take the newest pre-release that has a build here.
+        # A mirror that lists no assets is taken at its word.
+        if ($release.assets -and -not ($release.assets | Where-Object { $_.name -eq "driftr_${version}_windows_${arch}.zip" })) {
+            $releases = Invoke-RestMethod -UseBasicParsing "$apiBase/releases?per_page=100"
+            $pre = $releases | Where-Object {
+                $v = $_.tag_name -replace '^v', ''
+                -not $_.draft -and $v -match '^\d+\.\d+\.\d+-(alpha|beta|rc)(\.\d+)?$' -and
+                    ($_.assets | Where-Object { $_.name -eq "driftr_${v}_windows_${arch}.zip" })
+            } | Select-Object -First 1
+            if (-not $pre) { throw "no driftr release has a Windows build for $arch yet" }
+            $version = $pre.tag_name -replace '^v', ''
+            Write-Warning "No stable driftr release has a Windows build yet; installing the pre-release v$version."
+        }
     }
 
     $archive = "driftr_${version}_windows_${arch}.zip"

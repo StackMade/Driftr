@@ -25,6 +25,10 @@ Pin a specific version:
 curl -fsSL https://raw.githubusercontent.com/StackMade/driftr/main/install.sh | DRIFTR_VERSION=1.4.0 sh
 ```
 
+Without `DRIFTR_VERSION` the script installs the latest stable release. A pre-release such as
+`2.0.0-rc.1` is only installed when pinned this way; `driftr self-update` then follows the newer
+pre-releases up to the stable release.
+
 Override the install directory:
 
 ```bash
@@ -87,11 +91,14 @@ The script follows the same steps as `install.sh`: it downloads `driftr_<version
 checks it against `checksums.txt`, installs `driftr.exe` to `%USERPROFILE%\.driftr\bin`, and runs
 `driftr setup`. Open a new terminal afterwards; `driftr doctor` checks the result.
 
+Windows builds start with Driftr 2.0. While the latest stable release is still a 1.x, the script
+installs the newest 2.0 pre-release instead and says so.
+
 `DRIFTR_VERSION` and `DRIFTR_INSTALL_DIR` work as they do for `install.sh`. Set them in the same
 PowerShell session first:
 
 ```powershell
-$env:DRIFTR_VERSION = '1.6.0'
+$env:DRIFTR_VERSION = '2.0.0'
 irm https://raw.githubusercontent.com/StackMade/driftr/main/install.ps1 | iex
 ```
 
