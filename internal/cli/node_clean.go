@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/stackmade/driftr/internal/ioutil"
-	"github.com/stackmade/driftr/internal/nodeenv"
+	"github.com/stackmade/driftr/v2/internal/ioutil"
+	"github.com/stackmade/driftr/v2/internal/nodeenv"
 )
 
 func newNodeCleanCmd() *cobra.Command {

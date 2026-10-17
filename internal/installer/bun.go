@@ -10,8 +10,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/stackmade/driftr/internal/platform"
-	"github.com/stackmade/driftr/internal/version"
+	"github.com/stackmade/driftr/v2/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/version"
 )
 
 // bun ships as a native binary in a zip on GitHub Releases, not as an npm

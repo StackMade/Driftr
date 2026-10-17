@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/platform"
-	"github.com/stackmade/driftr/internal/testutil"
+	"github.com/stackmade/driftr/v2/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func writeExe(t *testing.T, dir, tool string) {

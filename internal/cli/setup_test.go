@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/testutil"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func TestManualPathInstructions_ShowsExportLine(t *testing.T) {

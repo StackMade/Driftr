@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/resolver"
-	"github.com/stackmade/driftr/internal/testutil"
+	"github.com/stackmade/driftr/v2/internal/resolver"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func captureStderr(t *testing.T, fn func()) string {

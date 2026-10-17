@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/platform"
 )
 
 func writeTestZip(t *testing.T, entries map[string]string) string {

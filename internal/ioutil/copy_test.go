@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/platform"
 )
 
 func TestCopyFile_CopiesContentAndMode(t *testing.T) {

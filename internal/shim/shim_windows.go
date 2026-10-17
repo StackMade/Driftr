@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/stackmade/driftr/internal/ioutil"
-	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/ioutil"
+	"github.com/stackmade/driftr/v2/internal/platform"
 )
 
 // On Windows a shim is driftr.exe itself under the tool's name, hard-linked

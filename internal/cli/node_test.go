@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/nodeenv"
+	"github.com/stackmade/driftr/v2/internal/nodeenv"
 )
 
 type stubRunner struct {

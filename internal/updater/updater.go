@@ -19,8 +19,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/stackmade/driftr/internal/ioutil"
-	"github.com/stackmade/driftr/internal/version"
+	"github.com/stackmade/driftr/v2/internal/ioutil"
+	"github.com/stackmade/driftr/v2/internal/version"
 )
 
 const (

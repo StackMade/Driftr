@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/testutil"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func TestInstallTool_UnknownTool(t *testing.T) {

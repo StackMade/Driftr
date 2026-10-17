@@ -8,9 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/stackmade/driftr/internal/ioutil"
-	"github.com/stackmade/driftr/internal/pathsetup"
-	"github.com/stackmade/driftr/internal/resolver"
+	"github.com/stackmade/driftr/v2/internal/ioutil"
+	"github.com/stackmade/driftr/v2/internal/pathsetup"
+	"github.com/stackmade/driftr/v2/internal/resolver"
 )
 
 func newUseCmd() *cobra.Command {

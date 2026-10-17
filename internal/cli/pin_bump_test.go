@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/config"
-	"github.com/stackmade/driftr/internal/resolver"
-	"github.com/stackmade/driftr/internal/testutil"
+	"github.com/stackmade/driftr/v2/internal/config"
+	"github.com/stackmade/driftr/v2/internal/resolver"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func TestBumpTarget(t *testing.T) {

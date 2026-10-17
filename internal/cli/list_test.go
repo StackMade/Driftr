@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/testutil"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func TestListCmd_UnknownToolFails(t *testing.T) {

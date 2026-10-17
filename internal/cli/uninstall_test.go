@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/config"
-	"github.com/stackmade/driftr/internal/platform"
-	"github.com/stackmade/driftr/internal/testutil"
+	"github.com/stackmade/driftr/v2/internal/config"
+	"github.com/stackmade/driftr/v2/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func captureStdout(t *testing.T, fn func()) string {

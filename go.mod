@@ -1,4 +1,4 @@
-module github.com/stackmade/driftr
+module github.com/stackmade/driftr/v2
 
 go 1.27
 

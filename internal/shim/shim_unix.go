@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/stackmade/driftr/internal/ioutil"
+	"github.com/stackmade/driftr/v2/internal/ioutil"
 )
 
 // shimFile returns the name of tool's shim in the bin dir.

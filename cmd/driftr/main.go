@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/stackmade/driftr/internal/cli"
-	"github.com/stackmade/driftr/internal/ioutil"
-	"github.com/stackmade/driftr/internal/resolver"
-	"github.com/stackmade/driftr/internal/shim"
+	"github.com/stackmade/driftr/v2/internal/cli"
+	"github.com/stackmade/driftr/v2/internal/ioutil"
+	"github.com/stackmade/driftr/v2/internal/resolver"
+	"github.com/stackmade/driftr/v2/internal/shim"
 )
 
 func main() {

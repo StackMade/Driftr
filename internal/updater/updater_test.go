@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stackmade/driftr/internal/platform"
-	"github.com/stackmade/driftr/internal/testutil"
+	"github.com/stackmade/driftr/v2/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func makeTarGz(t *testing.T, files map[string][]byte) []byte {

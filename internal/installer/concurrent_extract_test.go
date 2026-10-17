@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/platform"
 )
 
 // Racing installs of one version must all succeed: each unpacks to a temp dir, then renames.

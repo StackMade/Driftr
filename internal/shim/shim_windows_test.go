@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stackmade/driftr/internal/ioutil"
-	"github.com/stackmade/driftr/internal/platform"
-	"github.com/stackmade/driftr/internal/testutil"
+	"github.com/stackmade/driftr/v2/internal/ioutil"
+	"github.com/stackmade/driftr/v2/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 // writeNodeBin puts a package bin's .cmd in a node version's bin dir, the way

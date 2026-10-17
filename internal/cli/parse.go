@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/platform"
 )
 
 // parseToolVersion splits "node@24.0.0" into ("node", "24.0.0").

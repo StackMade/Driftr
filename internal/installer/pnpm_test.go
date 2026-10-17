@@ -3,7 +3,7 @@ package installer
 import (
 	"testing"
 
-	"github.com/stackmade/driftr/internal/testutil"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func TestInstallPnpm_RejectsLTS(t *testing.T) {

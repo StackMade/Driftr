@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/resolver"
+	"github.com/stackmade/driftr/v2/internal/resolver"
 )
 
 func TestWinnerIndex(t *testing.T) {

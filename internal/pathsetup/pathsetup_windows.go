@@ -10,7 +10,7 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 
-	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/platform"
 )
 
 // userEnvKey is the key under HKEY_CURRENT_USER that Windows builds each new

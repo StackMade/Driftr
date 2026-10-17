@@ -17,7 +17,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/stackmade/driftr/test/fixture"
+	"github.com/stackmade/driftr/v2/test/fixture"
 )
 
 func main() {

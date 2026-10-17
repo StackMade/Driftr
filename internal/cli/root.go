@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/stackmade/driftr/internal/ioutil"
+	"github.com/stackmade/driftr/v2/internal/ioutil"
 )
 
 // ExitError signals that the process should exit with a specific code

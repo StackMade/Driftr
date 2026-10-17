@@ -134,7 +134,7 @@ jobs:
           $rel = "$env:RUNNER_TEMP\rel\v$v"
           $zip = "$rel\driftr_${v}_windows_amd64.zip"
           New-Item -ItemType Directory -Force $rel | Out-Null
-          go build -ldflags "-X github.com/stackmade/driftr/internal/cli.Version=$v" -o "$env:RUNNER_TEMP\pkg\driftr.exe" ./cmd/driftr/
+          go build -ldflags "-X github.com/stackmade/driftr/v2/internal/cli.Version=$v" -o "$env:RUNNER_TEMP\pkg\driftr.exe" ./cmd/driftr/
           Compress-Archive "$env:RUNNER_TEMP\pkg\driftr.exe" $zip
           $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower()
           "$hash  driftr_${v}_windows_amd64.zip" | Set-Content -Encoding ascii "$rel\checksums.txt"

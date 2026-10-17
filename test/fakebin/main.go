@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/stackmade/driftr/test/fixture"
+	"github.com/stackmade/driftr/v2/test/fixture"
 )
 
 // printsMarker starts the line of a fixture script that fakebin prints when

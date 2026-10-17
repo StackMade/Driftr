@@ -14,9 +14,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/stackmade/driftr/internal/cli.Version={{.Version}}
-      - -X github.com/stackmade/driftr/internal/cli.Commit={{.ShortCommit}}
-      - -X github.com/stackmade/driftr/internal/cli.Date={{.Date}}
+      - -X github.com/stackmade/driftr/v2/internal/cli.Version={{.Version}}
+      - -X github.com/stackmade/driftr/v2/internal/cli.Commit={{.ShortCommit}}
+      - -X github.com/stackmade/driftr/v2/internal/cli.Date={{.Date}}
 
 archives:
   - formats: [tar.gz]

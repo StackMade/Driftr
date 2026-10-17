@@ -13,7 +13,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/platform"
 )
 
 // Shell is the detected user shell.

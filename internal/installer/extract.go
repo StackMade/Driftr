@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/platform"
 )
 
 // symlinkEscapes reports whether a symlink created at linkPath and pointing at

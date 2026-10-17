@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/stackmade/driftr/internal/config"
-	"github.com/stackmade/driftr/internal/platform"
-	"github.com/stackmade/driftr/internal/version"
+	"github.com/stackmade/driftr/v2/internal/config"
+	"github.com/stackmade/driftr/v2/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/version"
 )
 
 // RequireToolInstalled verifies a tool version is installed, with partial version resolution.

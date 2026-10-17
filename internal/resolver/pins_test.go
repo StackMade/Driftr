@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/config"
-	"github.com/stackmade/driftr/internal/testutil"
+	"github.com/stackmade/driftr/v2/internal/config"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func TestProjectPins(t *testing.T) {

@@ -13,8 +13,8 @@ import (
 
 	"github.com/rogpeppe/go-internal/testscript"
 
-	"github.com/stackmade/driftr/internal/ioutil"
-	"github.com/stackmade/driftr/test/fixture"
+	"github.com/stackmade/driftr/v2/internal/ioutil"
+	"github.com/stackmade/driftr/v2/test/fixture"
 )
 
 var (
@@ -58,7 +58,7 @@ func run(m *testing.M) int {
 			return 1
 		}
 		// Absolute: ./... from the e2e directory would match only this package.
-		buildFlags = append(buildFlags, "-cover", "-covermode=atomic", "-coverpkg=github.com/stackmade/driftr/...")
+		buildFlags = append(buildFlags, "-cover", "-covermode=atomic", "-coverpkg=github.com/stackmade/driftr/v2/...")
 	}
 
 	// Real binaries: shims embed os.Executable() of the driftr that wrote them.
@@ -68,7 +68,7 @@ func run(m *testing.M) int {
 		flags := buildFlags
 		if out == updatableSrc {
 			// self-update refuses a dev build, so this one claims a release.
-			flags = append(slices.Clone(buildFlags), "-ldflags", "-X github.com/stackmade/driftr/internal/cli.Version=1.0.0")
+			flags = append(slices.Clone(buildFlags), "-ldflags", "-X github.com/stackmade/driftr/v2/internal/cli.Version=1.0.0")
 		}
 		if err := buildDriftr(out, flags); err != nil {
 			fmt.Fprintf(os.Stderr, "e2e: build %s: %v\n", filepath.Base(out), err)

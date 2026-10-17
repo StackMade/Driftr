@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/platform"
 )
 
 // Detect inspects the user's shell configuration and reports the state.

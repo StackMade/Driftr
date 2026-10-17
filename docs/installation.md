@@ -143,7 +143,7 @@ sudo mv driftr /usr/local/bin/
 Or install it directly with Go:
 
 ```bash
-go install github.com/stackmade/driftr/cmd/driftr@latest
+go install github.com/stackmade/driftr/v2/cmd/driftr@latest
 ```
 
 ## Initial Setup

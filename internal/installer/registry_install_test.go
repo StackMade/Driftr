@@ -14,9 +14,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/platform"
-	"github.com/stackmade/driftr/internal/testutil"
-	"github.com/stackmade/driftr/internal/version"
+	"github.com/stackmade/driftr/v2/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/testutil"
+	"github.com/stackmade/driftr/v2/internal/version"
 )
 
 type registryFixture struct {

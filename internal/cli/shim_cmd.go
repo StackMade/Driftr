@@ -10,11 +10,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/stackmade/driftr/internal/config"
-	"github.com/stackmade/driftr/internal/ioutil"
-	"github.com/stackmade/driftr/internal/process"
-	"github.com/stackmade/driftr/internal/resolver"
-	"github.com/stackmade/driftr/internal/shim"
+	"github.com/stackmade/driftr/v2/internal/config"
+	"github.com/stackmade/driftr/v2/internal/ioutil"
+	"github.com/stackmade/driftr/v2/internal/process"
+	"github.com/stackmade/driftr/v2/internal/resolver"
+	"github.com/stackmade/driftr/v2/internal/shim"
 )
 
 // newShimCmd creates the hidden `driftr shim <tool>` command invoked by shim scripts.

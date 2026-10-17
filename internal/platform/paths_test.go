@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/testutil"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 // Shims, docs and the installer all assume these directory names under ~/.driftr.

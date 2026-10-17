@@ -9,7 +9,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/stackmade/driftr/internal/ioutil"
+	"github.com/stackmade/driftr/v2/internal/ioutil"
 )
 
 const ProjectConfigFile = ".driftr.toml"

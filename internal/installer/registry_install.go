@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/stackmade/driftr/internal/platform"
-	"github.com/stackmade/driftr/internal/version"
+	"github.com/stackmade/driftr/v2/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/version"
 )
 
 // installRegistryTool downloads and installs a version of a tool published as

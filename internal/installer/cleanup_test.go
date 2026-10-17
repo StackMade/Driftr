@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/testutil"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 )
 
 func TestInstallCleanup_RemovesTmpFile(t *testing.T) {

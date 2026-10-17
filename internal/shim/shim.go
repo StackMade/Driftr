@@ -10,8 +10,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/stackmade/driftr/internal/ioutil"
-	"github.com/stackmade/driftr/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/ioutil"
+	"github.com/stackmade/driftr/v2/internal/platform"
 )
 
 // shimTools lists the tools for which shims are created.

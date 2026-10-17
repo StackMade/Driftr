@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/stackmade/driftr/internal/config"
-	"github.com/stackmade/driftr/internal/version"
+	"github.com/stackmade/driftr/v2/internal/config"
+	"github.com/stackmade/driftr/v2/internal/version"
 )
 
 // Pin is a tool version pinned by project configuration.

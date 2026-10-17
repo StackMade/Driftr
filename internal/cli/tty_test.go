@@ -11,11 +11,11 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/stackmade/driftr/internal/testutil"
+	"github.com/stackmade/driftr/v2/internal/testutil"
 
 	"github.com/spf13/cobra"
 
-	"github.com/stackmade/driftr/internal/resolver"
+	"github.com/stackmade/driftr/v2/internal/resolver"
 )
 
 func openSlave(t *testing.T, name string) *os.File {
