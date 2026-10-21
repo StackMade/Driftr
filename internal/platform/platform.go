@@ -47,6 +47,11 @@ func ToolsDir() (string, error) {
 
 // ToolVersionDir returns the directory for a specific tool and version.
 func ToolVersionDir(tool, version string) (string, error) {
+	// version comes from pins in files driftr did not write: it must name one
+	// directory under tools/<tool>, never climb out of it.
+	if version == "" || version == "." || version == ".." || filepath.Base(version) != version {
+		return "", fmt.Errorf("invalid %s version %q", tool, version)
+	}
 	tools, err := ToolsDir()
 	if err != nil {
 		return "", err

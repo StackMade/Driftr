@@ -32,6 +32,7 @@ func TestLoadNvmrc(t *testing.T) {
 		{"lts with trailing comment", "lts/iron # ci\n", "lts/iron"},
 		{"nvm node alias", "node\n", "latest"},
 		{"nvm stable alias", "Stable\n", "latest"},
+		{"nvm system alias", "system\n", ""},
 	}
 
 	for _, tt := range tests {

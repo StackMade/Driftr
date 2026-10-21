@@ -525,26 +525,7 @@ func resolveEnginesNode(rangeText, dir string) (*Resolution, error) {
 // as ResolvePin does for check and prune; "v22.14.0" drops its prefix. A miss
 // reports the pin as written, so auto-install fetches what it asks for.
 func resolveProjectVersion(tool, ver, dir string, source Source) (*Resolution, error) {
-	context := "pinned in " + dir
-	if v, err := version.Parse(ver); err == nil {
-		if v.Latest || v.LTS || v.IsPartial() {
-			match, known := installedMatcher(v)
-			if !known {
-				return nil, &NotInstalledError{Tool: tool, Version: ver, Context: context}
-			}
-			best, ok, err := newestInstalledMatching(tool, match)
-			if err != nil {
-				return nil, err
-			}
-			if !ok {
-				return nil, &NotInstalledError{Tool: tool, Version: ver, Context: context}
-			}
-			ver = best.String()
-		} else {
-			ver = v.String()
-		}
-	}
-	binPath, err := requireToolBinaryExists(tool, ver, context)
+	ver, binPath, err := resolveInstalledPin(tool, ver, "pinned in "+dir)
 	if err != nil {
 		return nil, err
 	}
@@ -555,6 +536,37 @@ func resolveProjectVersion(tool, ver, dir string, source Source) (*Resolution, e
 		Source:     source,
 		ProjectDir: dir,
 	}, nil
+}
+
+// resolveInstalledPin returns the installed version a pin names and its
+// binary. context says where the pin came from, for the error messages.
+func resolveInstalledPin(tool, ver, context string) (string, string, error) {
+	v, err := version.Parse(ver)
+	if err != nil {
+		// Never a NotInstalledError: auto-install would try to fetch it.
+		return "", "", fmt.Errorf("%s %q (%s) is not a version: %w. Pin a version instead, e.g. `driftr pin %s@<version>`", tool, ver, context, err, tool)
+	}
+	if v.Latest || v.LTS || v.IsPartial() {
+		match, known := installedMatcher(v)
+		if !known {
+			return "", "", &NotInstalledError{Tool: tool, Version: ver, Context: context}
+		}
+		best, ok, err := newestInstalledMatching(tool, match)
+		if err != nil {
+			return "", "", err
+		}
+		if !ok {
+			return "", "", &NotInstalledError{Tool: tool, Version: ver, Context: context}
+		}
+		ver = best.String()
+	} else {
+		ver = v.String()
+	}
+	binPath, err := requireToolBinaryExists(tool, ver, context)
+	if err != nil {
+		return "", "", err
+	}
+	return ver, binPath, nil
 }
 
 func resolveFromGlobal(tool string) (*Resolution, error) {
@@ -568,7 +580,8 @@ func resolveFromGlobal(tool string) (*Resolution, error) {
 		return nil, &NotConfiguredError{Tool: tool}
 	}
 
-	binPath, err := requireToolBinaryExists(tool, ver, "global default")
+	// A hand-edited default may be partial ("22") or carry a "v" prefix.
+	ver, binPath, err := resolveInstalledPin(tool, ver, "global default")
 	if err != nil {
 		return nil, err
 	}

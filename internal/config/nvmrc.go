@@ -40,6 +40,9 @@ func parseVersionFile(content string) (string, error) {
 		switch strings.ToLower(line) {
 		case "node", "stable":
 			return "latest", nil
+		case "system":
+			// nvm's "system" is the Node.js outside nvm: no pin for driftr.
+			return "", nil
 		}
 
 		// LTS aliases pass through untouched — no "v" prefix to strip.

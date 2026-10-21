@@ -228,6 +228,63 @@ func TestResolveFromGlobal(t *testing.T) {
 	}
 }
 
+func TestResolveFromGlobal_PartialDefault(t *testing.T) {
+	home := t.TempDir()
+	testutil.SetHome(t, home)
+	setupFakeInstall(t, home, "node", "22.14.0")
+
+	for _, pin := range []string{"22", "v22.14.0"} {
+		globalCfg, _ := config.LoadGlobal()
+		globalCfg.Default.SetTool("node", pin)
+		config.SaveGlobal(globalCfg)
+
+		t.Chdir(t.TempDir())
+		res, err := ResolveTool("node", "", false)
+		if err != nil {
+			t.Fatalf("default %q: ResolveTool() error: %v", pin, err)
+		}
+		if res.Version != "22.14.0" {
+			t.Errorf("default %q: version = %q, want 22.14.0", pin, res.Version)
+		}
+	}
+}
+
+func TestResolveFromProject_PinIsNeverAPath(t *testing.T) {
+	home := t.TempDir()
+	testutil.SetHome(t, home)
+	setupFakeInstall(t, home, "node", "22.14.0")
+
+	// A directory outside tools/ that holds bin/node, as a planted repo would.
+	evil := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(evil, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(evil, "bin", "node"), []byte("x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tools, _ := platform.ToolsDir()
+	rel, err := filepath.Rel(filepath.Join(tools, "node"), evil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	projectDir := t.TempDir()
+	toml := fmt.Sprintf("[tools]\nnode = %q\n", filepath.ToSlash(rel))
+	if err := os.WriteFile(filepath.Join(projectDir, ".driftr.toml"), []byte(toml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(projectDir)
+
+	res, err := ResolveTool("node", "", false)
+	if err == nil {
+		t.Fatalf("ResolveTool() = %s, want an error for a path-shaped pin", res.BinaryPath)
+	}
+	var notInstalled *NotInstalledError
+	if errors.As(err, &notInstalled) {
+		t.Errorf("error is a NotInstalledError, which would trigger auto-install: %v", err)
+	}
+}
+
 func TestResolveExplicit(t *testing.T) {
 	home := t.TempDir()
 	testutil.SetHome(t, home)
