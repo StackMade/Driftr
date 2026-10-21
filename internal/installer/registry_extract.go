@@ -93,5 +93,5 @@ func ExtractRegistryPackage(archivePath, destDir, binaryPath string) error {
 		return fmt.Errorf("package has no %s: %w", filepath.Base(binaryPath), binErr)
 	}
 
-	return finalizeInstall(tmpDir, destDir, binaryPath)
+	return finalizeInstall(tmpDir, destDir, binaryPath, nil)
 }

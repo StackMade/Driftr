@@ -104,7 +104,7 @@ func extractZipToBin(archivePath, destDir, prefix, binName string, cleanup *inst
 
 	// Windows refuses to rename a directory something holds open.
 	root.Close()
-	return finalizeInstall(tmpDir, destDir, filepath.Join(destDir, "bin", binName))
+	return finalizeInstall(tmpDir, destDir, filepath.Join(destDir, "bin", binName), cleanup)
 }
 
 // extractZipEntry writes one zip file entry into an os.Root-sandboxed directory.

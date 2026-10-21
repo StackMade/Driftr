@@ -125,3 +125,24 @@ func TestExtractZipToBin_ReplacesDirWithoutBinary(t *testing.T) {
 		t.Errorf("the incomplete dir's content survived: %v", err)
 	}
 }
+
+// Once the interrupt handler has removed the work dir, nothing may be moved
+// into place: that would race the removal and leave an empty version dir.
+func TestFinalizeInstall_AfterInterrupt(t *testing.T) {
+	parent := t.TempDir()
+	tmpDir := filepath.Join(parent, "1.2.3.tmp-x")
+	destDir := filepath.Join(parent, "1.2.3")
+	if err := os.MkdirAll(filepath.Join(tmpDir, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cleanup := &installCleanup{}
+	cleanup.setTmpDir(tmpDir)
+	cleanup.run()
+
+	if err := finalizeInstall(tmpDir, destDir, filepath.Join(destDir, "bin", "node"), cleanup); err == nil {
+		t.Fatal("finalizeInstall() after an interrupt returned nil")
+	}
+	if _, err := os.Stat(destDir); !os.IsNotExist(err) {
+		t.Errorf("version dir exists after an interrupt: %v", err)
+	}
+}

@@ -280,7 +280,7 @@ func Extract(archivePath, version string, verbose bool, cleanup *installCleanup)
 		return err
 	}
 
-	return finalizeInstall(tmpDir, destDir, nodeBin)
+	return finalizeInstall(tmpDir, destDir, nodeBin, cleanup)
 }
 
 // finalizeInstall moves a verified work dir to destDir and removes it if the
@@ -288,7 +288,19 @@ func Extract(archivePath, version string, verbose bool, cleanup *installCleanup)
 // the race, and its binary is there; or a removal or install stopped halfway
 // and left a dir without one, which is replaced instead of blocking every
 // later install of that version.
-func finalizeInstall(tmpDir, destDir, binPath string) error {
+//
+// An interrupt removes the work dir under cleanup's lock, which is held here:
+// otherwise that removal could run on through a dir just renamed into place
+// and leave an empty version dir.
+func finalizeInstall(tmpDir, destDir, binPath string, cleanup *installCleanup) error {
+	if cleanup != nil {
+		cleanup.mu.Lock()
+		defer cleanup.mu.Unlock()
+		if cleanup.ran {
+			return errors.New("install interrupted")
+		}
+		cleanup.tmpDir = ""
+	}
 	defer os.RemoveAll(tmpDir) // a no-op once the rename succeeded
 	err := platform.Rename(tmpDir, destDir)
 	if err == nil {

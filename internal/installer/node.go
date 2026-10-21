@@ -23,6 +23,7 @@ type installCleanup struct {
 	mu      sync.Mutex
 	tmpFile string // temp download file (driftr-download-*)
 	tmpDir  string // extraction work dir, as created by os.MkdirTemp
+	ran     bool   // run has removed what it tracked; finalizeInstall must not proceed
 }
 
 func (c *installCleanup) setTmpFile(path string) {
@@ -63,6 +64,7 @@ func (c *installCleanup) clearTmpDir() {
 func (c *installCleanup) run() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.ran = true
 	if c.tmpFile != "" {
 		os.Remove(c.tmpFile)
 		c.tmpFile = ""
