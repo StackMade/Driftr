@@ -511,3 +511,44 @@ func TestExtractRegistryPackage_EscapingSymlinkRejected(t *testing.T) {
 		t.Errorf("temp dirs left behind: %v", left)
 	}
 }
+
+// pnpm before 6 ships bin/pnpm.js: such a package must not land in place,
+// where it would look installed and block every reinstall.
+func TestExtractRegistryPackage_MissingBinary(t *testing.T) {
+	destDir := filepath.Join(t.TempDir(), "pnpm", "5.18.11")
+	archive := buildTarGz(t, []tarEntry{
+		{Name: "package/bin/pnpm.js", Data: []byte("x"), Typeflag: tar.TypeReg},
+	})
+
+	err := ExtractRegistryPackage(archive, destDir, filepath.Join(destDir, "bin", "pnpm.cjs"))
+	if err == nil || !strings.Contains(err.Error(), "pnpm.cjs") {
+		t.Fatalf("got %v, want an error naming pnpm.cjs", err)
+	}
+	if _, err := os.Stat(destDir); !os.IsNotExist(err) {
+		t.Errorf("version dir exists after the failure: %v", err)
+	}
+	if left := tmpLeftovers(t, filepath.Dir(destDir)); len(left) > 0 {
+		t.Errorf("temp dirs left behind: %v", left)
+	}
+}
+
+// pnpm, yarn and npm installs hand their work dir to the interrupt handler too:
+// once it has run, nothing may land in place.
+func TestExtractRegistryPackage_AfterInterrupt(t *testing.T) {
+	destDir := filepath.Join(t.TempDir(), "pnpm", "9.0.0")
+	archive := buildTarGz(t, []tarEntry{
+		{Name: "package/bin/pnpm.cjs", Data: []byte("x"), Typeflag: tar.TypeReg},
+	})
+	cleanup := &installCleanup{}
+	cleanup.run()
+
+	if err := extractRegistryPackage(archive, destDir, filepath.Join(destDir, "bin", "pnpm.cjs"), cleanup); err == nil {
+		t.Fatal("extractRegistryPackage() after an interrupt returned nil")
+	}
+	if _, err := os.Stat(destDir); !os.IsNotExist(err) {
+		t.Errorf("version dir exists after an interrupt: %v", err)
+	}
+	if left := tmpLeftovers(t, filepath.Dir(destDir)); len(left) > 0 {
+		t.Errorf("temp dirs left behind: %v", left)
+	}
+}

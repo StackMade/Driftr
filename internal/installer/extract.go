@@ -162,7 +162,7 @@ func Extract(archivePath, version string, verbose bool, cleanup *installCleanup)
 	}
 
 	// The archive contains "node-v<version>-<os>-<arch>/" as prefix.
-	prefix := fmt.Sprintf("node-v%s-%s-%s/", version, platform.OS(), platform.Arch())
+	prefix := fmt.Sprintf("node-v%s-%s-%s/", version, platform.OS(), nodeArch(version))
 
 	if platform.ArchiveExt() == "zip" {
 		if verbose {
@@ -280,15 +280,45 @@ func Extract(archivePath, version string, verbose bool, cleanup *installCleanup)
 		return err
 	}
 
-	if err := os.Rename(tmpDir, destDir); err != nil {
-		// Another process may have won the race — check if binary exists
-		if _, statErr := os.Stat(nodeBin); statErr == nil {
-			os.RemoveAll(tmpDir)
+	return finalizeInstall(tmpDir, destDir, nodeBin, cleanup)
+}
+
+// finalizeInstall moves a verified work dir to destDir and removes it if the
+// move fails. destDir may exist already: another install of the version won
+// the race, and its binary is there; or a removal or install stopped halfway
+// and left a dir without one, which is replaced instead of blocking every
+// later install of that version.
+//
+// An interrupt removes the work dir under cleanup's lock, which is held here:
+// otherwise that removal could run on through a dir just renamed into place
+// and leave an empty version dir.
+func finalizeInstall(tmpDir, destDir, binPath string, cleanup *installCleanup) error {
+	defer os.RemoveAll(tmpDir) // a no-op once the rename succeeded
+	if cleanup != nil {
+		cleanup.mu.Lock()
+		defer cleanup.mu.Unlock()
+		if cleanup.ran {
+			return errors.New("install interrupted")
+		}
+		cleanup.tmpDir = ""
+	}
+	err := platform.Rename(tmpDir, destDir)
+	if err == nil {
+		return nil
+	}
+	if _, statErr := os.Stat(binPath); statErr == nil {
+		return nil
+	}
+	if _, statErr := os.Stat(destDir); statErr == nil {
+		if rmErr := platform.RemoveVersionDir(destDir); rmErr != nil {
+			return fmt.Errorf("failed to finalize install: %s is incomplete and could not be removed: %w", destDir, rmErr)
+		}
+		if err = platform.Rename(tmpDir, destDir); err == nil {
 			return nil
 		}
-		os.RemoveAll(tmpDir)
-		return fmt.Errorf("failed to finalize install: %w", err)
+		if _, statErr := os.Stat(binPath); statErr == nil {
+			return nil
+		}
 	}
-
-	return nil
+	return fmt.Errorf("failed to finalize install: %w", err)
 }

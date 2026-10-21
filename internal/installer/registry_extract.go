@@ -15,6 +15,12 @@ import (
 // npm tarballs contain a top-level "package/" prefix which is stripped during extraction.
 // binaryPath is used to detect a concurrent install race on rename failure.
 func ExtractRegistryPackage(archivePath, destDir, binaryPath string) error {
+	return extractRegistryPackage(archivePath, destDir, binaryPath, nil)
+}
+
+// extractRegistryPackage is ExtractRegistryPackage that tells cleanup, when
+// set, where its work dir is.
+func extractRegistryPackage(archivePath, destDir, binaryPath string, cleanup *installCleanup) error {
 	f, err := os.Open(archivePath)
 	if err != nil {
 		return fmt.Errorf("failed to open archive: %w", err)
@@ -36,6 +42,8 @@ func ExtractRegistryPackage(archivePath, destDir, binaryPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create destination dir: %w", err)
 	}
+	cleanup.setTmpDir(tmpDir)
+	defer cleanup.clearTmpDir()
 	if err := os.Chmod(tmpDir, 0o755); err != nil {
 		os.RemoveAll(tmpDir)
 		return fmt.Errorf("failed to set destination dir permissions: %w", err)
@@ -76,22 +84,22 @@ func ExtractRegistryPackage(archivePath, destDir, binaryPath string) error {
 		}
 	}
 
+	// A package without the binary (pnpm before 6 ships bin/pnpm.js) must not
+	// land in place, where it would look installed.
+	rel, binErr := filepath.Rel(destDir, binaryPath)
+	if binErr == nil {
+		_, binErr = root.Stat(rel)
+	}
 	root.Close()
 
 	if err := checkSymlinks(tmpDir); err != nil {
 		os.RemoveAll(tmpDir)
 		return err
 	}
-
-	if err := os.Rename(tmpDir, destDir); err != nil {
-		// Another process may have won the race — check if binary exists
-		if _, statErr := os.Stat(binaryPath); statErr == nil {
-			os.RemoveAll(tmpDir)
-			return nil
-		}
+	if binErr != nil {
 		os.RemoveAll(tmpDir)
-		return fmt.Errorf("failed to finalize install: %w", err)
+		return fmt.Errorf("package has no %s: %w", filepath.Base(binaryPath), binErr)
 	}
 
-	return nil
+	return finalizeInstall(tmpDir, destDir, binaryPath, cleanup)
 }

@@ -173,15 +173,7 @@ func savePin(dir, tool, versionStr string, format pinFormat) error {
 		}
 		fmt.Println(ioutil.Success(fmt.Sprintf("Pinned %s %s in %s/package.json", tool, ioutil.Bold(versionStr), dir)))
 	default:
-		cfg, err := config.LoadProject(dir)
-		if err != nil {
-			return err
-		}
-		if cfg == nil {
-			cfg = &config.ProjectConfig{}
-		}
-		cfg.Tools.SetTool(tool, versionStr)
-		if err := config.SaveProject(dir, cfg); err != nil {
+		if err := config.SaveProjectTool(dir, tool, versionStr); err != nil {
 			return err
 		}
 		fmt.Println(ioutil.Success(fmt.Sprintf("Pinned %s %s in %s/%s", tool, ioutil.Bold(versionStr), dir, config.ProjectConfigFile)))

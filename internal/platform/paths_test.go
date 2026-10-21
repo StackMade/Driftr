@@ -206,3 +206,28 @@ func TestListToolVersions_SkipsExtractionWorkDirs(t *testing.T) {
 		t.Errorf("ListToolVersions() = %v, want [22.14.0]", versions)
 	}
 }
+
+func TestRemoveVersionDir(t *testing.T) {
+	testutil.SetHome(t, t.TempDir())
+	dir, err := ToolVersionDir("node", "22.14.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "bin", "node"), []byte("x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := RemoveVersionDir(dir); err != nil {
+		t.Fatalf("RemoveVersionDir() error: %v", err)
+	}
+	entries, err := os.ReadDir(filepath.Dir(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("left behind in %s: %v", filepath.Dir(dir), entries)
+	}
+}

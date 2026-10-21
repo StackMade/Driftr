@@ -23,6 +23,7 @@ type installCleanup struct {
 	mu      sync.Mutex
 	tmpFile string // temp download file (driftr-download-*)
 	tmpDir  string // extraction work dir, as created by os.MkdirTemp
+	ran     bool   // run has removed what it tracked; finalizeInstall must not proceed
 }
 
 func (c *installCleanup) setTmpFile(path string) {
@@ -63,6 +64,7 @@ func (c *installCleanup) clearTmpDir() {
 func (c *installCleanup) run() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.ran = true
 	if c.tmpFile != "" {
 		os.Remove(c.tmpFile)
 		c.tmpFile = ""
@@ -70,6 +72,29 @@ func (c *installCleanup) run() {
 	if c.tmpDir != "" {
 		os.RemoveAll(c.tmpDir)
 		c.tmpDir = ""
+	}
+}
+
+// watchInterrupt sets up signal-aware cleanup for temp files and partial
+// installs: on SIGINT or SIGTERM it removes what the returned cleanup tracks
+// and exits. stop ends the watch.
+func watchInterrupt() (cleanup *installCleanup, stop func()) {
+	cleanup = &installCleanup{}
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-sigChan:
+			fmt.Fprintf(os.Stderr, "\nInterrupted, cleaning up...\n")
+			cleanup.run()
+			os.Exit(1)
+		case <-done:
+		}
+	}()
+	return cleanup, func() {
+		signal.Stop(sigChan)
+		close(done)
 	}
 }
 
@@ -130,24 +155,8 @@ func Install(versionStr string, verbose bool) (string, error) {
 		return resolvedVersion, nil
 	}
 
-	// Set up signal-aware cleanup for temp files and partial installs.
-	cleanup := &installCleanup{}
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	done := make(chan struct{})
-	go func() {
-		select {
-		case <-sigChan:
-			fmt.Fprintf(os.Stderr, "\nInterrupted, cleaning up...\n")
-			cleanup.run()
-			os.Exit(1)
-		case <-done:
-		}
-	}()
-	defer func() {
-		signal.Stop(sigChan)
-		close(done)
-	}()
+	cleanup, stop := watchInterrupt()
+	defer stop()
 
 	archivePath, err := Download(resolvedVersion, verbose, cleanup)
 	if err != nil {

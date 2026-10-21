@@ -209,3 +209,23 @@ func TestFetchToCache_StalledDownloadTimesOut(t *testing.T) {
 		t.Fatalf("expected idle timeout error, got %v", err)
 	}
 }
+
+func TestNodeArchFor(t *testing.T) {
+	tests := []struct {
+		goos, arch, ver, want string
+	}{
+		{"windows", "arm64", "18.20.8", "x64"},
+		{"windows", "arm64", "19.8.1", "x64"},
+		{"windows", "arm64", "19.9.0", "arm64"},
+		{"windows", "arm64", "22.14.0", "arm64"},
+		{"windows", "x64", "18.20.8", "x64"},
+		{"darwin", "arm64", "14.21.3", "x64"},
+		{"darwin", "arm64", "16.0.0", "arm64"},
+		{"linux", "arm64", "14.21.3", "arm64"},
+	}
+	for _, tt := range tests {
+		if got := nodeArchFor(tt.goos, tt.arch, tt.ver); got != tt.want {
+			t.Errorf("nodeArchFor(%s, %s, %s) = %s, want %s", tt.goos, tt.arch, tt.ver, got, tt.want)
+		}
+	}
+}

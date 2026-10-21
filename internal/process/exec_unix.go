@@ -20,6 +20,10 @@ func Exec(binary string, args []string) error {
 	return nil
 }
 
+// dieWithParent is a no-op on Unix: driftr run forwards SIGTERM and SIGHUP,
+// and SIGKILL cannot be caught by any means.
+func dieWithParent(*os.Process) {}
+
 // inForeground reports whether this process group is the foreground of its
 // controlling terminal. It is a variable so tests can fix the answer.
 var inForeground = func() bool {

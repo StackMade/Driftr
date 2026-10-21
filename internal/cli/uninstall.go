@@ -83,8 +83,8 @@ func newUninstallCmd() *cobra.Command {
 				fmt.Println(ioutil.Dim(fmt.Sprintf("  Removing: %s", versionDir)))
 			}
 
-			if err := os.RemoveAll(versionDir); err != nil {
-				return fmt.Errorf("failed to remove %s %s: %w. Manual cleanup: rm -rf %q", tool, versionStr, err, versionDir)
+			if err := platform.RemoveVersionDir(versionDir); err != nil {
+				return fmt.Errorf("failed to remove %s %s: %w", tool, versionStr, err)
 			}
 
 			fmt.Println(ioutil.Success(fmt.Sprintf("Uninstalled %s %s", tool, ioutil.Bold(versionStr))))

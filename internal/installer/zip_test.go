@@ -158,9 +158,11 @@ func TestExtractZipToBin_DestOccupiedWithoutBinary(t *testing.T) {
 	destDir := filepath.Join(t.TempDir(), "bun", "1.2.3")
 	writeFileAll(t, filepath.Join(destDir, "junk"), "")
 
-	err := ExtractZipToBin(archive, destDir, "bun-linux-x64/", "bun")
-	if err == nil || !strings.Contains(err.Error(), "failed to finalize install") {
-		t.Fatalf("got %v, want a finalize error", err)
+	if err := ExtractZipToBin(archive, destDir, "bun-linux-x64/", "bun"); err != nil {
+		t.Fatalf("ExtractZipToBin() error: %v", err)
+	}
+	if got := readString(t, filepath.Join(destDir, "bin", "bun")); got != "ours" {
+		t.Errorf("binary = %q, want ours", got)
 	}
 	if left := tmpLeftovers(t, filepath.Dir(destDir)); len(left) > 0 {
 		t.Errorf("temp dirs left behind: %v", left)

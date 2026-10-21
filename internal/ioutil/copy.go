@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/stackmade/driftr/v2/internal/platform"
 )
 
 // CopyFile copies src to dst, creating dst with mode 0o755.
@@ -51,5 +53,5 @@ func WriteFileAtomic(path string, data []byte, mode os.FileMode) error {
 	if err := os.Chmod(tmp.Name(), mode); err != nil {
 		return err
 	}
-	return os.Rename(tmp.Name(), path)
+	return platform.Rename(tmp.Name(), path)
 }

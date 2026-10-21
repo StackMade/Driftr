@@ -171,7 +171,16 @@ func ListRemoteVersions(pkg string, includePre bool) ([]string, error) {
 	}
 
 	sort.Slice(entries, func(i, j int) bool {
-		return versionCompare(entries[i].ver, entries[j].ver) > 0
+		if c := versionCompare(entries[i].ver, entries[j].ver); c != 0 {
+			return c > 0
+		}
+		// 10.0.0 outranks 10.0.0-rc.1, which then sort by tag.
+		// shortcut: "rc.10" sorts below "rc.9"; compare tag numbers if that matters.
+		iPre, jPre := strings.Contains(entries[i].raw, "-"), strings.Contains(entries[j].raw, "-")
+		if iPre != jPre {
+			return jPre
+		}
+		return entries[i].raw > entries[j].raw
 	})
 
 	result := make([]string, len(entries))
@@ -220,6 +229,10 @@ func validateTarballURL(rawURL string) error {
 // DownloadRegistryPackage downloads an npm package tarball to the cache directory.
 // Returns the path to the downloaded file and the registry version metadata.
 func DownloadRegistryPackage(pkg, ver string, verbose bool) (string, *registryVersion, error) {
+	return downloadRegistryPackage(pkg, ver, verbose, nil)
+}
+
+func downloadRegistryPackage(pkg, ver string, verbose bool, cleanup *installCleanup) (string, *registryVersion, error) {
 	rv, err := FetchRegistryVersion(pkg, ver)
 	if err != nil {
 		return "", nil, err
@@ -231,7 +244,7 @@ func DownloadRegistryPackage(pkg, ver string, verbose bool) (string, *registryVe
 	}
 
 	filename := fmt.Sprintf("%s-%s.tgz", pkg, ver)
-	destPath, err := fetchToCache(tarballURL, filename, maxRegistryDownloadBytes, verbose, nil)
+	destPath, err := fetchToCache(tarballURL, filename, maxRegistryDownloadBytes, verbose, cleanup)
 	if err != nil {
 		return "", nil, err
 	}

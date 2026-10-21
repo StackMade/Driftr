@@ -211,15 +211,10 @@ func pinFile(p resolver.Pin) string {
 func writeBump(p resolver.Pin, to string) error {
 	switch p.Source {
 	case resolver.SourceProject:
-		cfg, err := config.LoadProject(p.Dir)
-		if err != nil {
-			return err
+		if _, err := os.Stat(filepath.Join(p.Dir, config.ProjectConfigFile)); err != nil {
+			return fmt.Errorf("%s disappeared: %w", config.ProjectConfigFile, err)
 		}
-		if cfg == nil {
-			return fmt.Errorf("%s disappeared", config.ProjectConfigFile)
-		}
-		cfg.Tools.SetTool(p.Tool, to)
-		return config.SaveProject(p.Dir, cfg)
+		return config.SaveProjectTool(p.Dir, p.Tool, to)
 	case resolver.SourcePackageJSON:
 		return config.SavePackageJSONTool(p.Dir, p.Tool, to)
 	case resolver.SourceNvmrc, resolver.SourceNodeVersion:

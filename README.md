@@ -126,7 +126,7 @@ pnpm -v   # resolves automatically
 | `driftr cache clean` | Remove all cached downloads to free disk space |
 | `driftr cache dir` | Print the cache directory path |
 | `driftr self-update` | Update Driftr to the latest version; a pre-release build also follows newer pre-releases |
-| `driftr doctor [--fix]` | Check your Driftr installation for common problems; `--fix` repairs PATH and shims |
+| `driftr doctor [--fix] [--exit-code]` | Check your Driftr installation for common problems; `--fix` repairs PATH and shims, `--exit-code` exits 1 while an issue remains |
 | `driftr node doctor` | Analyze the project's Node.js / pnpm dependency environment |
 | `driftr node optimize [--install]` | Configure pnpm for shared dependency storage (idempotent) |
 | `driftr node clean [--yes]` | Remove `node_modules` and prune the shared store (dry-run by default) |

@@ -57,7 +57,12 @@ func newWhichCmd() *cobra.Command {
 				}
 				row("Tool:", tool)
 				row("Binary:", ioutil.Green(rb.ToolPath))
-				row("Source:", "bundled with Node.js "+filepath.Base(filepath.Dir(filepath.Dir(rb.ToolPath))))
+				// Both sit in <v>/bin; on Windows npm is npm-cli.js, deeper down, run by node.exe.
+				inBin := rb.ToolPath
+				if rb.NodePath != "" {
+					inBin = rb.NodePath
+				}
+				row("Source:", "bundled with Node.js "+filepath.Base(filepath.Dir(filepath.Dir(inBin))))
 				return nil
 			}
 			if err != nil {

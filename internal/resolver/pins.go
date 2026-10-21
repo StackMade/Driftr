@@ -86,9 +86,13 @@ func ProjectPins(dir string) ([]Pin, error) {
 			continue
 		}
 		if p.Source == SourceEnginesNode {
-			if p, err = enginesPin(p); err != nil {
-				return nil, err
+			ep, err := enginesPin(p)
+			if err != nil {
+				// Same as on the shim path: a range driftr cannot read pins nothing.
+				fmt.Fprintf(os.Stderr, "warning: %v; ignoring\n", err)
+				continue
 			}
+			p = ep
 		}
 		pins = append(pins, p)
 	}

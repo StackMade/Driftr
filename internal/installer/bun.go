@@ -72,6 +72,15 @@ func BunAssetName() (string, error) {
 	return fmt.Sprintf("bun-%s-%s.zip", runtime.GOOS, arch), nil
 }
 
+// rateLimitHint explains the 403 and 429 GitHub's API answers to anonymous
+// callers once a shared IP has used up its hourly quota.
+func rateLimitHint(status int) string {
+	if status == http.StatusForbidden || status == http.StatusTooManyRequests {
+		return ". GitHub's API rate limit for anonymous requests is likely used up; retry in an hour"
+	}
+	return ""
+}
+
 // ListBunReleases returns released bun versions, newest first. Drafts and
 // pre-releases are skipped, as are tags that are not plain versions (canary
 // builds and the like).
@@ -83,7 +92,7 @@ func ListBunReleases() ([]string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to fetch bun release list: HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("failed to fetch bun release list: HTTP %d%s", resp.StatusCode, rateLimitHint(resp.StatusCode))
 	}
 
 	var releases []bunRelease
@@ -182,7 +191,9 @@ func InstallBun(versionStr string, verbose bool) (string, error) {
 	assetURL := fmt.Sprintf("%s/%s/%s", bunDownloadBase(), tag, asset)
 	cacheName := fmt.Sprintf("bun-v%s-%s", resolvedVersion, asset)
 
-	archivePath, err := fetchToCache(assetURL, cacheName, maxBunDownloadBytes, verbose, nil)
+	cleanup, stop := watchInterrupt()
+	defer stop()
+	archivePath, err := fetchToCache(assetURL, cacheName, maxBunDownloadBytes, verbose, cleanup)
 	if errors.Is(err, errNotFound) {
 		return "", fmt.Errorf("bun %s has no %s build (%s). Run `driftr list --remote bun` to see available versions", resolvedVersion, asset, assetURL)
 	}
@@ -207,7 +218,7 @@ func InstallBun(versionStr string, verbose bool) (string, error) {
 	// The archive holds a single top-level directory named after the asset,
 	// e.g. "bun-linux-x64/bun".
 	prefix := strings.TrimSuffix(asset, ".zip") + "/"
-	if err := ExtractZipToBin(archivePath, versionDir, prefix, platform.ExeName("bun")); err != nil {
+	if err := extractZipToBin(archivePath, versionDir, prefix, platform.ExeName("bun"), cleanup); err != nil {
 		return "", fmt.Errorf("extraction failed: %w", err)
 	}
 

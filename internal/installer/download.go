@@ -8,11 +8,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/stackmade/driftr/v2/internal/ioutil"
 	"github.com/stackmade/driftr/v2/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/version"
 )
 
 const defaultNodeDistBaseURL = "https://nodejs.org/dist"
@@ -72,7 +74,28 @@ func DownloadURL(version string) string {
 // ArchiveFilename returns the expected archive filename.
 func ArchiveFilename(version string) string {
 	return fmt.Sprintf("node-v%s-%s-%s.%s",
-		version, platform.OS(), platform.Arch(), platform.ArchiveExt())
+		version, platform.OS(), nodeArch(version), platform.ArchiveExt())
+}
+
+// nodeArch returns the architecture of the Node.js build to install. Older
+// releases have no arm64 build for Windows (before 19.9.0) or macOS (before
+// 16.0.0); both systems run the x64 build under emulation, as nvm does.
+func nodeArch(ver string) string {
+	return nodeArchFor(runtime.GOOS, platform.Arch(), ver)
+}
+
+func nodeArchFor(goos, arch, ver string) string {
+	v, err := version.Parse(ver)
+	if arch != "arm64" || err != nil {
+		return arch
+	}
+	older := func(major, minor int) bool {
+		return v.Major < major || (v.Major == major && v.Minor < minor)
+	}
+	if goos == "windows" && older(19, 9) || goos == "darwin" && older(16, 0) {
+		return "x64"
+	}
+	return arch
 }
 
 // removeCorruptArchive deletes a cached archive that failed verification.
@@ -80,7 +103,7 @@ func ArchiveFilename(version string) string {
 // attempt, so the failure is surfaced with a manual remediation hint.
 func removeCorruptArchive(archivePath string, cause error) error {
 	if err := os.Remove(archivePath); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("%w (failed to remove corrupt archive; run `rm %q` and retry)", cause, archivePath)
+		return fmt.Errorf("%w (failed to remove corrupt archive; run `%s` and retry)", cause, platform.RemoveCommand(archivePath))
 	}
 	return cause
 }
@@ -156,7 +179,7 @@ func fetchToCache(url, filename string, maxBytes int64, verbose bool, cleanup *i
 		return "", fmt.Errorf("%w: %s", errNotFound, url)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("download failed with status %d", resp.StatusCode)
+		return "", fmt.Errorf("download of %s failed with status %d. Retry later, or check DRIFTR_NODE_MIRROR and your proxy settings", url, resp.StatusCode)
 	}
 
 	tmpFile, err := os.CreateTemp(cacheDir, "driftr-download-*")

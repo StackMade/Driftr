@@ -109,6 +109,7 @@ func TestListRemoteVersions(t *testing.T) {
 			"9.0.0":      {Version: "9.0.0"},
 			"8.15.3":     {Version: "8.15.3"},
 			"9.2.0-rc.0": {Version: "9.2.0-rc.0"},
+			"9.1.0-rc.1": {Version: "9.1.0-rc.1"},
 			"bad-ver":    {Version: "bad-ver"},
 		},
 	}
@@ -146,13 +147,17 @@ func TestListRemoteVersions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListRemoteVersions() error: %v", err)
 		}
-		// bad-ver cannot be parsed, so 4 valid versions (3 stable + 1 rc).
-		if len(versions) != 4 {
-			t.Fatalf("expected 4 versions, got %d: %v", len(versions), versions)
+		// bad-ver cannot be parsed, so 5 valid versions (3 stable + 2 rc).
+		if len(versions) != 5 {
+			t.Fatalf("expected 5 versions, got %d: %v", len(versions), versions)
 		}
-		// rc should be first since 9.2.0 > 9.1.0.
-		if versions[0] != "9.2.0-rc.0" {
-			t.Errorf("versions[0] = %q, want 9.2.0-rc.0", versions[0])
+		// rc should be first since 9.2.0 > 9.1.0, and 9.1.0 beats its own rc.
+		want := []string{"9.2.0-rc.0", "9.1.0", "9.1.0-rc.1", "9.0.0", "8.15.3"}
+		for i, w := range want {
+			if versions[i] != w {
+				t.Errorf("versions = %v, want %v", versions, want)
+				break
+			}
 		}
 	})
 }

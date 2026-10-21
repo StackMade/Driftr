@@ -239,7 +239,9 @@ func upstreamReleases(tool string, includePre bool) (versions []string, lts stri
 // partial pins are deliberately not called "behind" on patch level: they float,
 // so only a newer major line is news.
 func outdatedStatus(raw string, cv version.Version, parseErr error, latest, line string) (int, string) {
-	lv, lerr := version.Parse(latest)
+	// With --pre, latest may be "10.0.0-rc.1": it still sits above 9.x.
+	release, _, _ := strings.Cut(latest, "-")
+	lv, lerr := version.Parse(release)
 	if parseErr != nil || lerr != nil {
 		return stateUnknown, "unknown"
 	}

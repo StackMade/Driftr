@@ -158,8 +158,12 @@ main() {
     tar -xzf "${tmpdir}/${archive_name}" -C "$tmpdir"
 
     mkdir -p "$INSTALL_DIR"
-    cp "${tmpdir}/driftr" "${INSTALL_DIR}/driftr"
-    chmod +x "${INSTALL_DIR}/driftr"
+    # Copy next to the target, then rename over it: writing into a driftr that
+    # a shim is running fails on Linux (ETXTBSY), and a shim started mid-copy
+    # would run a half-written binary.
+    cp "${tmpdir}/driftr" "${INSTALL_DIR}/.driftr.new"
+    chmod +x "${INSTALL_DIR}/.driftr.new"
+    mv -f "${INSTALL_DIR}/.driftr.new" "${INSTALL_DIR}/driftr"
 
     log "Installed driftr to ${INSTALL_DIR}/driftr"
 

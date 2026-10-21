@@ -14,13 +14,13 @@ import (
 func main() {
 	// Fast path: bypass Cobra entirely for shim invocations. Unix shim
 	// scripts call "driftr shim <tool> [args...]"; a Windows shim is a copy
-	// of driftr named after its tool.
-	if len(os.Args) >= 3 && os.Args[1] == "shim" {
-		runShim(os.Args[2], os.Args[3:])
-		return
-	}
+	// of driftr named after its tool, and "node shim x" passes "shim" to node.
 	if tool, ok := shim.InvokedAs(); ok {
 		runShim(tool, os.Args[1:])
+		return
+	}
+	if len(os.Args) >= 3 && os.Args[1] == "shim" {
+		runShim(os.Args[2], os.Args[3:])
 		return
 	}
 

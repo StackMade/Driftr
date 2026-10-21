@@ -136,7 +136,7 @@ Each directory is checked for every source before moving to its parent; the clos
 
 If multiple config files exist in the same directory, the priority order above applies. `engines.node` is the exception to "closest wins": it is used only when no `.driftr.toml`, `driftr` key, `.nvmrc` or `.node-version` pins node in any directory up the tree, so a root `.nvmrc` beats the `engines.node` of a package below it. `.nvmrc` and `.node-version` are only used for Node.js version resolution. The `packageManager` field is read for npm, pnpm, yarn and bun only (not node, which has no equivalent standard field); it is read-only, Driftr never writes it.
 
-**Partial pins.** Every source takes a full version (`22.14.0`, `v22.14.0`) or a partial one (`22`, `22.14`). A partial pin, `latest` or an LTS alias picks the newest installed version that matches, so `.nvmrc` containing `22` runs your newest installed 22.x. In `.nvmrc` and `.node-version`, nvm's `node` and `stable` aliases mean `latest`. When nothing installed matches, the not-installed error names the pin as written (`driftr install node@22`), and auto-install fetches the newest release of that line.
+**Partial pins.** Every source takes a full version (`22.14.0`, `v22.14.0`) or a partial one (`22`, `22.14`). A partial pin, `latest` or an LTS alias picks the newest installed version that matches, so `.nvmrc` containing `22` runs your newest installed 22.x. In `.nvmrc` and `.node-version`, nvm's `node` and `stable` aliases mean `latest`, and `system` pins nothing, so resolution moves on to the next source. The global default takes the same forms. A pin that is no version at all is an error naming the file; it never becomes a directory path. When nothing installed matches, the not-installed error names the pin as written (`driftr install node@22`), and auto-install fetches the newest release of that line.
 
 **LTS aliases.** `.nvmrc` and `.node-version` may hold `lts`, `lts/*`, or a codename such as `lts/jod`. Driftr resolves those against the versions you already have installed, never over the network, since the shim runs on every `node` call. `lts` and `lts/*` take the newest installed release of a line known to have entered LTS. An even major spends months as Current before it is promoted, so it counts only once this version of Driftr lists its codename; until then `lts` keeps to the previous LTS line. `lts/<codename>` takes the newest installed release of that codename's major, so `lts/iron` means 20 and `lts/jod` means 22. When nothing installed fits, you get the usual not-installed error with the command to run, which is also what lets auto-install step in. An unknown codename prints a warning and resolution moves on to the next source.
 
@@ -172,7 +172,7 @@ Supported syntax:
 | AND (whitespace) | `>=16 <21` |
 | OR | `18 \|\| 20` |
 
-Not supported: hyphen ranges (`18 - 20`) and pre-release tags (`>=18.0.0-rc.1`). Driftr rejects those with an error naming the range instead of guessing what you meant.
+Not supported: hyphen ranges (`18 - 20`) and pre-release tags (`>=18.0.0-rc.1`). Driftr does not guess what such a range means: it prints a warning naming the range and the file, and resolution moves on as if the range were absent. The same goes for the legacy array and string forms of `engines` (`["node >= 0.4"]`). A failure would be worse, because npm runs a dependency's install scripts with that dependency as the working directory, so the range is often not yours to fix.
 
 Driftr only reads `engines.node`. `driftr pin` still writes the `driftr` key.
 

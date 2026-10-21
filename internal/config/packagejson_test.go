@@ -609,3 +609,42 @@ func FuzzPatchTopLevelKey(f *testing.F) {
 		}
 	})
 }
+
+func TestLoadPackageJSON_LegacyEnginesAndBOM(t *testing.T) {
+	for name, content := range map[string]string{
+		"engines array":   `{"engines": ["node >= 0.4"], "driftr": {"node": "20.11.0"}}`,
+		"engines string":  `{"engines": "node >= 0.6", "driftr": {"node": "20.11.0"}}`,
+		"byte order mark": "\ufeff" + `{"driftr": {"node": "20.11.0"}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			writePackageJSON(t, dir, content)
+			pkg, err := LoadPackageJSON(dir)
+			if err != nil {
+				t.Fatalf("LoadPackageJSON() error: %v", err)
+			}
+			if got := pkg.Driftr.GetTool("node"); got != "20.11.0" {
+				t.Errorf("node = %q, want 20.11.0", got)
+			}
+			if got := pkg.EnginesNode(); got != "" {
+				t.Errorf("EnginesNode() = %q, want empty", got)
+			}
+		})
+	}
+}
+
+func TestSavePackageJSONTool_KeepsBOMAndCRLF(t *testing.T) {
+	dir := t.TempDir()
+	writePackageJSON(t, dir, "\ufeff{\r\n  \"name\": \"myapp\",\r\n  \"scripts\": {\r\n    \"test\": \"x\"\r\n  }\r\n}\r\n")
+	if err := SavePackageJSONTool(dir, "node", "22.14.0"); err != nil {
+		t.Fatalf("SavePackageJSONTool() error: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "package.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "\ufeff{\r\n  \"name\": \"myapp\",\r\n  \"scripts\": {\r\n    \"test\": \"x\"\r\n  },\r\n  \"driftr\": {\"node\":\"22.14.0\"}\r\n}\r\n"
+	if string(data) != want {
+		t.Errorf("package.json =\n%q\nwant\n%q", data, want)
+	}
+}

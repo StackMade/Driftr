@@ -24,7 +24,7 @@ var versionedTools = []string{"node", "npm", "pnpm", "yarn", "bun"}
 var conflictingBinaries = []string{"fnm", "volta", "n"}
 
 func newDoctorCmd() *cobra.Command {
-	var fix bool
+	var fix, exitCode bool
 	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Check your driftr installation for problems",
@@ -66,10 +66,14 @@ func newDoctorCmd() *cobra.Command {
 			} else {
 				fmt.Println(ioutil.Warn(fmt.Sprintf("Found %d issue(s).", issues)))
 			}
+			if exitCode && issues > 0 {
+				return &ExitError{Code: 1}
+			}
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&fix, "fix", false, "automatically fix detected PATH and shim problems")
+	cmd.Flags().BoolVar(&exitCode, "exit-code", false, "Exit non-zero when an issue remains (for CI)")
 	return cmd
 }
 
@@ -150,6 +154,14 @@ func checkShimShadowing(binDir string, fix bool) int {
 		warn(fmt.Sprintf("%s resolves to %s, not the driftr shim — pins/defaults won't apply", s.tool, s.resolved))
 	}
 
+	if runtime.GOOS == "windows" {
+		// No guard can help there, so --fix has nothing to offer: ApplyGuard
+		// writes nothing and explains what will.
+		if _, _, err := pathsetup.ApplyGuard(pathsetup.DetectShell(), binDir); err != nil {
+			warn("  " + err.Error())
+		}
+		return 1
+	}
 	if !fix {
 		warn("  run `driftr doctor --fix` to add a PATH precedence guard, or remove the conflicting tool")
 		return 1

@@ -249,7 +249,7 @@ has no release on the pin's major line, the pin stays and the output says to use
 **Behavior:**
 - Nothing is installed; run `driftr install` afterwards
 - `.nvmrc` and `.node-version` change only the version: a leading `v`, comments and the trailing newline stay
-- `.driftr.toml` and `package.json` are written the same way `driftr pin` writes them, so comments in `.driftr.toml` do not survive; in `package.json` the other keys keep their order and content, and the `driftr` value is written compact
+- `.driftr.toml` and `package.json` are written the same way `driftr pin` writes them: in `.driftr.toml` only the tool's value changes, comments and layout stay; in `package.json` the other keys keep their order and content, and the `driftr` value is written compact
 - With nothing to bump, the command says so and exits 0. It exits non-zero only when a release source could not be reached
 
 ## driftr use
@@ -567,9 +567,13 @@ driftr cache dir
 Check your Driftr installation for common problems.
 
 ```bash
-driftr doctor         # run all checks
-driftr doctor --fix   # auto-fix PATH and shim problems
+driftr doctor              # run all checks
+driftr doctor --fix        # auto-fix PATH and shim problems
+driftr doctor --exit-code  # exit 1 while an issue remains (for CI)
 ```
+
+Without `--exit-code`, doctor exits 0 whatever it finds, so a script that runs it for its
+report does not fail.
 
 Runs 11 checks, in this order:
 
@@ -641,8 +645,12 @@ echo 'eval "$(driftr completion bash)"' >> ~/.bashrc
 driftr completion fish | source
 ```
 
-`driftr completion powershell` exists as well, from cobra, though Driftr itself does not run on
-Windows. `driftr completion <shell> --help` shows how to load each script permanently.
+```powershell
+# PowerShell
+driftr completion powershell | Out-String | Invoke-Expression
+```
+
+`driftr completion <shell> --help` shows how to load each script permanently.
 
 ## Auto-install on shim call
 

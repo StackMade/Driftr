@@ -336,7 +336,10 @@ func resolveEnv(tool, spec, envVar string) (*Resolution, error) {
 	}, nil
 }
 
-const maxResolveDepth = 20
+// maxResolveDepth only guards the walks up to the root against a loop. It
+// must not end them early: a dependency's lifecycle script runs deep inside
+// node_modules, and a pin 20 levels up was once silently ignored.
+const maxResolveDepth = 1024
 
 func resolveFromProject(tool, dir string, verbose bool) (*Resolution, error) {
 	absDir, err := filepath.Abs(dir)
@@ -497,7 +500,10 @@ func resolveVersionFilePin(tool, ver, dir string, source Source) (*Resolution, e
 func resolveEnginesNode(rangeText, dir string) (*Resolution, error) {
 	rng, err := version.ParseRange(rangeText)
 	if err != nil {
-		return nil, fmt.Errorf("cannot use engines.node from %s: %w", filepath.Join(dir, "package.json"), err)
+		// npm accepts ranges driftr cannot read, and a dependency's package.json
+		// must not break the shim: treat it like an unknown LTS alias.
+		fmt.Fprintf(os.Stderr, "warning: engines.node %q in %s: %v; ignoring\n", rangeText, filepath.Join(dir, "package.json"), err)
+		return nil, nil
 	}
 
 	best, ok, err := newestInstalledMatching("node", rng.Matches)
@@ -525,26 +531,7 @@ func resolveEnginesNode(rangeText, dir string) (*Resolution, error) {
 // as ResolvePin does for check and prune; "v22.14.0" drops its prefix. A miss
 // reports the pin as written, so auto-install fetches what it asks for.
 func resolveProjectVersion(tool, ver, dir string, source Source) (*Resolution, error) {
-	context := "pinned in " + dir
-	if v, err := version.Parse(ver); err == nil {
-		if v.Latest || v.LTS || v.IsPartial() {
-			match, known := installedMatcher(v)
-			if !known {
-				return nil, &NotInstalledError{Tool: tool, Version: ver, Context: context}
-			}
-			best, ok, err := newestInstalledMatching(tool, match)
-			if err != nil {
-				return nil, err
-			}
-			if !ok {
-				return nil, &NotInstalledError{Tool: tool, Version: ver, Context: context}
-			}
-			ver = best.String()
-		} else {
-			ver = v.String()
-		}
-	}
-	binPath, err := requireToolBinaryExists(tool, ver, context)
+	ver, binPath, err := resolveInstalledPin(tool, ver, "pinned in "+dir)
 	if err != nil {
 		return nil, err
 	}
@@ -555,6 +542,37 @@ func resolveProjectVersion(tool, ver, dir string, source Source) (*Resolution, e
 		Source:     source,
 		ProjectDir: dir,
 	}, nil
+}
+
+// resolveInstalledPin returns the installed version a pin names and its
+// binary. context says where the pin came from, for the error messages.
+func resolveInstalledPin(tool, ver, context string) (string, string, error) {
+	v, err := version.Parse(ver)
+	if err != nil {
+		// Never a NotInstalledError: auto-install would try to fetch it.
+		return "", "", fmt.Errorf("%s %q (%s) is not a version: %w. Pin a version instead, e.g. `driftr pin %s@<version>`", tool, ver, context, err, tool)
+	}
+	if v.Latest || v.LTS || v.IsPartial() {
+		match, known := installedMatcher(v)
+		if !known {
+			return "", "", &NotInstalledError{Tool: tool, Version: ver, Context: context}
+		}
+		best, ok, err := newestInstalledMatching(tool, match)
+		if err != nil {
+			return "", "", err
+		}
+		if !ok {
+			return "", "", &NotInstalledError{Tool: tool, Version: ver, Context: context}
+		}
+		ver = best.String()
+	} else {
+		ver = v.String()
+	}
+	binPath, err := requireToolBinaryExists(tool, ver, context)
+	if err != nil {
+		return "", "", err
+	}
+	return ver, binPath, nil
 }
 
 func resolveFromGlobal(tool string) (*Resolution, error) {
@@ -568,7 +586,8 @@ func resolveFromGlobal(tool string) (*Resolution, error) {
 		return nil, &NotConfiguredError{Tool: tool}
 	}
 
-	binPath, err := requireToolBinaryExists(tool, ver, "global default")
+	// A hand-edited default may be partial ("22") or carry a "v" prefix.
+	ver, binPath, err := resolveInstalledPin(tool, ver, "global default")
 	if err != nil {
 		return nil, err
 	}

@@ -28,6 +28,7 @@ func Run(binary string, args []string) (int, error) {
 	if err := cmd.Start(); err != nil {
 		return 1, fmt.Errorf("failed to execute %s: %w", binary, err)
 	}
+	dieWithParent(cmd.Process)
 
 	// Notify, not Ignore: an ignored signal stays ignored in the child.
 	sigs := make(chan os.Signal, 1)
