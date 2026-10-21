@@ -146,7 +146,8 @@ Windows has neither `#!/bin/sh` scripts nor `exec`, and `.cmd` scripts are a poo
 
 The differences that follow from it:
 
-- **A child, not an exec.** `process.Exec` starts the tool as a child and exits with its code. Ctrl-C reaches every process on the console, so the shim does not forward it.
+- **A child, not an exec.** `process.Exec` starts the tool as a child and exits with its code. Ctrl-C reaches every process on the console, so the shim does not forward it. The child runs in a job object that kills it when the shim's handle closes, so a shim stopped with `TerminateProcess` (Node's `child.kill()`, Task Manager, an IDE's stop button) takes `node.exe` with it. The child's own children break away from the job, so a daemon it starts outlives the shim, as on Unix.
+- **A version in use.** Windows will not delete a running `node.exe` or rename a directory that holds one, so `uninstall` and `prune` move a version directory aside before deleting it, and a version in use fails with nothing removed. Renames retry for about two seconds when a virus scanner or the search indexer holds a freshly written file.
 - **Rewriting a running shim.** A running `.exe` cannot be overwritten or deleted, but it can be renamed, so `writeShim` moves a busy shim to `<name>.exe.<random>.old` before putting the new one in place, and the next refresh deletes those copies. `self-update` does the same with `driftr.exe`.
 - **Ownership.** A copy of `driftr.exe` does not say which tool it is, so `bin\.driftr-shims` lists the package shims driftr wrote. Only those are ever removed or overwritten.
 - **Package bins.** npm writes a package's bin as `tsc.cmd`. Rather than run that through `cmd.exe`, the resolver reads it (`resolver.cmdShimTarget`), takes the script it launches, and runs that script under the `node.exe` beside it. The bundled npm runs the same way, as `node.exe node_modules\npm\bin\npm-cli.js`.
@@ -252,6 +253,8 @@ The `platform` package translates between Go's `runtime.GOOS`/`runtime.GOARCH` a
 | `windows` | `win` |
 | `amd64` | `x64` |
 | `arm64` | `arm64` |
+
+Old Node.js releases have no arm64 build for Windows (before 19.9.0) or macOS (before 16.0.0). On those machines Driftr installs the x64 build of such a release, which the system runs under emulation.
 
 Archive format is `.tar.gz` on Unix and `.zip` on Windows. Native binaries get `.exe` on Windows (`platform.ExeName`), Windows has no execute bit (`platform.IsExecutable`), and paths compare without regard to case there (`platform.SamePath`). The home directory comes from `os.UserHomeDir`, which on Windows is `%USERPROFILE%` and never `%HOME%`.
 
