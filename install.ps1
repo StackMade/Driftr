@@ -87,9 +87,11 @@ function Install-Driftr {
         $exe = Join-Path $installDir 'driftr.exe'
         if (Test-Path $exe) {
             # A running driftr.exe, a shim among them, cannot be overwritten
-            # but can be renamed.
-            Remove-Item "$exe.old" -Force -ErrorAction SilentlyContinue
-            Move-Item $exe "$exe.old" -Force
+            # but can be renamed. A shim started before an earlier update may
+            # still run an older copy, so each copy gets a name of its own.
+            Get-ChildItem -Path $installDir -Filter 'driftr.exe.*old' -ErrorAction SilentlyContinue |
+                Remove-Item -Force -ErrorAction SilentlyContinue
+            Move-Item $exe "$exe.$([guid]::NewGuid().ToString('N').Substring(0, 8)).old" -Force
         }
         Copy-Item (Join-Path $tmp 'x\driftr.exe') $exe
         Write-Host "Installed driftr to $exe"

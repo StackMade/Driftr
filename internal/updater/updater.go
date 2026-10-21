@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -149,6 +150,12 @@ func Update(currentVersion string, verbose bool) (string, error) {
 
 	if err := replaceBinary(newBinary, execPath); err != nil {
 		return "", fmt.Errorf("failed to replace binary: %w", err)
+	}
+	if runtime.GOOS == "windows" {
+		// Windows shims are hard links to the old binary, and that copy still
+		// matches the shim stamp, so nothing would refresh them until the next
+		// driftr command. One run of the new binary does it. Best effort.
+		_ = exec.Command(execPath, "--version").Run()
 	}
 
 	return latest, nil
@@ -385,14 +392,25 @@ func writeBinary(destPath string, r io.Reader) error {
 
 // replaceBinary puts the binary at newPath in place of oldPath. Windows will
 // not overwrite a running .exe but lets it be renamed, so there the old one
-// is moved to oldPath.old first; the next update deletes that copy.
+// is moved aside first, to oldPath.<random>.old; a later update deletes those
+// copies nothing runs any more. The name is unique because a shim started
+// before the last update may still run the previous copy.
 func replaceBinary(newPath, oldPath string) error {
 	if runtime.GOOS != "windows" {
 		return swapIn(newPath, oldPath)
 	}
-	aside := oldPath + ".old"
-	os.Remove(aside)
+	old, _ := filepath.Glob(oldPath + ".*old") // .old from older driftr, .<random>.old
+	for _, f := range old {
+		os.Remove(f)
+	}
+	f, err := os.CreateTemp(filepath.Dir(oldPath), filepath.Base(oldPath)+".*.old")
+	if err != nil {
+		return fmt.Errorf("cannot move the running binary aside: %w", err)
+	}
+	aside := f.Name()
+	f.Close()
 	if err := os.Rename(oldPath, aside); err != nil {
+		os.Remove(aside)
 		return fmt.Errorf("cannot move the running binary aside: %w", err)
 	}
 	if err := swapIn(newPath, oldPath); err != nil {
