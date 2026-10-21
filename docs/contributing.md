@@ -6,7 +6,7 @@ Thank you for your interest in contributing to Driftr! This guide will help you 
 
 ### Prerequisites
 
-- [Go](https://go.dev/dl/) 1.26 or later
+- [Go](https://go.dev/dl/) 1.27 or later
 - [Docker](https://docs.docker.com/get-docker/) (for running integration tests)
 - Git
 
