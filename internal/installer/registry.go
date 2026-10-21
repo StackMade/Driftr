@@ -229,6 +229,10 @@ func validateTarballURL(rawURL string) error {
 // DownloadRegistryPackage downloads an npm package tarball to the cache directory.
 // Returns the path to the downloaded file and the registry version metadata.
 func DownloadRegistryPackage(pkg, ver string, verbose bool) (string, *registryVersion, error) {
+	return downloadRegistryPackage(pkg, ver, verbose, nil)
+}
+
+func downloadRegistryPackage(pkg, ver string, verbose bool, cleanup *installCleanup) (string, *registryVersion, error) {
 	rv, err := FetchRegistryVersion(pkg, ver)
 	if err != nil {
 		return "", nil, err
@@ -240,7 +244,7 @@ func DownloadRegistryPackage(pkg, ver string, verbose bool) (string, *registryVe
 	}
 
 	filename := fmt.Sprintf("%s-%s.tgz", pkg, ver)
-	destPath, err := fetchToCache(tarballURL, filename, maxRegistryDownloadBytes, verbose, nil)
+	destPath, err := fetchToCache(tarballURL, filename, maxRegistryDownloadBytes, verbose, cleanup)
 	if err != nil {
 		return "", nil, err
 	}

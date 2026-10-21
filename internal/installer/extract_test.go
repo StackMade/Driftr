@@ -531,3 +531,24 @@ func TestExtractRegistryPackage_MissingBinary(t *testing.T) {
 		t.Errorf("temp dirs left behind: %v", left)
 	}
 }
+
+// pnpm, yarn and npm installs hand their work dir to the interrupt handler too:
+// once it has run, nothing may land in place.
+func TestExtractRegistryPackage_AfterInterrupt(t *testing.T) {
+	destDir := filepath.Join(t.TempDir(), "pnpm", "9.0.0")
+	archive := buildTarGz(t, []tarEntry{
+		{Name: "package/bin/pnpm.cjs", Data: []byte("x"), Typeflag: tar.TypeReg},
+	})
+	cleanup := &installCleanup{}
+	cleanup.run()
+
+	if err := extractRegistryPackage(archive, destDir, filepath.Join(destDir, "bin", "pnpm.cjs"), cleanup); err == nil {
+		t.Fatal("extractRegistryPackage() after an interrupt returned nil")
+	}
+	if _, err := os.Stat(destDir); !os.IsNotExist(err) {
+		t.Errorf("version dir exists after an interrupt: %v", err)
+	}
+	if left := tmpLeftovers(t, filepath.Dir(destDir)); len(left) > 0 {
+		t.Errorf("temp dirs left behind: %v", left)
+	}
+}

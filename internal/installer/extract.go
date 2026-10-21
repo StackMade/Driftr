@@ -293,6 +293,7 @@ func Extract(archivePath, version string, verbose bool, cleanup *installCleanup)
 // otherwise that removal could run on through a dir just renamed into place
 // and leave an empty version dir.
 func finalizeInstall(tmpDir, destDir, binPath string, cleanup *installCleanup) error {
+	defer os.RemoveAll(tmpDir) // a no-op once the rename succeeded
 	if cleanup != nil {
 		cleanup.mu.Lock()
 		defer cleanup.mu.Unlock()
@@ -301,7 +302,6 @@ func finalizeInstall(tmpDir, destDir, binPath string, cleanup *installCleanup) e
 		}
 		cleanup.tmpDir = ""
 	}
-	defer os.RemoveAll(tmpDir) // a no-op once the rename succeeded
 	err := platform.Rename(tmpDir, destDir)
 	if err == nil {
 		return nil

@@ -75,6 +75,29 @@ func (c *installCleanup) run() {
 	}
 }
 
+// watchInterrupt sets up signal-aware cleanup for temp files and partial
+// installs: on SIGINT or SIGTERM it removes what the returned cleanup tracks
+// and exits. stop ends the watch.
+func watchInterrupt() (cleanup *installCleanup, stop func()) {
+	cleanup = &installCleanup{}
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-sigChan:
+			fmt.Fprintf(os.Stderr, "\nInterrupted, cleaning up...\n")
+			cleanup.run()
+			os.Exit(1)
+		case <-done:
+		}
+	}()
+	return cleanup, func() {
+		signal.Stop(sigChan)
+		close(done)
+	}
+}
+
 // NodeRelease represents a single Node.js release from the index.
 type NodeRelease struct {
 	Version string `json:"version"`
@@ -132,24 +155,8 @@ func Install(versionStr string, verbose bool) (string, error) {
 		return resolvedVersion, nil
 	}
 
-	// Set up signal-aware cleanup for temp files and partial installs.
-	cleanup := &installCleanup{}
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	done := make(chan struct{})
-	go func() {
-		select {
-		case <-sigChan:
-			fmt.Fprintf(os.Stderr, "\nInterrupted, cleaning up...\n")
-			cleanup.run()
-			os.Exit(1)
-		case <-done:
-		}
-	}()
-	defer func() {
-		signal.Stop(sigChan)
-		close(done)
-	}()
+	cleanup, stop := watchInterrupt()
+	defer stop()
 
 	archivePath, err := Download(resolvedVersion, verbose, cleanup)
 	if err != nil {

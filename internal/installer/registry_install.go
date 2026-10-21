@@ -51,7 +51,9 @@ func installRegistryTool(tool, example, versionStr string, verbose bool) (string
 	}
 
 	// Download from npm registry.
-	archivePath, rv, err := DownloadRegistryPackage(tool, resolvedVersion, verbose)
+	cleanup, stop := watchInterrupt()
+	defer stop()
+	archivePath, rv, err := downloadRegistryPackage(tool, resolvedVersion, verbose, cleanup)
 	if err != nil {
 		return "", err
 	}
@@ -77,7 +79,7 @@ func installRegistryTool(tool, example, versionStr string, verbose bool) (string
 	if verbose {
 		fmt.Printf("  Extracting to: %s\n", versionDir)
 	}
-	if err := ExtractRegistryPackage(archivePath, versionDir, binPath); err != nil {
+	if err := extractRegistryPackage(archivePath, versionDir, binPath, cleanup); err != nil {
 		return "", fmt.Errorf("extraction failed: %w", err)
 	}
 

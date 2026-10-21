@@ -191,7 +191,9 @@ func InstallBun(versionStr string, verbose bool) (string, error) {
 	assetURL := fmt.Sprintf("%s/%s/%s", bunDownloadBase(), tag, asset)
 	cacheName := fmt.Sprintf("bun-v%s-%s", resolvedVersion, asset)
 
-	archivePath, err := fetchToCache(assetURL, cacheName, maxBunDownloadBytes, verbose, nil)
+	cleanup, stop := watchInterrupt()
+	defer stop()
+	archivePath, err := fetchToCache(assetURL, cacheName, maxBunDownloadBytes, verbose, cleanup)
 	if errors.Is(err, errNotFound) {
 		return "", fmt.Errorf("bun %s has no %s build (%s). Run `driftr list --remote bun` to see available versions", resolvedVersion, asset, assetURL)
 	}
@@ -216,7 +218,7 @@ func InstallBun(versionStr string, verbose bool) (string, error) {
 	// The archive holds a single top-level directory named after the asset,
 	// e.g. "bun-linux-x64/bun".
 	prefix := strings.TrimSuffix(asset, ".zip") + "/"
-	if err := ExtractZipToBin(archivePath, versionDir, prefix, platform.ExeName("bun")); err != nil {
+	if err := extractZipToBin(archivePath, versionDir, prefix, platform.ExeName("bun"), cleanup); err != nil {
 		return "", fmt.Errorf("extraction failed: %w", err)
 	}
 
