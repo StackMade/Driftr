@@ -275,8 +275,8 @@ func removeCandidates(candidates []pruneCandidate) error {
 		if verbose {
 			fmt.Println(ioutil.Dim(fmt.Sprintf("  Removing: %s", c.dir)))
 		}
-		if err := os.RemoveAll(c.dir); err != nil {
-			failures = append(failures, fmt.Errorf("%s %s: %w. Manual cleanup: rm -rf %q", c.tool, c.version, err, c.dir))
+		if err := platform.RemoveVersionDir(c.dir); err != nil {
+			failures = append(failures, fmt.Errorf("%s %s: %w", c.tool, c.version, err))
 			fmt.Println(ioutil.Failure(fmt.Sprintf("Failed to remove %s %s: %v", c.tool, c.version, err)))
 			continue
 		}

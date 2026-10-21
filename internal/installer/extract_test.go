@@ -511,3 +511,23 @@ func TestExtractRegistryPackage_EscapingSymlinkRejected(t *testing.T) {
 		t.Errorf("temp dirs left behind: %v", left)
 	}
 }
+
+// pnpm before 6 ships bin/pnpm.js: such a package must not land in place,
+// where it would look installed and block every reinstall.
+func TestExtractRegistryPackage_MissingBinary(t *testing.T) {
+	destDir := filepath.Join(t.TempDir(), "pnpm", "5.18.11")
+	archive := buildTarGz(t, []tarEntry{
+		{Name: "package/bin/pnpm.js", Data: []byte("x"), Typeflag: tar.TypeReg},
+	})
+
+	err := ExtractRegistryPackage(archive, destDir, filepath.Join(destDir, "bin", "pnpm.cjs"))
+	if err == nil || !strings.Contains(err.Error(), "pnpm.cjs") {
+		t.Fatalf("got %v, want an error naming pnpm.cjs", err)
+	}
+	if _, err := os.Stat(destDir); !os.IsNotExist(err) {
+		t.Errorf("version dir exists after the failure: %v", err)
+	}
+	if left := tmpLeftovers(t, filepath.Dir(destDir)); len(left) > 0 {
+		t.Errorf("temp dirs left behind: %v", left)
+	}
+}

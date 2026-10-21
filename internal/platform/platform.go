@@ -289,6 +289,38 @@ func ListToolVersions(tool string) ([]string, error) {
 	return versions, nil
 }
 
+// RemoveVersionDir deletes an installed version directory. It first moves the
+// directory under a ".tmp-" name, which ListToolVersions skips, so a removal
+// that stops halfway never leaves a version that looks installed. On Windows
+// the move fails while a program in the directory runs, and then nothing at
+// all is removed.
+func RemoveVersionDir(dir string) error {
+	trash, err := os.MkdirTemp(filepath.Dir(dir), filepath.Base(dir)+".tmp-rm-")
+	if err != nil {
+		return err
+	}
+	if err := os.Rename(dir, filepath.Join(trash, filepath.Base(dir))); err != nil {
+		_ = os.Remove(trash)
+		if runtime.GOOS == "windows" {
+			return fmt.Errorf("%w. Close the programs running from %s and retry", err, dir)
+		}
+		return err
+	}
+	if err := os.RemoveAll(trash); err != nil {
+		return fmt.Errorf("%w. Manual cleanup: %s", err, RemoveCommand(trash))
+	}
+	return nil
+}
+
+// RemoveCommand returns the shell command that deletes path, for error
+// messages: PowerShell's on Windows, where rm -rf does not exist.
+func RemoveCommand(path string) string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf("Remove-Item -Recurse -Force %q", path)
+	}
+	return fmt.Sprintf("rm -rf %q", path)
+}
+
 // NodePackageBins maps each executable that a global npm install put in a
 // Node.js version's bin dir (e.g. tsc after `npm install -g typescript`) to
 // the node versions that have it. Driftr's own tools are left out, since they

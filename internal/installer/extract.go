@@ -280,15 +280,33 @@ func Extract(archivePath, version string, verbose bool, cleanup *installCleanup)
 		return err
 	}
 
-	if err := os.Rename(tmpDir, destDir); err != nil {
-		// Another process may have won the race — check if binary exists
-		if _, statErr := os.Stat(nodeBin); statErr == nil {
-			os.RemoveAll(tmpDir)
+	return finalizeInstall(tmpDir, destDir, nodeBin)
+}
+
+// finalizeInstall moves a verified work dir to destDir and removes it if the
+// move fails. destDir may exist already: another install of the version won
+// the race, and its binary is there; or a removal or install stopped halfway
+// and left a dir without one, which is replaced instead of blocking every
+// later install of that version.
+func finalizeInstall(tmpDir, destDir, binPath string) error {
+	defer os.RemoveAll(tmpDir) // a no-op once the rename succeeded
+	err := os.Rename(tmpDir, destDir)
+	if err == nil {
+		return nil
+	}
+	if _, statErr := os.Stat(binPath); statErr == nil {
+		return nil
+	}
+	if _, statErr := os.Stat(destDir); statErr == nil {
+		if rmErr := platform.RemoveVersionDir(destDir); rmErr != nil {
+			return fmt.Errorf("failed to finalize install: %s is incomplete and could not be removed: %w", destDir, rmErr)
+		}
+		if err = os.Rename(tmpDir, destDir); err == nil {
 			return nil
 		}
-		os.RemoveAll(tmpDir)
-		return fmt.Errorf("failed to finalize install: %w", err)
+		if _, statErr := os.Stat(binPath); statErr == nil {
+			return nil
+		}
 	}
-
-	return nil
+	return fmt.Errorf("failed to finalize install: %w", err)
 }

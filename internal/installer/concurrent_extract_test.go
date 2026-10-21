@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 
@@ -105,8 +104,9 @@ func TestExtractZipToBin_ConcurrentInstalls(t *testing.T) {
 	assertSoleInstall(t, destDir, binPath, body)
 }
 
-// A race loser must not report success when the rename fails and no binary exists.
-func TestExtractZipToBin_RenameFailureWithoutBinaryErrors(t *testing.T) {
+// A version dir without its binary, left by a removal or install that stopped
+// halfway, is replaced rather than blocking every later install.
+func TestExtractZipToBin_ReplacesDirWithoutBinary(t *testing.T) {
 	archive := writeTestZip(t, map[string]string{"bun-linux-x64/bun": "#!/bin/sh\n"})
 
 	parent := t.TempDir()
@@ -115,11 +115,13 @@ func TestExtractZipToBin_RenameFailureWithoutBinaryErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := ExtractZipToBin(archive, destDir, "bun-linux-x64/", "bun")
-	if err == nil || !strings.Contains(err.Error(), "finalize install") {
-		t.Fatalf("expected a finalize-install error, got: %v", err)
+	if err := ExtractZipToBin(archive, destDir, "bun-linux-x64/", "bun"); err != nil {
+		t.Fatalf("ExtractZipToBin() error: %v", err)
 	}
-	if _, statErr := os.Stat(filepath.Join(destDir, "bin", "bun")); statErr == nil {
-		t.Error("failed install left a binary behind")
+	if _, err := os.Stat(filepath.Join(destDir, "bin", "bun")); err != nil {
+		t.Errorf("binary missing after the install: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(destDir, "occupied")); !os.IsNotExist(err) {
+		t.Errorf("the incomplete dir's content survived: %v", err)
 	}
 }
