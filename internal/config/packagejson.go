@@ -22,6 +22,20 @@ type Engines struct {
 	Node string `json:"node"`
 }
 
+// UnmarshalJSON skips the legacy array and string forms of "engines" that npm
+// still accepts (["node >= 0.4"]): they name no range driftr can use, and a
+// dependency's package.json must not break every shim run below it.
+func (e *Engines) UnmarshalJSON(data []byte) error {
+	if !bytes.HasPrefix(bytes.TrimSpace(data), []byte("{")) {
+		return nil
+	}
+	type plain Engines
+	return json.Unmarshal(data, (*plain)(e))
+}
+
+// utf8BOM is the byte order mark some Windows editors put before the JSON.
+var utf8BOM = []byte("\xef\xbb\xbf")
+
 // EnginesNode returns the semver range from "engines".node, or "" when absent.
 func (p *PackageJSON) EnginesNode() string {
 	if p == nil {
@@ -89,7 +103,7 @@ func LoadPackageJSON(dir string) (*PackageJSON, error) {
 	}
 
 	var pkg PackageJSON
-	if err := json.Unmarshal(data, &pkg); err != nil {
+	if err := json.Unmarshal(bytes.TrimPrefix(data, utf8BOM), &pkg); err != nil {
 		return nil, fmt.Errorf("failed to parse %s: %w", path, err)
 	}
 
@@ -122,7 +136,7 @@ func SavePackageJSONTool(dir, tool, version string) error {
 	// Load existing driftr config to preserve other tools. A parse failure
 	// must abort: writing with an empty config would drop other pinned tools.
 	var existing PackageJSON
-	if err := json.Unmarshal(data, &existing); err != nil {
+	if err := json.Unmarshal(bytes.TrimPrefix(data, utf8BOM), &existing); err != nil {
 		return fmt.Errorf("failed to parse %s: %w. Fix the file and retry", path, err)
 	}
 	existing.Driftr.SetTool(tool, version)
@@ -170,6 +184,13 @@ func RemoveDriftrFromPackageJSON(dir string) error {
 // If value is non-nil, the key is set (inserted at end if new, replaced in-place if existing).
 // If value is nil, the key is removed.
 func patchTopLevelKey(data []byte, key string, value json.RawMessage) ([]byte, error) {
+	// The BOM and the line ending survive the rewrite, so the diff is the key.
+	data, hadBOM := bytes.CutPrefix(data, utf8BOM)
+	newline := "\n"
+	if bytes.Contains(data, []byte("\r\n")) {
+		newline = "\r\n"
+	}
+
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
 
@@ -222,9 +243,12 @@ func patchTopLevelKey(data []byte, key string, value json.RawMessage) ([]byte, e
 	indent := detectIndent(data)
 
 	var buf bytes.Buffer
+	if hadBOM {
+		buf.Write(utf8BOM)
+	}
 	buf.WriteByte('{')
 	for i, p := range pairs {
-		buf.WriteByte('\n')
+		buf.WriteString(newline)
 		buf.WriteString(indent)
 		keyBytes, _ := json.Marshal(p.key)
 		buf.Write(keyBytes)
@@ -235,10 +259,10 @@ func patchTopLevelKey(data []byte, key string, value json.RawMessage) ([]byte, e
 		}
 	}
 	if len(pairs) > 0 {
-		buf.WriteByte('\n')
+		buf.WriteString(newline)
 	}
 	buf.WriteByte('}')
-	buf.WriteByte('\n')
+	buf.WriteString(newline)
 
 	return buf.Bytes(), nil
 }

@@ -1139,16 +1139,19 @@ func TestResolveFromProject_EnginesNodeUnsupportedRange(t *testing.T) {
 	home := t.TempDir()
 	testutil.SetHome(t, home)
 	setupFakeInstall(t, home, "node", "20.11.1")
+	globalCfg, _ := config.LoadGlobal()
+	globalCfg.Default.SetTool("node", "20.11.1")
+	config.SaveGlobal(globalCfg)
+	// npm accepts "18 - 20"; driftr cannot read it, so it pins nothing, even
+	// when it sits in a dependency under node_modules.
 	enginesProject(t, "18 - 20")
 
-	_, err := ResolveTool("node", "", false)
-	if err == nil {
-		t.Fatal("expected an error for an unsupported range, got nil")
+	res, err := ResolveTool("node", "", false)
+	if err != nil {
+		t.Fatalf("ResolveTool() error: %v", err)
 	}
-	for _, want := range []string{"package.json", "18 - 20", "hyphen"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("error %q does not mention %q", err.Error(), want)
-		}
+	if res.Source != SourceGlobal {
+		t.Errorf("source = %v, want the global default", res.Source)
 	}
 }
 

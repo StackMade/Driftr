@@ -497,7 +497,10 @@ func resolveVersionFilePin(tool, ver, dir string, source Source) (*Resolution, e
 func resolveEnginesNode(rangeText, dir string) (*Resolution, error) {
 	rng, err := version.ParseRange(rangeText)
 	if err != nil {
-		return nil, fmt.Errorf("cannot use engines.node from %s: %w", filepath.Join(dir, "package.json"), err)
+		// npm accepts ranges driftr cannot read, and a dependency's package.json
+		// must not break the shim: treat it like an unknown LTS alias.
+		fmt.Fprintf(os.Stderr, "warning: engines.node %q in %s: %v; ignoring\n", rangeText, filepath.Join(dir, "package.json"), err)
+		return nil, nil
 	}
 
 	best, ok, err := newestInstalledMatching("node", rng.Matches)

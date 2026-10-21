@@ -1,6 +1,7 @@
 package nodeenv
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -52,7 +53,7 @@ func managerFromPackageJSON(path string) PackageManager {
 	var pkg struct {
 		PackageManager string `json:"packageManager"`
 	}
-	if err := json.Unmarshal(data, &pkg); err != nil {
+	if err := json.Unmarshal(bytes.TrimPrefix(data, []byte("\xef\xbb\xbf")), &pkg); err != nil {
 		return NoManager
 	}
 
