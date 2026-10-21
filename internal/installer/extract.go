@@ -162,7 +162,7 @@ func Extract(archivePath, version string, verbose bool, cleanup *installCleanup)
 	}
 
 	// The archive contains "node-v<version>-<os>-<arch>/" as prefix.
-	prefix := fmt.Sprintf("node-v%s-%s-%s/", version, platform.OS(), platform.Arch())
+	prefix := fmt.Sprintf("node-v%s-%s-%s/", version, platform.OS(), nodeArch(version))
 
 	if platform.ArchiveExt() == "zip" {
 		if verbose {
