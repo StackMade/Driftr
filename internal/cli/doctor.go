@@ -150,6 +150,14 @@ func checkShimShadowing(binDir string, fix bool) int {
 		warn(fmt.Sprintf("%s resolves to %s, not the driftr shim — pins/defaults won't apply", s.tool, s.resolved))
 	}
 
+	if runtime.GOOS == "windows" {
+		// No guard can help there, so --fix has nothing to offer: ApplyGuard
+		// writes nothing and explains what will.
+		if _, _, err := pathsetup.ApplyGuard(pathsetup.DetectShell(), binDir); err != nil {
+			warn("  " + err.Error())
+		}
+		return 1
+	}
 	if !fix {
 		warn("  run `driftr doctor --fix` to add a PATH precedence guard, or remove the conflicting tool")
 		return 1
