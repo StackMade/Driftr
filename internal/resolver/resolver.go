@@ -336,7 +336,10 @@ func resolveEnv(tool, spec, envVar string) (*Resolution, error) {
 	}, nil
 }
 
-const maxResolveDepth = 20
+// maxResolveDepth only guards the walks up to the root against a loop. It
+// must not end them early: a dependency's lifecycle script runs deep inside
+// node_modules, and a pin 20 levels up was once silently ignored.
+const maxResolveDepth = 1024
 
 func resolveFromProject(tool, dir string, verbose bool) (*Resolution, error) {
 	absDir, err := filepath.Abs(dir)
