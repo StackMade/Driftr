@@ -290,7 +290,7 @@ func Extract(archivePath, version string, verbose bool, cleanup *installCleanup)
 // later install of that version.
 func finalizeInstall(tmpDir, destDir, binPath string) error {
 	defer os.RemoveAll(tmpDir) // a no-op once the rename succeeded
-	err := os.Rename(tmpDir, destDir)
+	err := platform.Rename(tmpDir, destDir)
 	if err == nil {
 		return nil
 	}
@@ -301,7 +301,7 @@ func finalizeInstall(tmpDir, destDir, binPath string) error {
 		if rmErr := platform.RemoveVersionDir(destDir); rmErr != nil {
 			return fmt.Errorf("failed to finalize install: %s is incomplete and could not be removed: %w", destDir, rmErr)
 		}
-		if err = os.Rename(tmpDir, destDir); err == nil {
+		if err = platform.Rename(tmpDir, destDir); err == nil {
 			return nil
 		}
 		if _, statErr := os.Stat(binPath); statErr == nil {

@@ -299,7 +299,7 @@ func RemoveVersionDir(dir string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.Rename(dir, filepath.Join(trash, filepath.Base(dir))); err != nil {
+	if err := Rename(dir, filepath.Join(trash, filepath.Base(dir))); err != nil {
 		_ = os.Remove(trash)
 		if runtime.GOOS == "windows" {
 			return fmt.Errorf("%w. Close the programs running from %s and retry", err, dir)
