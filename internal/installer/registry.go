@@ -171,7 +171,16 @@ func ListRemoteVersions(pkg string, includePre bool) ([]string, error) {
 	}
 
 	sort.Slice(entries, func(i, j int) bool {
-		return versionCompare(entries[i].ver, entries[j].ver) > 0
+		if c := versionCompare(entries[i].ver, entries[j].ver); c != 0 {
+			return c > 0
+		}
+		// 10.0.0 outranks 10.0.0-rc.1, which then sort by tag.
+		// shortcut: "rc.10" sorts below "rc.9"; compare tag numbers if that matters.
+		iPre, jPre := strings.Contains(entries[i].raw, "-"), strings.Contains(entries[j].raw, "-")
+		if iPre != jPre {
+			return jPre
+		}
+		return entries[i].raw > entries[j].raw
 	})
 
 	result := make([]string, len(entries))

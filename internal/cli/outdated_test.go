@@ -12,6 +12,7 @@ import (
 
 	"github.com/stackmade/driftr/v2/internal/platform"
 	"github.com/stackmade/driftr/v2/internal/testutil"
+	"github.com/stackmade/driftr/v2/internal/version"
 )
 
 func nodeIndexServer(t *testing.T, releases []map[string]any) {
@@ -239,5 +240,15 @@ func TestOutdated_UnpinnedComparesNewestInstalled(t *testing.T) {
 		if !strings.Contains(row, want) {
 			t.Errorf("row lacks %q: %q", want, row)
 		}
+	}
+}
+
+// With --pre the newest upstream release can be a pre-release; a stable
+// version below it is still behind, so --exit-code fails.
+func TestOutdatedStatus_PreReleaseLatest(t *testing.T) {
+	cv, err := version.Parse("9.1.0")
+	state, _ := outdatedStatus("9.1.0", cv, err, "10.0.0-rc.1", "9.15.0")
+	if state == stateUnknown || state == stateCurrent {
+		t.Errorf("state = %d, want behind", state)
 	}
 }
