@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 
@@ -72,6 +75,98 @@ func SaveProject(dir string, cfg *ProjectConfig) error {
 		return fmt.Errorf("failed to write project config: %w", err)
 	}
 	return nil
+}
+
+// SaveProjectTool pins one tool in .driftr.toml. An existing file is edited
+// in place, so its comments, layout and other keys stay as they were; only a
+// file that cannot be edited that way (no [tools] table, an inline table) is
+// rewritten whole.
+func SaveProjectTool(dir, tool, version string) error {
+	path := filepath.Join(dir, ProjectConfigFile)
+	data, err := os.ReadFile(path)
+	if err == nil {
+		if out, ok := patchToolsKey(string(data), tool, version); ok {
+			if err := replaceFile(path, []byte(out)); err != nil {
+				return fmt.Errorf("failed to write project config: %w", err)
+			}
+			return nil
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to read project config: %w", err)
+	}
+
+	cfg, err := LoadProject(dir)
+	if err != nil {
+		return err
+	}
+	if cfg == nil {
+		cfg = &ProjectConfig{}
+	}
+	cfg.Tools.SetTool(tool, version)
+	return SaveProject(dir, cfg)
+}
+
+var (
+	tomlTableHeader = regexp.MustCompile(`^\s*\[\s*([^\]]*?)\s*\]`)
+	tomlStringValue = regexp.MustCompile(`^(\s*=\s*)("[^"\\]*"|'[^']*')`)
+)
+
+// patchToolsKey sets tool in the [tools] table of a TOML document by editing
+// its line, or adding one after the table's last key. ok is false when the
+// result would not read back as that pin, and the caller rewrites the file.
+func patchToolsKey(doc, tool, version string) (string, bool) {
+	lines := strings.Split(doc, "\n")
+	inTools, header, last := false, -1, -1
+	done := false
+	for i, line := range lines {
+		if m := tomlTableHeader.FindStringSubmatch(line); m != nil {
+			inTools = m[1] == "tools"
+			if inTools {
+				header, last = i, i
+			}
+			continue
+		}
+		if !inTools {
+			continue
+		}
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		last = i
+		indent := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+		for _, key := range []string{tool, `"` + tool + `"`, "'" + tool + "'"} {
+			rest, ok := strings.CutPrefix(trimmed, key)
+			if !ok {
+				continue
+			}
+			if m := tomlStringValue.FindStringSubmatchIndex(rest); m != nil {
+				lines[i] = indent + key + rest[:m[3]] + strconv.Quote(version) + rest[m[5]:]
+				done = true
+			}
+		}
+		if done {
+			break
+		}
+	}
+	if header < 0 {
+		return "", false
+	}
+	if !done {
+		eol := ""
+		if strings.HasSuffix(lines[last], "\r") {
+			eol = "\r"
+		}
+		added := tool + " = " + strconv.Quote(version) + eol
+		lines = append(lines[:last+1], append([]string{added}, lines[last+1:]...)...)
+	}
+	out := strings.Join(lines, "\n")
+
+	var check ProjectConfig
+	if err := toml.Unmarshal([]byte(out), &check); err != nil || check.Tools.GetTool(tool) != version {
+		return "", false
+	}
+	return out, true
 }
 
 // replaceFile writes data to path in one rename, so a shim resolving a

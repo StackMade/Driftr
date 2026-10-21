@@ -195,3 +195,61 @@ func TestSavePackageJSONTool_KeepsModeAndSymlink(t *testing.T) {
 		t.Errorf("pin not written through the symlink: %+v, %v", pkg, err)
 	}
 }
+
+func TestSaveProjectTool_KeepsComments(t *testing.T) {
+	tests := []struct {
+		name, before, tool, want string
+	}{
+		{
+			name:   "existing key",
+			before: "# keep LTS for prod parity\n[tools]\nnode = \"20.0.0\" # ADR-12\npnpm = '9.1.0'\n",
+			tool:   "node",
+			want:   "# keep LTS for prod parity\n[tools]\nnode = \"22.14.0\" # ADR-12\npnpm = '9.1.0'\n",
+		},
+		{
+			name:   "single-quoted value",
+			before: "[tools]\nnode = \"20.0.0\"\npnpm = '9.1.0' # pinned\n",
+			tool:   "pnpm",
+			want:   "[tools]\nnode = \"20.0.0\"\npnpm = \"22.14.0\" # pinned\n",
+		},
+		{
+			name:   "new key goes after the last one",
+			before: "[tools]\r\nnode = \"20.0.0\"\r\n\r\n# other\r\n[other]\r\nx = 1\r\n",
+			tool:   "pnpm",
+			want:   "[tools]\r\nnode = \"20.0.0\"\r\npnpm = \"22.14.0\"\r\n\r\n# other\r\n[other]\r\nx = 1\r\n",
+		},
+		{
+			name:   "no tools table is rewritten",
+			before: "tools = { node = \"20.0.0\" }\n",
+			tool:   "node",
+			want:   "[tools]\n  node = \"22.14.0\"\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, ProjectConfigFile)
+			if err := os.WriteFile(path, []byte(tt.before), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := SaveProjectTool(dir, tt.tool, "22.14.0"); err != nil {
+				t.Fatalf("SaveProjectTool() error: %v", err)
+			}
+			got, _ := os.ReadFile(path)
+			if string(got) != tt.want {
+				t.Errorf("file =\n%q\nwant\n%q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSaveProjectTool_NewFile(t *testing.T) {
+	dir := t.TempDir()
+	if err := SaveProjectTool(dir, "node", "22.14.0"); err != nil {
+		t.Fatalf("SaveProjectTool() error: %v", err)
+	}
+	cfg, err := LoadProject(dir)
+	if err != nil || cfg.Tools.GetTool("node") != "22.14.0" {
+		t.Fatalf("LoadProject() = %v, %v", cfg, err)
+	}
+}
