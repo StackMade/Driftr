@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The test binary doubles as the child: DRIFTR_TEST_EXIT makes it exit at once.
@@ -13,6 +14,19 @@ func TestMain(m *testing.M) {
 	if code := os.Getenv("DRIFTR_TEST_EXIT"); code != "" {
 		n, _ := strconv.Atoi(code)
 		os.Exit(n)
+	}
+	// DRIFTR_TEST_PIDFILE makes it a long-running child that records its PID;
+	// DRIFTR_TEST_SHIM makes it the shim that runs such a child.
+	if pidFile := os.Getenv("DRIFTR_TEST_PIDFILE"); pidFile != "" && os.Getenv("DRIFTR_TEST_SHIM") == "" {
+		_ = os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0o644)
+		time.Sleep(time.Minute)
+		os.Exit(0)
+	}
+	if os.Getenv("DRIFTR_TEST_SHIM") != "" {
+		os.Unsetenv("DRIFTR_TEST_SHIM")
+		self, _ := os.Executable()
+		code, _ := Run(self, nil)
+		os.Exit(code)
 	}
 	os.Exit(m.Run())
 }
