@@ -111,3 +111,21 @@ func TestDetectPackageManager_PackageJSONDirFallsThrough(t *testing.T) {
 		t.Errorf("DetectPackageManager = %q, want %q", got, YarnManager)
 	}
 }
+
+// A pnpm workspace member has a package.json but no lockfile of its own.
+func TestDetectPackageManager_WorkspaceMember(t *testing.T) {
+	root := t.TempDir()
+	member := filepath.Join(root, "packages", "foo")
+	if err := os.MkdirAll(member, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "pnpm-lock.yaml"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(member, "package.json"), []byte(`{"name":"foo"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := DetectPackageManager(member); got != PnpmManager {
+		t.Errorf("DetectPackageManager = %q, want %q", got, PnpmManager)
+	}
+}

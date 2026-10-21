@@ -24,7 +24,24 @@ const (
 //     this is the corepack-standard signal.
 //  2. Lockfile presence (pnpm-lock.yaml / yarn.lock / package-lock.json).
 //  3. NoManager when nothing indicates a manager.
+//
+// A directory with neither defers to its parents: a workspace member has no
+// lockfile of its own and is installed by the workspace root's manager.
 func DetectPackageManager(dir string) PackageManager {
+	for {
+		if pm := managerIn(dir); pm != NoManager {
+			return pm
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return NoManager
+		}
+		dir = parent
+	}
+}
+
+// managerIn applies the precedence above to one directory.
+func managerIn(dir string) PackageManager {
 	if pm := managerFromPackageJSON(filepath.Join(dir, "package.json")); pm != NoManager {
 		return pm
 	}
