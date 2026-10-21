@@ -24,7 +24,7 @@ var versionedTools = []string{"node", "npm", "pnpm", "yarn", "bun"}
 var conflictingBinaries = []string{"fnm", "volta", "n"}
 
 func newDoctorCmd() *cobra.Command {
-	var fix bool
+	var fix, exitCode bool
 	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Check your driftr installation for problems",
@@ -66,10 +66,14 @@ func newDoctorCmd() *cobra.Command {
 			} else {
 				fmt.Println(ioutil.Warn(fmt.Sprintf("Found %d issue(s).", issues)))
 			}
+			if exitCode && issues > 0 {
+				return &ExitError{Code: 1}
+			}
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&fix, "fix", false, "automatically fix detected PATH and shim problems")
+	cmd.Flags().BoolVar(&exitCode, "exit-code", false, "Exit non-zero when an issue remains (for CI)")
 	return cmd
 }
 

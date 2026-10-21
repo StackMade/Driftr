@@ -567,9 +567,13 @@ driftr cache dir
 Check your Driftr installation for common problems.
 
 ```bash
-driftr doctor         # run all checks
-driftr doctor --fix   # auto-fix PATH and shim problems
+driftr doctor              # run all checks
+driftr doctor --fix        # auto-fix PATH and shim problems
+driftr doctor --exit-code  # exit 1 while an issue remains (for CI)
 ```
+
+Without `--exit-code`, doctor exits 0 whatever it finds, so a script that runs it for its
+report does not fail.
 
 Runs 11 checks, in this order:
 

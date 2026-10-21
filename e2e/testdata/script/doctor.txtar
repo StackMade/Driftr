@@ -13,6 +13,9 @@ rm $HOME/.driftr/bin/node$exe
 exec driftr doctor
 stdout 'Shim broken or missing: node'
 ! exists $HOME/.driftr/bin/node$exe
+# The default exit code stays 0; --exit-code turns an issue into a failure for CI.
+! exec driftr doctor --exit-code
+stdout 'Shim broken or missing: node'
 
 exec driftr doctor --fix
 stdout 'regenerated'
