@@ -179,7 +179,7 @@ func fetchToCache(url, filename string, maxBytes int64, verbose bool, cleanup *i
 		return "", fmt.Errorf("%w: %s", errNotFound, url)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("download failed with status %d", resp.StatusCode)
+		return "", fmt.Errorf("download of %s failed with status %d. Retry later, or check DRIFTR_NODE_MIRROR and your proxy settings", url, resp.StatusCode)
 	}
 
 	tmpFile, err := os.CreateTemp(cacheDir, "driftr-download-*")

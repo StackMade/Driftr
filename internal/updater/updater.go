@@ -185,7 +185,11 @@ func fetchLatestVersion(prereleases bool) (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
+		hint := ". Retry later"
+		if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
+			hint = ". GitHub's API rate limit for anonymous requests is likely used up; retry in an hour"
+		}
+		return "", fmt.Errorf("GitHub API returned status %d%s", resp.StatusCode, hint)
 	}
 
 	if !prereleases {
