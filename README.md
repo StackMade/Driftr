@@ -66,16 +66,16 @@ irm https://raw.githubusercontent.com/StackMade/driftr/main/install.ps1 | iex
 
 The same steps as `install.sh`: it verifies the checksum, installs `driftr.exe` to `%USERPROFILE%\.driftr\bin`, and runs `driftr setup`, which puts that directory on your user `Path`. Open a new terminal afterwards. See [docs/installation.md](docs/installation.md#windows).
 
-Windows support starts with Driftr 2.0, which is in release candidates. Until 2.0.0 is out, the script installs the newest 2.0 pre-release and says so.
+Windows support starts with Driftr 2.0.
 
 ### Release lines
 
 | Line | Status | Gets |
 |---|---|---|
-| 2.x | pre-release (`2.0.0-rc.N`), from `main` | new features, Windows |
-| 1.x | stable, from `release/1.x` | fixes only |
+| 2.x | stable, from `main` | new features, Windows |
+| 1.x | maintenance, from `release/1.x` | fixes only |
 
-Homebrew, `install.sh` and `driftr self-update` on a stable build stay on the latest stable release. To try 2.0 on macOS or Linux now, pin it: `curl -fsSL https://raw.githubusercontent.com/StackMade/driftr/main/install.sh | DRIFTR_VERSION=2.0.0-rc.1 sh`. A pre-release build then updates itself to newer candidates and on to 2.0.0. Untested nightly builds of both lines are on the [`nightly`](https://github.com/StackMade/Driftr/releases/tag/nightly) and [`nightly-1.x`](https://github.com/StackMade/Driftr/releases/tag/nightly-1.x) releases.
+Homebrew, `install.sh` and `driftr self-update` follow the latest stable release, which is 2.x; a 1.x build moves to 2.x on its next `driftr self-update`. Untested nightly builds of both lines are on the [`nightly`](https://github.com/StackMade/Driftr/releases/tag/nightly) and [`nightly-1.x`](https://github.com/StackMade/Driftr/releases/tag/nightly-1.x) releases.
 
 ## Quick Start
 
