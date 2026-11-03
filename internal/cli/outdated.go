@@ -251,6 +251,13 @@ func outdatedStatus(raw string, cv version.Version, parseErr error, latest, line
 	}
 
 	if cv.IsPartial() {
+		// "22.14" floats over patches only, so a newer minor on its line is
+		// news, as it is to `pin --bump`.
+		if strings.Count(strings.TrimPrefix(raw, "v"), ".") == 1 {
+			if pv, err := version.Parse(line); err == nil && pv.Major == cv.Major && pv.Minor > cv.Minor {
+				return stateBehind, fmt.Sprintf("behind: %s in %d.x, latest %s", line, cv.Major, latest)
+			}
+		}
 		if lv.Major > cv.Major {
 			return stateBehindMajor, fmt.Sprintf("newer major: %d.x", lv.Major)
 		}

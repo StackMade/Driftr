@@ -252,3 +252,19 @@ func TestOutdatedStatus_PreReleaseLatest(t *testing.T) {
 		t.Errorf("state = %d, want behind", state)
 	}
 }
+
+// "22.1" floats over patches only, so a newer 22.x minor is news, as it is to
+// `pin --bump`. outdated once called it up to date.
+func TestOutdatedStatus_MajorMinorPinBehindNewerMinor(t *testing.T) {
+	cv, err := version.Parse("22.1")
+	if state, status := outdatedStatus("22.1", cv, err, "22.99.0", "22.99.0"); state != stateBehind {
+		t.Errorf("22.1 vs 22.99.0: state = %d (%s), want behind", state, status)
+	}
+	if state, _ := outdatedStatus("22.1", cv, err, "22.1.5", "22.1.5"); state != stateCurrent {
+		t.Errorf("22.1 vs 22.1.5: state = %d, want up to date", state)
+	}
+	cv, err = version.Parse("22")
+	if state, _ := outdatedStatus("22", cv, err, "22.99.0", "22.99.0"); state != stateCurrent {
+		t.Errorf("22 vs 22.99.0: state = %d, want up to date", state)
+	}
+}

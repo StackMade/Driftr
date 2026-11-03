@@ -375,6 +375,7 @@ left out.
 
 **Behavior:**
 - A pin like `node = "22"` or `lts/*` floats, so it is only reported as behind when a newer major line exists
+- A pin like `node = "22.14"` floats over patches only, so a newer minor on its line, such as 22.15, reports it as behind
 - If one tool's release source cannot be reached, its row says `unknown` and the rest of the report still runs
 - The command exits 0 unless every source failed, or `--exit-code` was given and something is behind
 
