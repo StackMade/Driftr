@@ -14,6 +14,7 @@ import (
 	"github.com/stackmade/driftr/v2/internal/ioutil"
 	"github.com/stackmade/driftr/v2/internal/pathsetup"
 	"github.com/stackmade/driftr/v2/internal/platform"
+	"github.com/stackmade/driftr/v2/internal/resolver"
 	"github.com/stackmade/driftr/v2/internal/shim"
 )
 
@@ -355,14 +356,19 @@ func checkDefaultsInstalled(cfg *config.GlobalConfig) int {
 		if ver == "" {
 			continue
 		}
-		binPath, err := platform.ToolBinary(tool, ver)
-		if err != nil {
-			continue
+		// A hand-edited default may be partial ("22") or an alias ("lts"),
+		// which the resolver maps to the newest installed match.
+		if resolved, ok, err := resolver.ResolvePin(tool, ver); err == nil && ok {
+			binPath, err := platform.ToolBinary(tool, resolved)
+			if err != nil {
+				continue
+			}
+			if _, err := os.Stat(binPath); err == nil {
+				continue
+			}
 		}
-		if _, err := os.Stat(binPath); err != nil {
-			warn(fmt.Sprintf("Default %s %s is not installed — run `driftr install %s@%s`", tool, ver, tool, ver))
-			issues++
-		}
+		warn(fmt.Sprintf("Default %s %s is not installed — run `driftr install %s@%s`", tool, ver, tool, ver))
+		issues++
 	}
 
 	if issues == 0 {

@@ -369,3 +369,28 @@ func TestCheckConflictingManagers(t *testing.T) {
 		t.Errorf("volta inside the shim dir was reported: %q", out)
 	}
 }
+
+// The resolver maps a hand-edited "22" or "lts" default to an installed
+// version; doctor once called it missing and failed `doctor --exit-code`.
+func TestCheckDefaultsInstalled_PartialDefault(t *testing.T) {
+	testutil.SetHome(t, t.TempDir())
+	fakeNodeInstall(t, "22.9.0")
+
+	for _, def := range []string{"22", "lts", "v22.9.0"} {
+		cfg := &config.GlobalConfig{}
+		cfg.Default.SetTool("node", def)
+		var issues int
+		captureStdout(t, func() { issues = checkDefaultsInstalled(cfg) })
+		if issues != 0 {
+			t.Errorf("default %q with 22.9.0 installed: %d issue(s), want 0", def, issues)
+		}
+	}
+
+	cfg := &config.GlobalConfig{}
+	cfg.Default.SetTool("node", "20")
+	var issues int
+	captureStdout(t, func() { issues = checkDefaultsInstalled(cfg) })
+	if issues != 1 {
+		t.Errorf("default 20 with no 20.x installed: %d issue(s), want 1", issues)
+	}
+}

@@ -229,3 +229,25 @@ func TestUninstallCmd_InvalidVersion(t *testing.T) {
 		t.Errorf("expected an invalid-version error, got: %v", err)
 	}
 }
+
+// A hand-edited "22" default selects 22.9.0 when that is the only 22.x, so
+// removing it deserves the same warning as an exact default.
+func TestUninstall_WarnsWhenPartialDefaultSelectsVersion(t *testing.T) {
+	testutil.SetHome(t, t.TempDir())
+	t.Chdir(t.TempDir())
+	fakeNodeInstall(t, "22.9.0")
+	cfg := &config.GlobalConfig{}
+	cfg.Default.SetTool("node", "22")
+	if err := config.SaveGlobal(cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	var err error
+	out := captureStdout(t, func() { err = runCmd(t, "uninstall", "node@22.9.0") })
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "current global default") {
+		t.Errorf("no default warning:\n%s", out)
+	}
+}
