@@ -62,7 +62,7 @@ func TestListCmd_NumericOrderAndPartialDefault(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	i9, i229, i2214 := strings.Index(out, " 9.0.0"), strings.Index(out, "22.9.0"), strings.Index(out, "22.14.0")
-	if i9 < 0 || i229 < 0 || i2214 < 0 || !(i9 < i229 && i229 < i2214) {
+	if i9 < 0 || i9 >= i229 || i229 >= i2214 {
 		t.Errorf("versions not in numeric order:\n%s", out)
 	}
 	if !strings.Contains(out, "* 22.14.0") {
