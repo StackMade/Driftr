@@ -81,23 +81,59 @@ func rateLimitHint(status int) string {
 	return ""
 }
 
+// bunReleasesPerPage is the page size asked of GitHub's API, its maximum.
+const bunReleasesPerPage = 100
+
+// bunReleasesMaxPages bounds the walk through the release list, so a
+// misbehaving mirror that never returns a short page cannot loop forever.
+const bunReleasesMaxPages = 10
+
 // ListBunReleases returns released bun versions, newest first. Drafts and
 // pre-releases are skipped, as are tags that are not plain versions (canary
 // builds and the like).
 func ListBunReleases() ([]string, error) {
-	resp, err := httpClient.Get(bunReleasesURL() + "?per_page=100")
+	var versions []string
+	err := eachBunReleasePage(func(page []string) bool {
+		versions = append(versions, page...)
+		return true
+	})
+	return versions, err
+}
+
+// eachBunReleasePage hands fn the released versions page by page, newest
+// first, until fn returns false or the list ends. GitHub returns at most 100
+// releases per page, and bun has more than that: one page once left every
+// release older than 1.0.27 unresolvable.
+func eachBunReleasePage(fn func([]string) bool) error {
+	for page := 1; page <= bunReleasesMaxPages; page++ {
+		versions, n, err := fetchBunReleasePage(page)
+		if err != nil {
+			return err
+		}
+		if !fn(versions) || n < bunReleasesPerPage {
+			return nil
+		}
+	}
+	return nil
+}
+
+// fetchBunReleasePage returns the released versions on one page of the
+// release list, and how many releases the page held before filtering.
+func fetchBunReleasePage(page int) ([]string, int, error) {
+	url := fmt.Sprintf("%s?per_page=%d&page=%d", bunReleasesURL(), bunReleasesPerPage, page)
+	resp, err := httpClient.Get(url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch bun release list: %w", err)
+		return nil, 0, fmt.Errorf("failed to fetch bun release list: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to fetch bun release list: HTTP %d%s", resp.StatusCode, rateLimitHint(resp.StatusCode))
+		return nil, 0, fmt.Errorf("failed to fetch bun release list: HTTP %d%s", resp.StatusCode, rateLimitHint(resp.StatusCode))
 	}
 
 	var releases []bunRelease
 	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
-		return nil, fmt.Errorf("failed to parse bun release list: %w", err)
+		return nil, 0, fmt.Errorf("failed to parse bun release list: %w", err)
 	}
 
 	var versions []string
@@ -115,25 +151,32 @@ func ListBunReleases() ([]string, error) {
 		}
 		versions = append(versions, v.String())
 	}
-	return versions, nil
+	return versions, len(releases), nil
 }
 
 // resolveBunVersion picks the newest released version matching a partial spec
-// or "latest". The release list is newest-first, so the first match wins.
+// or "latest". The release list is newest-first, so the first match wins, and
+// later pages are fetched only while nothing has matched.
 func resolveBunVersion(v version.Version) (string, error) {
-	versions, err := ListBunReleases()
+	var found string
+	err := eachBunReleasePage(func(page []string) bool {
+		for _, verStr := range page {
+			rv, err := version.Parse(verStr)
+			if err != nil {
+				continue
+			}
+			if v.Latest || v.Matches(rv) {
+				found = rv.String()
+				return false
+			}
+		}
+		return true
+	})
 	if err != nil {
 		return "", err
 	}
-
-	for _, verStr := range versions {
-		rv, err := version.Parse(verStr)
-		if err != nil {
-			continue
-		}
-		if v.Latest || v.Matches(rv) {
-			return rv.String(), nil
-		}
+	if found != "" {
+		return found, nil
 	}
 
 	if v.Latest {

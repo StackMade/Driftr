@@ -375,6 +375,7 @@ left out.
 
 **Behavior:**
 - A pin like `node = "22"` or `lts/*` floats, so it is only reported as behind when a newer major line exists
+- A pin like `node = "22.14"` floats over patches only, so a newer minor on its line, such as 22.15, reports it as behind
 - If one tool's release source cannot be reached, its row says `unknown` and the rest of the report still runs
 - The command exits 0 unless every source failed, or `--exit-code` was given and something is behind
 
@@ -535,7 +536,8 @@ driftr setup
 
 **PATH:** setup appends `export PATH="$HOME/.driftr/bin:$PATH"` (fish: `set -gx PATH ...`) to the
 file every invocation of your shell reads, chosen from `$SHELL`: `~/.zshenv` for zsh
-(`$ZDOTDIR/.zshenv` when set), `~/.bash_profile` for bash, `~/.config/fish/conf.d/driftr.fish`
+(`$ZDOTDIR/.zshenv` when set, unless `~/.zshenv` is what sets it), for bash the first of
+`~/.bash_profile`, `~/.bash_login` and `~/.profile` that exists (the one a bash login reads), `~/.config/fish/conf.d/driftr.fish`
 for fish, and `~/.profile` otherwise. If the line is already there it writes nothing. If another
 install shadows a shim in the current shell, it also appends a precedence guard to the interactive
 rc file (`.zshrc`, `.bashrc` or fish `config.fish`). When it cannot write the file, it prints the

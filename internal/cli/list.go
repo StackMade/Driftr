@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -11,6 +12,7 @@ import (
 	"github.com/stackmade/driftr/v2/internal/installer"
 	"github.com/stackmade/driftr/v2/internal/ioutil"
 	"github.com/stackmade/driftr/v2/internal/resolver"
+	"github.com/stackmade/driftr/v2/internal/version"
 )
 
 // npmPackage maps tool names to their npm package names.
@@ -54,6 +56,16 @@ func newListCmd() *cobra.Command {
 				return fmt.Errorf("failed to list versions: %w", err)
 			}
 
+			// Directory order puts 9.0.0 after 22.9.0 and 22.14.0 before 22.9.0.
+			slices.SortStableFunc(versions, func(a, b string) int {
+				va, errA := version.Parse(a)
+				vb, errB := version.Parse(b)
+				if errA != nil || errB != nil {
+					return strings.Compare(a, b)
+				}
+				return compareVersions(va, vb)
+			})
+
 			if len(versions) == 0 {
 				fmt.Printf("No %s versions installed.\n", tool)
 				fmt.Printf("Run `driftr install %s@<version>` to get started.\n", tool)
@@ -65,7 +77,7 @@ func newListCmd() *cobra.Command {
 				return fmt.Errorf("failed to load global config: %w", err)
 			}
 
-			defaultVer := cfg.Default.GetTool(tool)
+			defaultVer := resolvedDefault(cfg, tool)
 
 			res, resolveErr := resolver.ResolveTool(tool, "", false)
 			activeVer := ""

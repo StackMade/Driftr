@@ -68,7 +68,7 @@ func newUninstallCmd() *cobra.Command {
 
 			// Warn if this is the global default.
 			cfg, err := config.LoadGlobal()
-			if err == nil && cfg.Default.GetTool(tool) == versionStr {
+			if err == nil && resolvedDefault(cfg, tool) == versionStr {
 				fmt.Println(ioutil.Warn(fmt.Sprintf("%s %s is the current global default. Run `driftr default %s@<version>` to set a new one.", tool, versionStr, tool)))
 			}
 

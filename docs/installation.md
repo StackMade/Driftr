@@ -179,8 +179,8 @@ The shim directory has to come at the **beginning** of your `PATH` so Driftr's s
 
 | Shell | File |
 |-------|------|
-| zsh | `~/.zshenv` (`$ZDOTDIR/.zshenv` when `ZDOTDIR` is set) |
-| bash | `~/.bash_profile` |
+| zsh | `~/.zshenv` (`$ZDOTDIR/.zshenv` when `ZDOTDIR` is set, unless `~/.zshenv` is what sets it) |
+| bash | the first of `~/.bash_profile`, `~/.bash_login` and `~/.profile` that exists, `~/.bash_profile` when none does |
 | fish | `~/.config/fish/conf.d/driftr.fish` (under `$XDG_CONFIG_HOME` when set) |
 | anything else | `~/.profile` |
 
@@ -212,6 +212,11 @@ shells on macOS, though:
 ```bash
 echo 'export PATH="$HOME/.driftr/bin:$PATH"' >> ~/.bash_profile
 ```
+
+A bash login reads only the first of `~/.bash_profile`, `~/.bash_login` and `~/.profile` that
+exists. If you have no `~/.bash_profile` but do have a `~/.profile` (the Debian and Ubuntu
+default), add the line to `~/.profile` instead: creating `~/.bash_profile` would stop bash from
+reading `~/.profile`.
 
 ### Fish (~/.config/fish/conf.d/driftr.fish)
 

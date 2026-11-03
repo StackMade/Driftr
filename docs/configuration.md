@@ -198,8 +198,8 @@ git commit -m "Pin Node.js version with Driftr"
 | `DRIFTR_UPDATE_MIRROR` | `https://github.com/stackmade/driftr/releases/download` | Alternative host for Driftr's own release assets. `/v<version>` is appended, and the directory must hold `driftr_<version>_<os>_<arch>.tar.gz` (`.zip` on Windows) and `checksums.txt`. `install.ps1` reads this and `DRIFTR_UPDATE_API` too. |
 | `DRIFTR_NO_MODIFY_PATH` | unset | When set to anything, `driftr setup`, `driftr doctor --fix` and `driftr self-update` leave shell rc files and the Windows registry alone; setup prints the line to add yourself instead. For dotfiles you manage by hand. |
 | `NO_COLOR` | unset | Any non-empty value turns off colored output. Color is also off when stdout or stderr is not a terminal. |
-| `SHELL` | set by your login | Picks the rc file `driftr setup`, `driftr doctor --fix` and `driftr self-update` write the PATH line to: `.zshenv` for zsh, `.bash_profile` for bash, `conf.d/driftr.fish` for fish, `.profile` for anything else. Also sets the syntax `driftr use` prints, unless `--shell` is given. |
-| `ZDOTDIR` | `$HOME` | zsh only: the directory holding `.zshenv` and `.zshrc`, for the PATH line and the precedence guard. |
+| `SHELL` | set by your login | Picks the rc file `driftr setup`, `driftr doctor --fix` and `driftr self-update` write the PATH line to: `.zshenv` for zsh, for bash the first of `.bash_profile`, `.bash_login` and `.profile` that exists (`.bash_profile` when none does), `conf.d/driftr.fish` for fish, `.profile` for anything else. Also sets the syntax `driftr use` prints, unless `--shell` is given. |
+| `ZDOTDIR` | `$HOME` | zsh only: the directory holding `.zshenv` and `.zshrc`, for the PATH line and the precedence guard. When `~/.zshenv` itself sets `ZDOTDIR`, zsh never reads `$ZDOTDIR/.zshenv`, so the PATH line goes into `~/.zshenv`. |
 | `XDG_CONFIG_HOME` | `$HOME/.config` | fish only: the base for `fish/conf.d/driftr.fish` and `fish/config.fish`. |
 | `NVM_DIR` | unset | Read by `driftr doctor`: when it holds an `nvm.sh`, doctor warns that nvm may conflict with the shims. |
 

@@ -10,6 +10,21 @@ import (
 	"github.com/stackmade/driftr/v2/internal/resolver"
 )
 
+// resolvedDefault returns the installed version the global default of tool
+// selects, as the resolver picks it: a hand-edited "22" or "lts" names the
+// newest installed match. It returns the default as written when nothing
+// installed matches, and "" when there is no default.
+func resolvedDefault(cfg *config.GlobalConfig, tool string) string {
+	def := cfg.Default.GetTool(tool)
+	if def == "" {
+		return ""
+	}
+	if v, ok, err := resolver.ResolvePin(tool, def); err == nil && ok {
+		return v
+	}
+	return def
+}
+
 func newDefaultCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "default <tool@version>",

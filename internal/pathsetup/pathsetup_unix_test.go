@@ -79,6 +79,49 @@ func TestTargetProfile_Bash(t *testing.T) {
 	}
 }
 
+// A bash login reads only the first of these files that exists, so a new
+// .bash_profile would have hidden the user's .profile.
+func TestTargetProfile_BashUsesTheFileBashReads(t *testing.T) {
+	for _, tc := range []struct {
+		existing []string
+		want     string
+	}{
+		{nil, ".bash_profile"},
+		{[]string{".profile"}, ".profile"},
+		{[]string{".bash_login", ".profile"}, ".bash_login"},
+		{[]string{".bash_profile", ".bash_login", ".profile"}, ".bash_profile"},
+	} {
+		home := setHome(t)
+		for _, name := range tc.existing {
+			writeFile(t, filepath.Join(home, name), "# user file\n")
+		}
+		got, err := TargetProfile(ShellBash)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := filepath.Join(home, tc.want); got != want {
+			t.Errorf("with %v: target = %q, want %q", tc.existing, got, want)
+		}
+	}
+}
+
+// zsh starts with ZDOTDIR unset when ~/.zshenv is what sets it, so
+// $ZDOTDIR/.zshenv is never read.
+func TestTargetProfile_ZshZDOTDIRSetInHomeZshenv(t *testing.T) {
+	home := setHome(t)
+	custom := t.TempDir()
+	t.Setenv("ZDOTDIR", custom)
+	writeFile(t, filepath.Join(home, ".zshenv"), "export ZDOTDIR=\"$HOME/.config/zsh\"\n")
+
+	got, err := TargetProfile(ShellZsh)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(home, ".zshenv"); got != want {
+		t.Errorf("target = %q, want %q", got, want)
+	}
+}
+
 func TestTargetProfile_Fish(t *testing.T) {
 	home := setHome(t)
 	got, err := TargetProfile(ShellFish)
@@ -445,6 +488,8 @@ func TestNamesDir(t *testing.T) {
 		`export PATH="$HOME/.driftr/bin-old:$HOME/.driftr/bin:$PATH"`: true,
 		`export PATH="$HOME/.driftr/bin-old:$PATH"`:                   false,
 		`export PATH="$HOME/.driftr/binx:$PATH"`:                      false,
+		`export PATH="$HOME/.driftr/bin/:$PATH"`:                      true,
+		`alias n=$HOME/.driftr/bin/node`:                              false,
 	} {
 		if got := namesDir(line, dir); got != want {
 			t.Errorf("namesDir(%q) = %v, want %v", line, got, want)
