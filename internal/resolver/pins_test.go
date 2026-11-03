@@ -313,7 +313,7 @@ func mustLoadProject(t *testing.T, dir string) *config.ProjectConfig {
 func TestResolvePin(t *testing.T) {
 	home := t.TempDir()
 	testutil.SetHome(t, home)
-	for _, v := range []string{"20.11.0", "22.1.0", "22.14.0", "23.5.0", "26.0.0"} {
+	for _, v := range []string{"20.11.0", "22.1.0", "22.14.0", "23.5.0", "28.0.0"} {
 		setupFakeInstall(t, home, "node", v)
 	}
 

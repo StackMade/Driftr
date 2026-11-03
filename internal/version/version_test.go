@@ -149,6 +149,7 @@ func TestLTSCodenameMajor(t *testing.T) {
 		{"Iron", 20, true},
 		{"argon", 4, true},
 		{"krypton", 24, true},
+		{"lithium", 26, true},
 		{"unknownname", 0, false},
 		{"", 0, false},
 	}
@@ -164,7 +165,7 @@ func TestLTSCodenameMajor(t *testing.T) {
 }
 
 func TestIsLTSMajor(t *testing.T) {
-	for major, want := range map[int]bool{4: true, 22: true, 24: true, 23: false, 26: false, 0: false} {
+	for major, want := range map[int]bool{4: true, 22: true, 24: true, 26: true, 23: false, 28: false, 0: false} {
 		if got := IsLTSMajor(major); got != want {
 			t.Errorf("IsLTSMajor(%d) = %v, want %v", major, got, want)
 		}

@@ -1243,8 +1243,8 @@ func TestResolvePackageBin_OtherInstallOnPathWins(t *testing.T) {
 func TestResolveTool_ExplicitPartialVersion(t *testing.T) {
 	home := t.TempDir()
 	testutil.SetHome(t, home)
-	// 26 is an even major that is still Current: lts must not pick it.
-	for _, v := range []string{"20.11.0", "20.12.1", "22.0.0", "26.0.0"} {
+	// 28 is an even major that is still Current: lts must not pick it.
+	for _, v := range []string{"20.11.0", "20.12.1", "22.0.0", "28.0.0"} {
 		setupFakeInstall(t, home, "node", v)
 	}
 	for spec, want := range map[string]string{
