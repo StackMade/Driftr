@@ -214,7 +214,8 @@ func fetchToCache(url, filename string, maxBytes int64, verbose bool, cleanup *i
 		return "", fmt.Errorf("download interrupted: %w", stalled(err))
 	}
 
-	if err := os.Rename(tmpPath, destPath); err != nil {
+	// platform.Rename retries while a Windows scanner holds the new file.
+	if err := platform.Rename(tmpPath, destPath); err != nil {
 		os.Remove(tmpPath)
 		if cleanup != nil {
 			cleanup.clearTmpFile()
