@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/stackmade/driftr/v2/internal/platform"
@@ -209,14 +210,24 @@ func TargetProfile(shell Shell) (string, error) {
 
 	switch shell {
 	case ShellZsh:
-		if zdotdir := os.Getenv("ZDOTDIR"); zdotdir != "" {
+		// zsh reads .zshenv from ZDOTDIR as it was when zsh started. The
+		// usual setup assigns ZDOTDIR inside ~/.zshenv, so zsh starts with
+		// it unset and never reads $ZDOTDIR/.zshenv.
+		homeEnv := filepath.Join(home, ".zshenv")
+		if zdotdir := os.Getenv("ZDOTDIR"); zdotdir != "" && !assignsZDOTDIR(homeEnv) {
 			return filepath.Join(zdotdir, ".zshenv"), nil
 		}
-		return filepath.Join(home, ".zshenv"), nil
+		return homeEnv, nil
 	case ShellBash:
-		// .bash_profile is read by login shells, which most macOS/Linux
-		// terminal sessions are. Non-interactive children inherit PATH
-		// from the login shell env.
+		// A bash login shell, which most macOS/Linux terminal sessions are,
+		// reads only the first of these that exists; non-interactive children
+		// inherit PATH from it. Creating .bash_profile next to an existing
+		// .profile would hide that .profile from every later login.
+		for _, name := range []string{".bash_profile", ".bash_login", ".profile"} {
+			if p := filepath.Join(home, name); fileExists(p) {
+				return p, nil
+			}
+		}
 		return filepath.Join(home, ".bash_profile"), nil
 	case ShellFish:
 		base := os.Getenv("XDG_CONFIG_HOME")
@@ -227,6 +238,21 @@ func TargetProfile(shell Shell) (string, error) {
 	default:
 		return filepath.Join(home, ".profile"), nil
 	}
+}
+
+// zdotdirAssignment matches a line that sets ZDOTDIR, such as
+// "export ZDOTDIR=$HOME/.config/zsh".
+var zdotdirAssignment = regexp.MustCompile(`(?m)^[ \t]*(export[ \t]+)?ZDOTDIR=`)
+
+// assignsZDOTDIR reports whether the zsh startup file at path sets ZDOTDIR.
+func assignsZDOTDIR(path string) bool {
+	data, err := os.ReadFile(path)
+	return err == nil && zdotdirAssignment.Match(data)
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 // StaleCandidates returns rc files that may contain legacy PATH entries.
@@ -323,12 +349,18 @@ func namesDir(line, dir string) bool {
 			return false
 		}
 		end := i + j + len(dir)
-		if end == len(line) || strings.ContainsRune(":\"' \t\r\n;)}", rune(line[end])) {
+		if end < len(line) && line[end] == '/' {
+			end++ // "$HOME/.driftr/bin/:$PATH" names the same dir
+		}
+		if end == len(line) || strings.ContainsRune(pathEnd, rune(line[end])) {
 			return true
 		}
 		i += j + 1
 	}
 }
+
+// pathEnd holds the characters that can end a path in an rc file line.
+const pathEnd = ":\"' \t\r\n;)}"
 
 // fishEscaper escapes the two characters fish treats specially inside single
 // quotes.

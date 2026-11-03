@@ -535,7 +535,8 @@ driftr setup
 
 **PATH:** setup appends `export PATH="$HOME/.driftr/bin:$PATH"` (fish: `set -gx PATH ...`) to the
 file every invocation of your shell reads, chosen from `$SHELL`: `~/.zshenv` for zsh
-(`$ZDOTDIR/.zshenv` when set), `~/.bash_profile` for bash, `~/.config/fish/conf.d/driftr.fish`
+(`$ZDOTDIR/.zshenv` when set, unless `~/.zshenv` is what sets it), for bash the first of
+`~/.bash_profile`, `~/.bash_login` and `~/.profile` that exists (the one a bash login reads), `~/.config/fish/conf.d/driftr.fish`
 for fish, and `~/.profile` otherwise. If the line is already there it writes nothing. If another
 install shadows a shim in the current shell, it also appends a precedence guard to the interactive
 rc file (`.zshrc`, `.bashrc` or fish `config.fish`). When it cannot write the file, it prints the

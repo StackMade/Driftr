@@ -149,9 +149,15 @@ run_path_tests_zsh() {
 run_path_tests_bash() {
     BASH_BIN=$(command -v bash 2>/dev/null) || { printf '[SKIP] bash not installed\n'; return; }
     printf '\n[PATH config — bash]\n'
+    # bash logins read the first of these that exists; useradd -m copies
+    # /etc/skel/.profile on Debian, and creating .bash_profile would hide it.
+    BASH_RC="$HOME/.bash_profile"
+    for _f in "$HOME/.bash_profile" "$HOME/.bash_login" "$HOME/.profile"; do
+        if [ -f "$_f" ]; then BASH_RC="$_f"; break; fi
+    done
     configure_path_for "$BASH_BIN"
-    assert_cmd "bash: .bash_profile written"           test -f "$HOME/.bash_profile"
-    assert_cmd "bash: .bash_profile contains bin dir"  grep -qF "$INSTALL_DIR" "$HOME/.bash_profile"
+    assert_cmd "bash: $(basename "$BASH_RC") written"           test -f "$BASH_RC"
+    assert_cmd "bash: $(basename "$BASH_RC") contains bin dir"  grep -qF "$INSTALL_DIR" "$BASH_RC"
     assert_cmd "bash: login shell resolves sentinel" \
         env -i HOME="$HOME" PATH="$CLEAN_PATH" bash -l -c "command -v $SENTINEL"
     # Non-interactive non-login bash does not read .bash_profile — documented

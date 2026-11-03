@@ -220,14 +220,27 @@ configure_path() {
     # Pick the profile that is read by ALL invocations of the shell (not just
     # interactive ones) so driftr works in scripts, IDE terminals, and cron.
     #   - zsh:  .zshenv is sourced on every invocation
-    #   - bash: .bash_profile is read by login shells; non-interactive children
-    #           inherit PATH from the login shell environment
+    #   - bash: a login shell reads the first of .bash_profile, .bash_login and
+    #           .profile that exists; non-interactive children inherit PATH from
+    #           the login shell environment. Creating .bash_profile next to an
+    #           existing .profile would hide that .profile from every login.
     case "$shell_name" in
         zsh)
-            profile="${ZDOTDIR:-$HOME}/.zshenv"
+            # zsh reads .zshenv from ZDOTDIR as it was at startup; when
+            # ~/.zshenv is what sets ZDOTDIR, $ZDOTDIR/.zshenv is never read.
+            profile="$HOME/.zshenv"
+            if [ -n "${ZDOTDIR:-}" ] && ! grep -qE '^[[:space:]]*(export[[:space:]]+)?ZDOTDIR=' "$HOME/.zshenv" 2>/dev/null; then
+                profile="$ZDOTDIR/.zshenv"
+            fi
             ;;
         bash)
             profile="$HOME/.bash_profile"
+            for candidate in "$HOME/.bash_profile" "$HOME/.bash_login" "$HOME/.profile"; do
+                if [ -f "$candidate" ]; then
+                    profile="$candidate"
+                    break
+                fi
+            done
             ;;
         *)
             profile="$HOME/.profile"
