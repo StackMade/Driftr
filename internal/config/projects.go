@@ -61,11 +61,20 @@ func AddProject(dir string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to write project registry: %w", err)
 	}
-	_, err = f.WriteString(dir + "\n")
+	line := dir + "\n"
+	// A hand-edited registry may end without a newline: appending would glue
+	// this path onto the last one and drop both from prune's protection.
+	if info, err := f.Stat(); err == nil && info.Size() > 0 {
+		last := make([]byte, 1)
+		if _, err := f.ReadAt(last, info.Size()-1); err == nil && last[0] != '\n' {
+			line = "\n" + line
+		}
+	}
+	_, err = f.WriteString(line)
 	if cerr := f.Close(); err == nil {
 		err = cerr
 	}

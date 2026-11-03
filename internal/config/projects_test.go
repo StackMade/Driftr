@@ -64,6 +64,34 @@ func TestLoadProjects_SkipsBlankLines(t *testing.T) {
 	}
 }
 
+// A registry edited by hand may lose its final newline; the next add once
+// glued its path onto the last line, and both projects lost prune protection.
+func TestAddProject_AfterLineWithoutNewline(t *testing.T) {
+	testutil.SetHome(t, t.TempDir())
+	path, err := platform.ProjectsRegistryPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("/work/a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := AddProject("/work/b"); err != nil {
+		t.Fatal(err)
+	}
+
+	dirs, err := LoadProjects()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := fromSlash("/work/a", "/work/b"); !slices.Equal(dirs, want) {
+		t.Errorf("got %v, want %v", dirs, want)
+	}
+}
+
 func TestRemoveProjects_DropsOnlyGone(t *testing.T) {
 	testutil.SetHome(t, t.TempDir())
 	for _, dir := range []string{"/work/a", "/work/gone", "/work/b"} {
