@@ -303,8 +303,8 @@ func signatureIdentity(version string) string {
 // signature stops the update: someone who replaced a release could drop the
 // bundle too.
 func verifySignature(baseURL, version, checksumsPath string) error {
-	cosign, err := exec.LookPath("cosign")
-	if err != nil {
+	cosign := findCosign()
+	if cosign == "" {
 		fmt.Println("cosign not found, so the release signature was not checked. Install cosign to have it verified.")
 		return nil
 	}
@@ -324,6 +324,17 @@ func verifySignature(baseURL, version, checksumsPath string) error {
 		return fmt.Errorf("release signature verification failed, refusing to update: %w\n%s", err, out)
 	}
 	return nil
+}
+
+// findCosign returns the cosign on PATH, or "". LookPath also returns a path
+// alongside ErrDot, so the error decides: a cosign found through the current
+// directory is not used.
+func findCosign() string {
+	path, err := exec.LookPath("cosign")
+	if err != nil {
+		return ""
+	}
+	return path
 }
 
 func verifyChecksum(archivePath, checksumsPath string) error {
