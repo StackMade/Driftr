@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -91,7 +93,29 @@ func prepareResolved(rb *resolver.ResolvedBinary, args []string) (string, []stri
 	if rb.NodePath != "" {
 		return rb.NodePath, append([]string{rb.ToolPath}, args...), nil
 	}
+	if runtime.GOOS == "windows" {
+		if err := checkBatchArgs(rb.ToolPath, args); err != nil {
+			return "", nil, err
+		}
+	}
 	return rb.ToolPath, args, nil
+}
+
+// checkBatchArgs refuses arguments cmd.exe would act on when binary is a .cmd
+// or .bat file, such as another install found on PATH. Windows hands those
+// files to cmd.exe, which parses the command line again, and Go does not
+// escape for it, so an argument like "a&calc" would run calc.
+func checkBatchArgs(binary string, args []string) error {
+	ext := strings.ToLower(filepath.Ext(binary))
+	if ext != ".cmd" && ext != ".bat" {
+		return nil
+	}
+	for _, a := range args {
+		if strings.ContainsAny(a, "\"%&|<>^\r\n") {
+			return fmt.Errorf("argument %q cannot be passed safely to %s, which cmd.exe would parse again. Run that file directly from cmd.exe", a, binary)
+		}
+	}
+	return nil
 }
 
 // runResolved runs a prepared tool as a child and returns its exit code. After

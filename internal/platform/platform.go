@@ -380,8 +380,9 @@ func PackageBinFile(bin string) string {
 
 // FindOutsideDriftr returns the first executable called name on PATH that is
 // not under ~/.driftr, or "". It is what the shell would run if driftr's shim
-// dir were not on PATH, so it searches PATH the way the shell does: an empty
-// or relative entry is taken relative to the current directory.
+// dir were not on PATH, except that only absolute entries count: an empty or
+// relative entry names the current directory, and a checked-out project must
+// not take over a command by shipping a file of that name.
 func FindOutsideDriftr(name string) string {
 	home, err := DriftrHome()
 	if err != nil {
@@ -391,27 +392,19 @@ func FindOutsideDriftr(name string) string {
 	if r, err := filepath.EvalSymlinks(home); err == nil {
 		realHome = r
 	}
-	dirs := filepath.SplitList(os.Getenv("PATH"))
-	if path, set := os.LookupEnv("PATH"); set && path == "" {
-		dirs = []string{""} // a set but empty PATH is one empty entry: the current directory
-	}
-	for _, dir := range dirs {
-		if dir == "" {
-			dir = "."
-		}
-		abs, err := filepath.Abs(dir)
-		if err != nil {
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		if !filepath.IsAbs(dir) {
 			continue
 		}
 		// Driftr's own files do not count, under any name a symlink gives
 		// them: the shim dir, and node bin dirs a package bin puts on PATH for
 		// the commands it runs. Counting a symlinked alias of the shim dir
 		// would make the shim exec itself forever.
-		if within(abs, home) {
+		if within(dir, home) {
 			continue
 		}
 		for _, file := range commandFiles(name) {
-			candidate := filepath.Join(abs, file)
+			candidate := filepath.Join(dir, file)
 			info, err := os.Stat(candidate)
 			if err != nil || !IsExecutable(info) {
 				continue
