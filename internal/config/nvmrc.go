@@ -35,6 +35,9 @@ func parseVersionFile(content string) (string, error) {
 		if line == "" {
 			continue
 		}
+		if hasControl(line) {
+			return "", nil
+		}
 
 		// nvm's "node" and "stable" mean the newest release: driftr's "latest".
 		switch strings.ToLower(line) {
@@ -90,7 +93,7 @@ func SaveVersionFile(path, ver string) error {
 			prefix = "v"
 		}
 		lines[i] = line[:start] + prefix + ver + line[start+len(token):]
-		return replaceFile(path, []byte(strings.Join(lines, "\n")))
+		return replaceProjectFile(path, []byte(strings.Join(lines, "\n")))
 	}
 
 	return fmt.Errorf("%s holds no version to replace", path)

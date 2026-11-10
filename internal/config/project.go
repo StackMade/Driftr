@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/BurntSushi/toml"
 
@@ -59,8 +62,16 @@ func LoadProject(dir string) (*ProjectConfig, error) {
 	if err := toml.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse project config %s: %w", path, err)
 	}
+	maps.DeleteFunc(cfg.Tools, func(tool, ver string) bool { return hasControl(tool) || hasControl(ver) })
 
 	return cfg, nil
+}
+
+// hasControl reports whether s holds control characters. Pins come from files
+// in a repository and end up in messages on the terminal, where an escape
+// sequence could rewrite what the user reads, so such a pin is dropped.
+func hasControl(s string) bool {
+	return strings.IndexFunc(s, unicode.IsControl) >= 0
 }
 
 // SaveProject writes a project config file in the given directory.
@@ -71,7 +82,7 @@ func SaveProject(dir string, cfg *ProjectConfig) error {
 	if err := toml.NewEncoder(&buf).Encode(cfg); err != nil {
 		return fmt.Errorf("failed to write project config: %w", err)
 	}
-	if err := replaceFile(path, buf.Bytes()); err != nil {
+	if err := replaceProjectFile(path, buf.Bytes()); err != nil {
 		return fmt.Errorf("failed to write project config: %w", err)
 	}
 	return nil
@@ -86,7 +97,7 @@ func SaveProjectTool(dir, tool, version string) error {
 	data, err := os.ReadFile(path)
 	if err == nil {
 		if out, ok := patchToolsKey(string(data), tool, version); ok {
-			if err := replaceFile(path, []byte(out)); err != nil {
+			if err := replaceProjectFile(path, []byte(out)); err != nil {
 				return fmt.Errorf("failed to write project config: %w", err)
 			}
 			return nil
@@ -181,4 +192,18 @@ func replaceFile(path string, data []byte) error {
 		mode = info.Mode().Perm()
 	}
 	return ioutil.WriteFileAtomic(path, data, mode)
+}
+
+// pinFiles names the files a project pin can live in.
+var pinFiles = []string{ProjectConfigFile, "package.json", ".nvmrc", ".node-version"}
+
+// replaceProjectFile is replaceFile for a file in a project. Links such as
+// .node-version -> .nvmrc, or a monorepo package linking to the root's pin,
+// are written through. A repository can also ship a link to any file the
+// user owns, so a link that does not lead to a pin file is refused.
+func replaceProjectFile(path string, data []byte) error {
+	if real, err := filepath.EvalSymlinks(path); err == nil && !slices.Contains(pinFiles, filepath.Base(real)) {
+		return fmt.Errorf("%s is a symlink to %s, which is not a version file, so it was left alone. Remove the link and retry", path, real)
+	}
+	return replaceFile(path, data)
 }

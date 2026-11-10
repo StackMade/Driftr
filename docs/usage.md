@@ -187,6 +187,10 @@ Choosing `package.json` adds a `driftr` key to your existing `package.json`:
 
 Subsequent `driftr pin` commands detect the existing format and reuse it automatically.
 
+A pin file may be a symlink to another pin file, such as `.node-version -> .nvmrc`, and is written
+through. A symlink to any other file is refused, so a repository cannot make `driftr pin` overwrite
+a file outside it. Pins holding control characters are ignored.
+
 **Migrating between formats:**
 
 ```bash
@@ -694,6 +698,11 @@ A stable build only moves to stable releases. A pre-release build (`2.0.0-rc.1`)
 pre-releases as well: it moves to the next release candidate, and on to the stable release once
 that is out.
 
+Every update is checked against the release's `checksums.txt`. If `cosign` is on your `PATH`, that
+file's signature is verified too, against the release workflow of that exact tag, and a missing or
+invalid signature stops the update. A mirror set with `DRIFTR_UPDATE_MIRROR` then has to serve
+`checksums.txt.sigstore.json` as well. Without `cosign`, driftr says the signature was not checked.
+
 After a successful update, automatically migrates PATH configuration if it was placed in an
 interactive-only file (e.g. `.zshrc`) to the universal target (`.zshenv` for zsh). Prints a
 note about any stale entries in old rc files — safe to remove manually.
@@ -758,7 +767,11 @@ symlink.
 The shim dir comes first on `PATH`, so a package shim steps aside when the shell would find the
 same name somewhere else, such as a `nest` installed through Homebrew's own npm or `pnpm add -g`:
 it runs that one, as if the shim were not there. This is decided on every call, against the
-`PATH` of that call. `driftr which nest` says when that happens. Remove the other install if you
+`PATH` of that call. Only absolute `PATH` entries count: an empty or relative one names the
+current directory, and a checked-out project must not take over a command by shipping a file of
+that name. On Windows, when that other install is a `.cmd` or `.bat` file, arguments holding
+`"`, `%`, `&`, `|`, `<`, `>` or `^` are refused, because `cmd.exe` would parse them again. `driftr
+which nest` says when a shim steps aside. Remove the other install if you
 want Driftr's copy to run instead.
 
 Only npm's global installs are covered. `pnpm add -g` and `yarn global add` keep their own global

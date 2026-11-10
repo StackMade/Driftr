@@ -225,23 +225,21 @@ func TestFindOutsideDriftr(t *testing.T) {
 		t.Errorf("an alias of driftr's own shim counted as another install: %s", got)
 	}
 
-	// A relative entry is searched from the current directory, as in the shell.
+	// An empty or relative entry names the current directory: a file a
+	// checked-out project ships must not take over the command.
 	cwd := t.TempDir()
 	writeExec(filepath.Join(cwd, "tools", "nest"))
-	t.Chdir(cwd)
-	t.Setenv("PATH", "")
 	writeExec(filepath.Join(cwd, "nest"))
-	if got := FindOutsideDriftr("nest"); filepath.Base(got) != ExeName("nest") || filepath.Base(filepath.Dir(got)) == "tools" {
-		t.Errorf("empty PATH should search the current directory, got %q", got)
+	t.Chdir(cwd)
+	for _, path := range []string{"", ".", sep, "tools", aliasDir + sep + "tools"} {
+		t.Setenv("PATH", path)
+		if got := FindOutsideDriftr("nest"); got != "" {
+			t.Errorf("PATH %q found a file through the current directory: %s", path, got)
+		}
 	}
 
-	t.Setenv("PATH", aliasDir+sep+"tools")
+	t.Setenv("PATH", aliasDir+sep+filepath.Join(cwd, "tools"))
 	if got, want := FindOutsideDriftr("nest"), filepath.Join(cwd, "tools", ExeName("nest")); got != want {
-		// macOS temp dirs live behind the /var -> /private/var symlink.
-		if real, _ := filepath.EvalSymlinks(got); real != want {
-			if rw, _ := filepath.EvalSymlinks(want); real != rw {
-				t.Errorf("relative PATH entry: got %q, want %q", got, want)
-			}
-		}
+		t.Errorf("absolute PATH entry: got %q, want %q", got, want)
 	}
 }

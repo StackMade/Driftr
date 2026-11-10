@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -459,10 +460,108 @@ func TestReleaseVersion(t *testing.T) {
 			t.Errorf("releaseVersion(%q) rejected a release", s)
 		}
 	}
-	for _, s := range []string{"dev", "nightly", "2", "2.0", "latest", "1.5.1-SNAPSHOT-abc1234", "2.0.0-rc.x", "2.0.0-"} {
+	for _, s := range []string{"dev", "nightly", "2", "2.0", "latest", "1.5.1-SNAPSHOT-abc1234", "2.0.0-rc.x", "2.0.0-", "../../evil@9.9.9", "driftr@1.2.3", " 1.2.3"} {
 		if _, ok := releaseVersion(s); ok {
 			t.Errorf("releaseVersion(%q) accepted a non-release", s)
 		}
+	}
+}
+
+func TestSignatureIdentity(t *testing.T) {
+	// As printed by the certificate in the v2.0.1 release's bundle.
+	const real = "https://github.com/StackMade/Driftr/.github/workflows/release.yml@refs/tags/v2.0.1"
+	re := regexp.MustCompile(signatureIdentity("2.0.1"))
+	for _, s := range []string{real, strings.Replace(real, "StackMade/Driftr", "stackmade/driftr", 1)} {
+		if !re.MatchString(s) {
+			t.Errorf("rejected %s", s)
+		}
+	}
+	for _, s := range []string{
+		strings.Replace(real, "v2.0.1", "v2.0.0", 1),
+		strings.Replace(real, "v2.0.1", "v2x0x1", 1),
+		real + "-rc.1",
+		strings.Replace(real, "StackMade/Driftr", "evil/Driftr", 1),
+		strings.Replace(real, "release.yml", "nightly.yml", 1),
+		strings.Replace(real, "refs/tags", "refs/heads", 1),
+	} {
+		if re.MatchString(s) {
+			t.Errorf("accepted %s", s)
+		}
+	}
+}
+
+func TestVerifySignature(t *testing.T) {
+	testutil.SkipOnWindows(t, "the stand-in for cosign is a shell script")
+	const version = "2.0.1"
+
+	run := func(t *testing.T, cosignExit int, serveBundle bool) (string, error) {
+		t.Helper()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !serveBundle || r.URL.Path != "/checksums.txt.sigstore.json" {
+				http.NotFound(w, r)
+				return
+			}
+			fmt.Fprint(w, "{}")
+		}))
+		t.Cleanup(srv.Close)
+
+		dir := t.TempDir()
+		t.Setenv("PATH", dir)
+		argsFile := filepath.Join(dir, "args")
+		if cosignExit >= 0 {
+			script := fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' \"$@\" > %q\nexit %d\n", argsFile, cosignExit)
+			if err := os.WriteFile(filepath.Join(dir, "cosign"), []byte(script), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		err := verifySignature(srv.URL, version, filepath.Join(t.TempDir(), "checksums.txt"))
+		args, _ := os.ReadFile(argsFile)
+		return string(args), err
+	}
+
+	t.Run("no cosign", func(t *testing.T) {
+		if _, err := run(t, -1, false); err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+	t.Run("valid signature", func(t *testing.T) {
+		args, err := run(t, 0, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"verify-blob", "--bundle", signatureIdentity(version), signatureIssuer, "checksums.txt"} {
+			if !strings.Contains(args, want) {
+				t.Errorf("cosign args lack %q:\n%s", want, args)
+			}
+		}
+	})
+	t.Run("invalid signature", func(t *testing.T) {
+		if _, err := run(t, 1, true); err == nil {
+			t.Error("expected an error for an invalid signature")
+		}
+	})
+	t.Run("missing bundle", func(t *testing.T) {
+		args, err := run(t, 0, false)
+		if err == nil {
+			t.Error("expected an error for a release without a signature")
+		}
+		if args != "" {
+			t.Errorf("cosign ran without a bundle: %s", args)
+		}
+	})
+}
+
+func TestWriteBinary_StopsAtSizeLimit(t *testing.T) {
+	old := maxBinaryBytes
+	maxBinaryBytes = 4
+	t.Cleanup(func() { maxBinaryBytes = old })
+	dest := filepath.Join(t.TempDir(), "driftr")
+
+	if err := writeBinary(dest, strings.NewReader("1234")); err != nil {
+		t.Errorf("a binary at the limit was refused: %v", err)
+	}
+	if err := writeBinary(dest, strings.NewReader("12345")); err == nil {
+		t.Error("expected an error for a binary over the limit")
 	}
 }
 

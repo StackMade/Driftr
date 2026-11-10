@@ -25,7 +25,9 @@ import (
 // — follows the link wherever it points. Both paths use slashes because they
 // come from tar headers.
 func symlinkEscapes(linkPath, target string) bool {
-	if target == "" || path.IsAbs(target) {
+	// Windows reads a backslash or a drive letter in a target; package path
+	// does not, and no release archive needs either.
+	if target == "" || path.IsAbs(target) || strings.ContainsAny(target, `\:`) {
 		return true
 	}
 	resolved := path.Join(path.Dir(linkPath), target)
@@ -85,7 +87,11 @@ func resolvesOutside(dir, rel string) bool {
 			return true // a loop: treat as unsafe rather than spin
 		}
 		target, err := os.Readlink(full)
-		if err != nil || target == "" || path.IsAbs(target) {
+		if err != nil || target == "" || filepath.VolumeName(target) != "" {
+			return true
+		}
+		target = filepath.ToSlash(target) // Windows stores targets with backslashes
+		if path.IsAbs(target) {
 			return true
 		}
 		cur = cur[:len(cur)-1]
@@ -94,9 +100,27 @@ func resolvesOutside(dir, rel string) bool {
 	return false
 }
 
+// maxExtractedBytes bounds what one archive may unpack to; the download limits
+// only cap its compressed size. A variable so tests can lower it.
+var maxExtractedBytes int64 = 4 << 30
+
+// copyWithin copies src to dst and charges the bytes to budget, failing once
+// the archive has unpacked more than maxExtractedBytes.
+func copyWithin(dst io.Writer, src io.Reader, budget *int64) error {
+	n, err := io.Copy(dst, io.LimitReader(src, *budget+1))
+	*budget -= n
+	if err != nil {
+		return err
+	}
+	if *budget < 0 {
+		return fmt.Errorf("archive unpacks to more than %d bytes. Run `driftr cache clean` and retry", maxExtractedBytes)
+	}
+	return nil
+}
+
 // extractToRoot extracts a tar entry into an os.Root-sandboxed directory.
 // The Root enforces that no path can escape destDir, replacing manual prefix checks.
-func extractToRoot(root *os.Root, relPath string, hdr *tar.Header, tr *tar.Reader) error {
+func extractToRoot(root *os.Root, relPath string, hdr *tar.Header, tr *tar.Reader, budget *int64) error {
 	switch hdr.Typeflag {
 	case tar.TypeDir:
 		if err := root.MkdirAll(relPath, hdr.FileInfo().Mode().Perm()); err != nil {
@@ -113,7 +137,7 @@ func extractToRoot(root *os.Root, relPath string, hdr *tar.Header, tr *tar.Reade
 		if err != nil {
 			return fmt.Errorf("failed to create file %s: %w", relPath, err)
 		}
-		if _, err := io.Copy(outFile, tr); err != nil {
+		if err := copyWithin(outFile, tr, budget); err != nil {
 			outFile.Close()
 			return fmt.Errorf("failed to write file %s: %w", relPath, err)
 		}
@@ -224,6 +248,7 @@ func Extract(archivePath, version string, verbose bool, cleanup *installCleanup)
 	tr := tar.NewReader(gz)
 
 	matched := false
+	budget := maxExtractedBytes
 
 	for {
 		hdr, err := tr.Next()
@@ -248,7 +273,7 @@ func Extract(archivePath, version string, verbose bool, cleanup *installCleanup)
 			continue
 		}
 
-		if err := extractToRoot(root, relPath, hdr, tr); err != nil {
+		if err := extractToRoot(root, relPath, hdr, tr, &budget); err != nil {
 			root.Close()
 			os.RemoveAll(tmpDir)
 			return err

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -106,6 +107,13 @@ func LoadPackageJSON(dir string) (*PackageJSON, error) {
 	if err := json.Unmarshal(bytes.TrimPrefix(data, utf8BOM), &pkg); err != nil {
 		return nil, fmt.Errorf("failed to parse %s: %w", path, err)
 	}
+	maps.DeleteFunc(pkg.Driftr, func(tool, ver string) bool { return hasControl(tool) || hasControl(ver) })
+	if hasControl(pkg.PackageManager) {
+		pkg.PackageManager = ""
+	}
+	if hasControl(pkg.Engines.Node) {
+		pkg.Engines.Node = ""
+	}
 
 	// Return nil if no tool versions are configured.
 	if !pkg.Driftr.hasVersions() && pkg.PackageManager == "" && pkg.EnginesNode() == "" {
@@ -151,7 +159,7 @@ func SavePackageJSONTool(dir, tool, version string) error {
 		return fmt.Errorf("failed to update %s: %w", path, err)
 	}
 
-	return replaceFile(path, out)
+	return replaceProjectFile(path, out)
 }
 
 // RemoveDriftrFromPackageJSON removes the driftr key from package.json.
@@ -177,7 +185,7 @@ func RemoveDriftrFromPackageJSON(dir string) error {
 		return fmt.Errorf("failed to update %s: %w", path, err)
 	}
 
-	return replaceFile(path, out)
+	return replaceProjectFile(path, out)
 }
 
 // patchTopLevelKey modifies a top-level key in a JSON object, preserving key order.

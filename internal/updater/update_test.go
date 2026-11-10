@@ -30,6 +30,7 @@ func fakeRelease(t *testing.T, tag string, assets map[string][]byte) {
 
 	t.Setenv("DRIFTR_UPDATE_API", srv.URL)
 	t.Setenv("DRIFTR_UPDATE_MIRROR", srv.URL)
+	t.Setenv("PATH", t.TempDir()) // a real cosign would reject these fakes
 }
 
 func archiveName(version string) string {

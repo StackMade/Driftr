@@ -174,6 +174,9 @@ func TestSymlinkEscapes(t *testing.T) {
 		{"straight out of a top-level link", "evil", "../outside", true},
 		{"absolute target", "bin/evil", "/etc/passwd", true},
 		{"empty target", "bin/evil", "", true},
+		{"backslash climb", "bin/evil", `..\..\..\outside`, true},
+		{"drive letter", "bin/evil", `C:\Windows\System32`, true},
+		{"drive-relative", "bin/evil", "C:outside", true},
 	}
 
 	for _, tt := range tests {
@@ -183,6 +186,46 @@ func TestSymlinkEscapes(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The limit counts what an archive unpacks to, across all its entries.
+func TestExtraction_StopsAtSizeLimit(t *testing.T) {
+	old := maxExtractedBytes
+	maxExtractedBytes = 10
+	t.Cleanup(func() { maxExtractedBytes = old })
+	const want = "archive unpacks to more than"
+
+	t.Run("tar", func(t *testing.T) {
+		archive := buildTarGz(t, []tarEntry{
+			{Name: "package/a", Data: []byte("123456"), Typeflag: tar.TypeReg},
+			{Name: "package/b", Data: []byte("123456"), Typeflag: tar.TypeReg},
+		})
+		dest := filepath.Join(t.TempDir(), "tools", "pnpm", "9.0.0")
+		err := ExtractRegistryPackage(archive, dest, filepath.Join(dest, "a"))
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("expected size-limit error, got: %v", err)
+		}
+		if _, statErr := os.Stat(dest); !errors.Is(statErr, os.ErrNotExist) {
+			t.Errorf("version dir left behind: %s", dest)
+		}
+	})
+
+	t.Run("zip", func(t *testing.T) {
+		archive := writeTestZip(t, map[string]string{"p/bun": "12345678901"})
+		dest := filepath.Join(t.TempDir(), "tools", "bun", "1.0.0")
+		err := ExtractZipToBin(archive, dest, "p/", "bun")
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("expected size-limit error, got: %v", err)
+		}
+	})
+
+	t.Run("exactly at the limit", func(t *testing.T) {
+		archive := writeTestZip(t, map[string]string{"p/bun": "1234567890"})
+		dest := filepath.Join(t.TempDir(), "tools", "bun", "1.0.0")
+		if err := ExtractZipToBin(archive, dest, "p/", "bun"); err != nil {
+			t.Fatal(err)
+		}
+	})
 }
 
 func TestExtract_EscapingSymlinkRejected(t *testing.T) {
