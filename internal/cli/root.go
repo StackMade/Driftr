@@ -59,6 +59,7 @@ func NewRootCmd() *cobra.Command {
 		newDoctorCmd(),
 		newUpdateCmd(),
 		newNodeCmd(),
+		newAgentsCmd(),
 	)
 	setColorHelp(root)
 

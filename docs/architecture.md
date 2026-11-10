@@ -47,6 +47,7 @@ internal/
     node_optimize.go        driftr node optimize
     node_report.go          driftr node report
     node_clean.go           driftr node clean
+    agents.go               driftr agents list / show / install / uninstall
     parse.go                tool@version argument parsing
     shim_cmd.go             driftr shim (hidden, called by shim scripts), auto-install prompt
 
@@ -103,6 +104,10 @@ internal/
     progress.go             download progress on stderr
     copy.go                 file copy and atomic write, used for shims
 
+  agents/                   skill that teaches AI coding agents to use driftr
+    agents.go               supported agents, install, uninstall, refresh after an upgrade
+    guide.md                the guide itself, embedded in the binary
+
   updater/                  self-update mechanism
     updater.go              checks GitHub releases, downloads and replaces binary
 ```
@@ -136,7 +141,7 @@ There are three execution modes:
 
 The shim dir comes first on `PATH`, so a package shim could silently replace a command that already worked. On every call it first looks for the same name on `PATH` outside `~/.driftr` and, if it finds one, execs that instead. Deciding this per call rather than when the shims are written keeps the answer tied to the `PATH` of the call: a refresh started from a script with a minimal `PATH` cannot plant a shim that later shadows a Homebrew install in an interactive shell. A package bin gets no shim at all when a file that is not a driftr shim already has its name in `~/.driftr/bin/` (the driftr binary can live there).
 
-`~/.driftr/bin/.driftr-version` records the driftr version that wrote the shims. Every invocation, shims included, compares it with its own version and regenerates the shims once when they differ, so an upgrade by any route updates them. That costs one small file read per call. Shims are written to a temporary file and renamed into place, because several processes may refresh at once right after an upgrade and a shell must never read a half-written shim.
+`~/.driftr/bin/.driftr-version` records the driftr version that wrote the shims. Every invocation, shims included, compares it with its own version and regenerates the shims once when they differ, so an upgrade by any route updates them. The same moment refreshes any agent skill driftr installed, so the guide matches the binary. That costs one small file read per call. Shims are written to a temporary file and renamed into place, because several processes may refresh at once right after an upgrade and a shell must never read a half-written shim.
 
 One invocation does not exec: `npm` with `-g`, `--global` or `--location=global` runs as a child process, because the shims have to be regenerated after npm adds or removes bins. Its exit code is passed through.
 

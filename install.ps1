@@ -11,6 +11,8 @@
 #   DRIFTR_INSTALL_DIR   where driftr.exe goes; default: %USERPROFILE%\.driftr\bin
 #   DRIFTR_UPDATE_API    release index base URL, for mirrors (as for self-update)
 #   DRIFTR_UPDATE_MIRROR release download base URL, for mirrors (as for self-update)
+#   DRIFTR_AGENTS        1 installs the skill for AI coding agents without asking,
+#                        0 skips the offer; default: ask in an interactive session
 
 # Everything runs inside a function: the script is usually piped into iex, and
 # `exit` there would close the user's terminal.
@@ -129,6 +131,33 @@ function Install-Driftr {
     Write-Host ''
     Write-Host 'To enable PowerShell completions, add this to your $PROFILE:'
     Write-Host '  driftr completion powershell | Out-String | Invoke-Expression'
+
+    Install-AgentSkill $exe
+}
+
+# Install-AgentSkill offers the skill that teaches AI coding agents to use
+# driftr. It writes into their config directories, so it needs a yes. Nothing
+# here may fail the install: the binary is already in place.
+function Install-AgentSkill([string]$exe) {
+    # Stop would turn the stderr of a release without this command into a throw.
+    $ErrorActionPreference = 'Continue'
+    if ($env:DRIFTR_AGENTS -eq '0') { return }
+    if ($env:DRIFTR_AGENTS -eq '1') { & $exe agents install; return }
+
+    $detected = @(& $exe agents list --detected 2>$null)
+    if ($LASTEXITCODE -ne 0 -or $detected.Count -eq 0) { return }
+
+    Write-Host ''
+    Write-Host "Found AI coding agents: $($detected -join ', ')"
+    $answer = ''
+    if ([Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
+        $answer = Read-Host 'Install a skill that teaches them to use driftr? [y/N]'
+    }
+    if ($answer -match '^(y|yes)$') {
+        & $exe agents install
+    } else {
+        Write-Host 'To teach them to use driftr later, run: driftr agents install'
+    }
 }
 
 # Add-UserPath puts dir at the front of the user Path, unless it is there. It

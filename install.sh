@@ -8,6 +8,8 @@
 #   curl -fsSL .../install.sh | DRIFTR_VERSION=1.4.0 sh):
 #   DRIFTR_VERSION     — pin a specific version (e.g. "1.4.0"), default: latest
 #   DRIFTR_INSTALL_DIR — override install directory, default: ~/.driftr/bin
+#   DRIFTR_AGENTS      — 1 installs the skill for AI coding agents without asking,
+#                        0 skips the offer, default: ask when there is a terminal
 
 set -eu
 
@@ -225,6 +227,40 @@ main() {
     log "  echo 'eval \"\$(driftr completion bash)\"' >> ~/.bashrc"
     log "  # fish"
     log "  driftr completion fish > ~/.config/fish/completions/driftr.fish"
+
+    offer_agents
+}
+
+# Offers the skill that teaches AI coding agents to use driftr. It writes into
+# their config directories, so it needs a yes. Under `curl | sh` the script
+# itself is on stdin, which is why the answer is read from /dev/tty.
+offer_agents() {
+    driftr_bin="${INSTALL_DIR}/driftr"
+    case "${DRIFTR_AGENTS:-}" in
+        0) return 0 ;;
+        1) install_agents "$driftr_bin"; return 0 ;;
+    esac
+
+    # A release pinned from before this command prints nothing here.
+    detected=$("$driftr_bin" agents list --detected 2>/dev/null | tr '\n' ' ')
+    [ -n "$detected" ] || return 0
+
+    log ""
+    log "Found AI coding agents: ${detected}"
+    # In a subshell: a failed redirect on a builtin would end the script.
+    if (: </dev/tty) 2>/dev/null; then
+        printf 'Install a skill that teaches them to use driftr? [y/N] ' >/dev/tty
+        read -r answer </dev/tty || answer=""
+        case "$answer" in
+            y|Y|yes|Yes|YES) install_agents "$driftr_bin"; return 0 ;;
+        esac
+    fi
+    log "To teach them to use driftr later, run: driftr agents install"
+}
+
+# The binary is already installed, so a failure here must not fail the script.
+install_agents() {
+    "$1" agents install || log "warning: could not install the agent skill. Run 'driftr agents install' to retry."
 }
 
 configure_path() {

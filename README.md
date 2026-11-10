@@ -131,6 +131,7 @@ pnpm -v   # resolves automatically
 | `driftr node optimize [--install]` | Configure pnpm for shared dependency storage (idempotent) |
 | `driftr node clean [--yes]` | Remove `node_modules` and prune the shared store (dry-run by default) |
 | `driftr node report` | Report `node_modules` size and shared pnpm store size |
+| `driftr agents install [agent...]` | Install a skill that teaches AI coding agents to use driftr; also `list`, `show` and `uninstall` |
 | `driftr completion <shell>` | Print a completion script for bash, zsh or fish |
 
 All commands support `-v` / `--verbose` for detailed output including resolver tracing and checksum details. `driftr --version` prints the installed version.
