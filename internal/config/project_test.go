@@ -196,6 +196,78 @@ func TestSavePackageJSONTool_KeepsModeAndSymlink(t *testing.T) {
 	}
 }
 
+// A repository can ship a link to any file the user owns.
+func TestSaves_RefuseSymlinkToForeignFile(t *testing.T) {
+	testutil.SkipOnWindows(t, "creating symlinks needs a privilege")
+	const content = "# mine\n[build]\njobs = 4\n"
+	for _, tt := range []struct {
+		name, link, content string
+		save                func(dir string) error
+	}{
+		{"toml", ProjectConfigFile, content, func(dir string) error { return SaveProjectTool(dir, "node", "22.0.0") }},
+		{"package.json", "package.json", `{"name": "x"}`, func(dir string) error { return SavePackageJSONTool(dir, "node", "22.0.0") }},
+		{"nvmrc", ".nvmrc", "20.0.0\n", func(dir string) error { return SaveVersionFile(filepath.Join(dir, ".nvmrc"), "22.0.0") }},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			target := filepath.Join(t.TempDir(), "settings")
+			if err := os.WriteFile(target, []byte(tt.content), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(target, filepath.Join(dir, tt.link)); err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.save(dir); err == nil {
+				t.Error("expected an error for a link to a foreign file")
+			}
+			if got, _ := os.ReadFile(target); string(got) != tt.content {
+				t.Errorf("target was changed: %q", got)
+			}
+		})
+	}
+}
+
+func TestSaveVersionFile_FollowsLinkBetweenPinFiles(t *testing.T) {
+	testutil.SkipOnWindows(t, "creating symlinks needs a privilege")
+	dir := t.TempDir()
+	target := filepath.Join(dir, ".nvmrc")
+	if err := os.WriteFile(target, []byte("20.0.0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, ".node-version")
+	if err := os.Symlink(".nvmrc", link); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveVersionFile(link, "22.0.0"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(target); string(got) != "22.0.0\n" {
+		t.Errorf("pin not written through the link: %q", got)
+	}
+}
+
+func TestLoaders_DropPinsWithControlCharacters(t *testing.T) {
+	dir := t.TempDir()
+	writeProjectConfig(t, dir, "[tools]\nnode = \"\\u001b[2Kx@22\"\npnpm = \"9.0.0\"\n\"\\u001b[2K\" = \"1.0.0\"\n")
+	cfg, err := LoadProject(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Tools) != 1 || cfg.Tools.GetTool("pnpm") != "9.0.0" {
+		t.Errorf("Tools = %q, want only pnpm", cfg.Tools)
+	}
+
+	writePackageJSON(t, dir, `{"driftr": {"node": "\u001b[2Kx@22"}, "packageManager": "pnpm@\u001b[2K", "engines": {"node": "\u001b[2K"}}`)
+	pkg, err := LoadPackageJSON(dir)
+	if err != nil || pkg != nil {
+		t.Errorf("LoadPackageJSON = %+v, %v, want nothing left", pkg, err)
+	}
+
+	if got, err := parseVersionFile("\x1b[2Kx@22\n"); err != nil || got != "" {
+		t.Errorf("parseVersionFile = %q, %v, want nothing", got, err)
+	}
+}
+
 func TestSaveProjectTool_KeepsComments(t *testing.T) {
 	tests := []struct {
 		name, before, tool, want string
