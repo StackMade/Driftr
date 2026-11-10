@@ -335,8 +335,11 @@ The tag push triggers `.github/workflows/release.yml`, which:
 
 1. Runs the full test suite (a failing suite blocks the release)
 2. Runs GoReleaser: builds linux/darwin/windows × amd64/arm64 archives (zip
-   on Windows), generates `checksums.txt`, signs it with keyless cosign,
-   publishes the GitHub release, and updates the Homebrew tap formula
+   on Windows), generates `checksums.txt`, signs it with keyless cosign
+   (`install.sh`, `install.ps1` and `self-update` verify that signature when
+   `cosign` is installed, against this workflow's path, so renaming
+   `release.yml` breaks them), publishes the GitHub release, and updates the
+   Homebrew tap formula
 3. Attests build provenance for all artifacts (verify with
    `gh attestation verify`)
 

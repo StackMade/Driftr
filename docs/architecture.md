@@ -212,7 +212,11 @@ rejected and the install fails. `os.Root` would keep such a link from doing dama
 during extraction, but the link survives into the installed tree, where npm, a
 postinstall script or the user's own tooling reads it without any sandbox. Links that
 stay inside — `bin/npm -> ../lib/node_modules/npm/bin/npm-cli.js`, which every Node.js
-archive ships — are created as-is.
+archive ships — are created as-is. A target with a backslash or a drive letter is
+rejected too, since Windows reads those as paths.
+
+One archive may unpack to at most 4 GiB. The download limits only cap its compressed
+size, so without this a small archive could fill the disk.
 
 ### Partial Install Cleanup
 

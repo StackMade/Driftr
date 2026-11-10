@@ -12,10 +12,13 @@ The script:
 
 1. Detects your OS and architecture
 2. Downloads the latest binary from GitHub Releases
-3. Verifies the SHA256 checksum
+3. Verifies the release signature if `cosign` is installed, then the SHA256 checksum
 4. Installs to `~/.driftr/bin/`
 5. Runs `driftr setup` to create directories and shims
 6. Adds `~/.driftr/bin` to your PATH
+
+With `cosign` on your `PATH`, a missing or invalid signature stops the install. Releases published
+before the signature bundle existed cannot be installed that way.
 
 ### Options
 
