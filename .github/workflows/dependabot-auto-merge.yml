@@ -22,19 +22,28 @@ jobs:
 
       # Major bumps and anything that reaches into the shipped binary's direct
       # dependencies are left for a human to read.
+      - name: Decide whether a human reads it
+        id: gate
+        run: echo "needs-human=$NEEDS_HUMAN" >> "$GITHUB_OUTPUT"
+        env:
+          NEEDS_HUMAN: >-
+            ${{ steps.metadata.outputs.update-type == 'version-update:semver-major'
+            || contains(steps.metadata.outputs.dependency-names, 'github.com/spf13/cobra')
+            || contains(steps.metadata.outputs.dependency-names, 'github.com/BurntSushi/toml')
+            || contains(steps.metadata.outputs.dependency-names, 'golang.org/x/sys') }}
+
       - name: Enable auto-merge
-        if: |
-          steps.metadata.outputs.update-type != 'version-update:semver-major'
+        if: steps.gate.outputs.needs-human != 'true'
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Explain why a major bump was left open
-        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
+      - name: Explain why the update was left open
+        if: steps.gate.outputs.needs-human == 'true'
         run: |
           gh pr comment "$PR_URL" --body \
-            "Major version bump — auto-merge skipped, needs a human review."
+            "Major version bump or a dependency of the shipped binary — auto-merge skipped, needs a human review."
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
