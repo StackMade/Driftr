@@ -129,6 +129,36 @@ verify_checksum() {
     fi
 }
 
+# --- signature verification -------------------------------------------------
+
+# Check checksums.txt against the Sigstore bundle when cosign is installed.
+# With cosign, a missing or invalid signature stops the install: someone who
+# replaced a release could drop the bundle too.
+verify_signature() {
+    checksums_file="$1"
+    bundle_url="$2"
+    version="$3"
+
+    if ! command -v cosign >/dev/null 2>&1; then
+        log "cosign not found, so the release signature was not checked."
+        return 0
+    fi
+
+    bundle="${checksums_file}.sigstore.json"
+    download "$bundle_url" "$bundle" || err "cannot download the signature of v${version}, refusing to install"
+
+    # Matches the release workflow for exactly this tag, so an older release's
+    # signature cannot be replayed. GitHub ignores case in repository names.
+    escaped=$(printf '%s' "$version" | sed 's/[.]/\\./g')
+    identity='^https://github\.com/(?i:stackmade/driftr)/\.github/workflows/release\.yml@refs/tags/v'"$escaped"'$'
+
+    log "Verifying signature..."
+    cosign verify-blob --bundle "$bundle" \
+        --certificate-identity-regexp "$identity" \
+        --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+        "$checksums_file" >/dev/null || err "signature verification failed for v${version}, refusing to install"
+}
+
 # --- main -------------------------------------------------------------------
 
 main() {
@@ -150,6 +180,8 @@ main() {
     log "Downloading ${archive_name}..."
     download "${base_url}/${archive_name}" "${tmpdir}/${archive_name}"
     download "${base_url}/checksums.txt" "${tmpdir}/checksums.txt"
+
+    verify_signature "${tmpdir}/checksums.txt" "${base_url}/checksums.txt.sigstore.json" "$version"
 
     log "Verifying checksum..."
     verify_checksum "${tmpdir}/${archive_name}" "${tmpdir}/checksums.txt"

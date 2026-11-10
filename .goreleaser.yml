@@ -77,7 +77,7 @@ checksum:
 # Keyless (Sigstore) signature of the checksums file, in the cosign v3
 # bundle format. Verify with:
 #   cosign verify-blob --bundle checksums.txt.sigstore.json \
-#     --certificate-identity-regexp 'github.com/StackMade/driftr' \
+#     --certificate-identity-regexp '^https://github\.com/StackMade/Driftr/\.github/workflows/release\.yml@refs/tags/v' \
 #     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
 #     checksums.txt
 signs:

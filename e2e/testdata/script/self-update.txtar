@@ -1,7 +1,12 @@
 # self-update replaces its own binary, so it runs a copy built for this script (see e2e_test.go).
 
+# A stand-in comes first on PATH, so a real cosign on the machine does not reject the fixture.
+[!windows] chmod 755 bin/cosign
+[!windows] env PATH=$WORK/bin${:}$PATH
+
 exec $DRIFTR_UPDATABLE_BIN self-update -v
 stdout 'Updating driftr'
+[!windows] stdout 'Verifying signature'
 stdout 'Verifying checksum'
 stdout 'Updated successfully to driftr v'$DRIFTR_UPDATE_VERSION
 
@@ -12,3 +17,7 @@ stdout $DRIFTR_UPDATE_VERSION
 # The binary the rest of the suite shares was not touched.
 exec $DRIFTR_BIN --version
 ! stdout $DRIFTR_UPDATE_VERSION
+
+-- bin/cosign --
+#!/bin/sh
+exit 0

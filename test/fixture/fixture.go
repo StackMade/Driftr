@@ -451,6 +451,8 @@ func registerUpdate(mux *http.ServeMux, windowsExe []byte) error {
 		fmt.Fprintf(&checksums, "%x  %s\n", sha256.Sum256(data), name)
 	}
 
+	archives["checksums.txt.sigstore.json"] = []byte("{}") // the e2e cosign stand-in does not read it
+
 	index := fmt.Sprintf(`{"tag_name":"v%s"}`, DriftrVersion)
 
 	mux.HandleFunc("GET /update/api/releases/latest", func(w http.ResponseWriter, r *http.Request) {

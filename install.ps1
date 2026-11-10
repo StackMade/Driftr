@@ -68,6 +68,22 @@ function Install-Driftr {
         Invoke-WebRequest -UseBasicParsing "$baseUrl/$archive" -OutFile (Join-Path $tmp $archive)
         Invoke-WebRequest -UseBasicParsing "$baseUrl/checksums.txt" -OutFile (Join-Path $tmp 'checksums.txt')
 
+        # With cosign, a missing or invalid signature stops the install: someone
+        # who replaced a release could drop the bundle too.
+        $cosign = Get-Command cosign -ErrorAction SilentlyContinue
+        if ($cosign) {
+            $bundle = Join-Path $tmp 'checksums.txt.sigstore.json'
+            Invoke-WebRequest -UseBasicParsing "$baseUrl/checksums.txt.sigstore.json" -OutFile $bundle
+            # The release workflow for exactly this tag, so an older release's
+            # signature cannot be replayed. GitHub ignores case in repository names.
+            $identity = '^https://github\.com/(?i:stackmade/driftr)/\.github/workflows/release\.yml@refs/tags/v' + [regex]::Escape($version) + '$'
+            Write-Host 'Verifying signature...'
+            & $cosign.Source verify-blob --bundle $bundle --certificate-identity-regexp $identity --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' (Join-Path $tmp 'checksums.txt') | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "signature verification failed for v$version, refusing to install" }
+        } else {
+            Write-Host 'cosign not found, so the release signature was not checked.'
+        }
+
         Write-Host 'Verifying checksum...'
         # Exact match on the file name field: a substring match could pick the wrong line.
         $expected = $null

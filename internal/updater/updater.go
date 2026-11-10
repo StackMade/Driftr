@@ -127,6 +127,10 @@ func Update(currentVersion string, verbose bool) (string, error) {
 		return "", fmt.Errorf("failed to download checksums: %w", err)
 	}
 
+	if err := verifySignature(baseURL, latest, checksumsPath); err != nil {
+		return "", err
+	}
+
 	fmt.Println("Verifying checksum...")
 	if err := verifyChecksum(archivePath, checksumsPath); err != nil {
 		return "", err
@@ -283,6 +287,45 @@ func downloadFile(url, dest string) error {
 	return err
 }
 
+// signatureIssuer is who vouches for the release workflow's identity.
+const signatureIssuer = "https://token.actions.githubusercontent.com"
+
+// signatureIdentity matches the certificate of the release workflow run for
+// exactly this tag, so an older release's signature cannot be replayed. GitHub
+// ignores case in repository names, and the certificate spells it StackMade/Driftr.
+func signatureIdentity(version string) string {
+	return `^https://github\.com/(?i:stackmade/driftr)/\.github/workflows/release\.yml@refs/tags/v` + regexp.QuoteMeta(version) + `$`
+}
+
+// verifySignature checks checksums.txt against the Sigstore bundle published
+// with the release, using cosign when it is installed. Without cosign only the
+// checksum is checked, and the user is told. With it, a missing or invalid
+// signature stops the update: someone who replaced a release could drop the
+// bundle too.
+func verifySignature(baseURL, version, checksumsPath string) error {
+	cosign, err := exec.LookPath("cosign")
+	if err != nil {
+		fmt.Println("cosign not found, so the release signature was not checked. Install cosign to have it verified.")
+		return nil
+	}
+
+	bundle := checksumsPath + ".sigstore.json"
+	if err := downloadFile(baseURL+"/checksums.txt.sigstore.json", bundle); err != nil {
+		return fmt.Errorf("cannot verify the release signature, refusing to update: %w", err)
+	}
+
+	fmt.Println("Verifying signature...")
+	out, err := exec.Command(cosign, "verify-blob",
+		"--bundle", bundle,
+		"--certificate-identity-regexp", signatureIdentity(version),
+		"--certificate-oidc-issuer", signatureIssuer,
+		checksumsPath).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("release signature verification failed, refusing to update: %w\n%s", err, out)
+	}
+	return nil
+}
+
 func verifyChecksum(archivePath, checksumsPath string) error {
 	archiveName := filepath.Base(archivePath)
 
@@ -381,12 +424,20 @@ func extractZipBinary(archivePath, destPath string) error {
 	return fmt.Errorf("driftr binary not found in archive")
 }
 
+// maxBinaryBytes bounds the unpacked binary; maxUpdaterDownloadBytes only caps
+// the compressed archive. A variable so tests can lower it.
+var maxBinaryBytes int64 = 512 * 1024 * 1024
+
 func writeBinary(destPath string, r io.Reader) error {
 	out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(out, r); err != nil {
+	n, err := io.Copy(out, io.LimitReader(r, maxBinaryBytes+1))
+	if err == nil && n > maxBinaryBytes {
+		err = fmt.Errorf("driftr binary in archive is larger than %d bytes", maxBinaryBytes)
+	}
+	if err != nil {
 		out.Close()
 		return err
 	}
@@ -458,6 +509,10 @@ var stages = map[string]int{"alpha": alpha, "beta": beta, "rc": rc}
 // Nightly builds ("1.5.1-SNAPSHOT-<sha>") do not match and are no release.
 var preReleaseRe = regexp.MustCompile(`^(alpha|beta|rc)(?:\.(\d+))?$`)
 
+// releaseCoreRe matches the X.Y.Z of a release. version.Parse alone is too
+// loose: it drops anything before an "@", and a tag goes into a URL and a path.
+var releaseCoreRe = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+
 // releaseTag is a release version: X.Y.Z, optionally a pre-release of it.
 type releaseTag struct {
 	version.Version
@@ -467,6 +522,9 @@ type releaseTag struct {
 
 func releaseVersion(s string) (releaseTag, bool) {
 	core, suffix, isPre := strings.Cut(s, "-")
+	if !releaseCoreRe.MatchString(core) {
+		return releaseTag{}, false
+	}
 	v, err := version.Parse(core)
 	if err != nil || v.Latest || v.LTS || v.IsPartial() {
 		return releaseTag{}, false
