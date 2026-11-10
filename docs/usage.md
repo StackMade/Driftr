@@ -667,7 +667,9 @@ read `~/.agents/skills` share one copy, so removing it for one removes it for al
 
 **Behavior:**
 - After Driftr is upgraded, the first call to any shim or `driftr` command refreshes the copies
-  Driftr wrote, so the guide always matches the installed version. It never adds a new copy
+  Driftr wrote, so the guide matches the installed version. It never adds a new copy. A copy it
+  cannot write at that moment is not retried: `driftr agents list` shows it as `outdated` until
+  `driftr agents install` succeeds
 - A `SKILL.md` in those locations that Driftr did not write is never replaced or removed;
   `driftr agents install` reports it and exits non-zero
 - Do not edit an installed copy: the next upgrade overwrites it

@@ -106,6 +106,35 @@ func TestForeignSkillIsNeverTouched(t *testing.T) {
 	}
 }
 
+func TestDanglingSymlinkIsNeverTouched(t *testing.T) {
+	testutil.SkipOnWindows(t, "creating a symlink needs privileges")
+	testutil.SetHome(t, t.TempDir())
+	file := skillFile(t, "claude")
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const target = "/nonexistent/my-skill.md"
+	if err := os.Symlink(target, file); err != nil {
+		t.Fatal(err)
+	}
+	wantStatus(t, file, Foreign)
+
+	if err := Install(file); err == nil || !strings.Contains(err.Error(), "not written by driftr") {
+		t.Fatalf("Install = %v", err)
+	}
+	if removed, err := Uninstall(file); err != nil || removed {
+		t.Fatalf("Uninstall = %v, %v", removed, err)
+	}
+
+	got, err := os.Readlink(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != target {
+		t.Fatalf("symlink now points at %q", got)
+	}
+}
+
 func TestUninstallKeepsOtherFiles(t *testing.T) {
 	testutil.SetHome(t, t.TempDir())
 	file := skillFile(t, "claude")

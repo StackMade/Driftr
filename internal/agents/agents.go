@@ -90,6 +90,10 @@ func skill() string {
 func StatusOf(file string) (Status, error) {
 	data, err := os.ReadFile(file)
 	if errors.Is(err, fs.ErrNotExist) {
+		// A dangling symlink reads as absent, but it is the user's to keep.
+		if _, lstatErr := os.Lstat(file); lstatErr == nil {
+			return Foreign, nil
+		}
 		return Missing, nil
 	}
 	if err != nil {
@@ -139,6 +143,10 @@ func Uninstall(file string) (bool, error) {
 // Refresh brings copies driftr wrote up to this binary's guide. It runs after
 // an upgrade, possibly in front of a tool's own output, so it is silent, and it
 // never adds a copy the user did not ask for.
+//
+// shortcut: a failed write is not retried, since the shim stamp is already
+// current; `driftr agents list` shows it as outdated. Add a stamp of its own if
+// that turns out to be common, at the cost of another read on every shim call.
 func Refresh() {
 	harnesses, err := All()
 	if err != nil {
