@@ -55,6 +55,9 @@ brews:
         echo 'export PATH="$HOME/.driftr/bin:$PATH"' >> ~/.zshrc
 
       Or run `driftr doctor --fix` to configure PATH automatically.
+
+      To teach AI coding agents (Claude Code, Codex, ...) to use driftr:
+        driftr agents install
     # Shims written by driftr 1.2.1 and earlier on Linux exec the versioned
     # Cellar path, which `brew upgrade` would delete. Marking the older kegs
     # with .keepme makes Homebrew's cleanup keep them, so those shims keep

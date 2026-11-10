@@ -636,6 +636,42 @@ The store is shared machine-wide, so its size is not a per-project cost.
 `node_modules`, runs `pnpm install` to restore it, and runs `pnpm store prune`. Without pnpm it
 still removes `node_modules`, then warns and skips the reinstall and prune.
 
+## driftr agents
+
+Install a skill that teaches AI coding agents how to use Driftr: which commands to run, what
+changes without a terminal, and what to ask you before doing.
+
+```bash
+driftr agents list                  # supported agents, and which have the skill
+driftr agents install               # every agent found on this machine
+driftr agents install claude codex  # only these, found or not
+driftr agents uninstall             # remove every copy Driftr wrote
+driftr agents show >> AGENTS.md     # print the guide, for any other agent
+```
+
+`driftr agent` works as well.
+
+| Agent | Name | Skill location |
+|-------|------|----------------|
+| Claude Code | `claude` | `~/.claude/skills/driftr/` |
+| Codex | `codex` | `~/.agents/skills/driftr/` |
+| GitHub Copilot | `copilot` | `~/.agents/skills/driftr/` |
+| Cursor | `cursor` | `~/.agents/skills/driftr/` |
+| Devin | `devin` | `~/.agents/skills/driftr/` |
+| Gemini CLI | `gemini` | `~/.agents/skills/driftr/` |
+| OpenCode | `opencode` | `~/.agents/skills/driftr/` |
+| Windsurf | `windsurf` | `~/.codeium/windsurf/skills/driftr/` |
+
+An agent counts as found when its config directory exists in your home directory. Agents that
+read `~/.agents/skills` share one copy, so removing it for one removes it for all of them.
+
+**Behavior:**
+- After Driftr is upgraded, the first call to any shim or `driftr` command refreshes the copies
+  Driftr wrote, so the guide always matches the installed version. It never adds a new copy
+- A `SKILL.md` in those locations that Driftr did not write is never replaced or removed;
+  `driftr agents install` reports it and exits non-zero
+- Do not edit an installed copy: the next upgrade overwrites it
+
 ## driftr completion
 
 Print a shell completion script.

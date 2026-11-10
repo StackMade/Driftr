@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/stackmade/driftr/v2/internal/agents"
 	"github.com/stackmade/driftr/v2/internal/config"
 	"github.com/stackmade/driftr/v2/internal/ioutil"
 	"github.com/stackmade/driftr/v2/internal/process"
@@ -53,7 +54,14 @@ func newShimCmd() *cobra.Command {
 // output and the command still runs; driftr commands print it, and
 // `driftr doctor` reports the stale shims until they are fixed.
 func RefreshStaleShims() error {
-	return shim.RefreshIfStale(Version)
+	if shim.Stamp() == Version {
+		return nil
+	}
+	if err := shim.RefreshIfStale(Version); err != nil {
+		return err
+	}
+	agents.Refresh()
+	return nil
 }
 
 // ExecResolved replaces the process with a resolved tool. Called from the

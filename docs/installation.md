@@ -40,6 +40,11 @@ curl -fsSL https://raw.githubusercontent.com/StackMade/driftr/main/install.sh | 
 
 The variable goes after the pipe: it has to be set for `sh`, which runs the script, not for `curl`.
 
+When the script finds AI coding agents such as Claude Code or Codex, it asks whether to install a
+skill that teaches them to use Driftr (see [`driftr agents`](usage.md#driftr-agents)). Without a
+terminal it only prints the command. Set `DRIFTR_AGENTS=1` to install without asking, or
+`DRIFTR_AGENTS=0` to skip the offer. `install.ps1` reads the same variable.
+
 ### Using wget
 
 ```bash
@@ -276,6 +281,11 @@ go test ./...
 ## Uninstalling
 
 To remove Driftr:
+
+0. If you installed the skill for AI coding agents, remove it first:
+   ```bash
+   driftr agents uninstall
+   ```
 
 1. Remove the binary:
    ```bash

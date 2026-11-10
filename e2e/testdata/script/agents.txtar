@@ -1,0 +1,68 @@
+# driftr agents installs the skill for agents it finds and keeps it current across upgrades.
+
+# Nothing to detect: install says what to do instead of writing anywhere.
+exec driftr agents list --detected
+! stdout .
+! exec driftr agents install
+stderr 'no coding agent found'
+! exists $HOME/.claude
+! exists $HOME/.agents
+
+! exec driftr agents install nosuch
+stderr 'unknown agent: nosuch'
+
+# The guide is plain markdown, ready to append to an AGENTS.md.
+exec driftr agents show
+stdout '^# Using driftr'
+! stdout 'Managed by driftr'
+
+# Agents sharing ~/.agents/skills share one copy.
+mkdir $HOME/.claude
+mkdir $HOME/.codex
+mkdir $HOME/.cursor
+exec driftr agents list --detected
+stdout '^claude$'
+stdout '^codex$'
+stdout '^cursor$'
+! stdout 'gemini'
+
+exec driftr agents install
+stdout 'claude: '
+stdout 'codex, cursor: '
+grep '^name: driftr$' $HOME/.claude/skills/driftr/SKILL.md
+grep '^name: driftr$' $HOME/.agents/skills/driftr/SKILL.md
+! exists $HOME/.codeium
+
+# The singular form works too, and re-running changes nothing.
+exec driftr agent install claude
+exec driftr agents list
+stdout 'claude +detected +installed'
+
+# An explicit name installs for an agent that was not found.
+exec driftr agents install windsurf
+exists $HOME/.codeium/windsurf/skills/driftr/SKILL.md
+exec driftr agents uninstall windsurf
+! exists $HOME/.codeium/windsurf/skills/driftr
+
+# The first call after an upgrade refreshes managed copies, and adds none.
+exec driftr setup
+cp stale.md $HOME/.claude/skills/driftr/SKILL.md
+rm $HOME/.driftr/bin/.driftr-version
+exec driftr --version
+grep '^# Using driftr' $HOME/.claude/skills/driftr/SKILL.md
+! grep 'older guide' $HOME/.claude/skills/driftr/SKILL.md
+! exists $HOME/.codeium/windsurf/skills/driftr
+
+# A skill the user wrote is never replaced or removed.
+cp mine.md $HOME/.agents/skills/driftr/SKILL.md
+! exec driftr agents install codex
+stderr 'not written by driftr'
+exec driftr agents uninstall
+grep 'my own skill' $HOME/.agents/skills/driftr/SKILL.md
+! exists $HOME/.claude/skills/driftr
+
+-- stale.md --
+<!-- Managed by driftr: changes are overwritten. Remove with `driftr agents uninstall`. -->
+an older guide
+-- mine.md --
+my own skill
