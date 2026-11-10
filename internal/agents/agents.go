@@ -154,7 +154,8 @@ func Refresh() {
 	}
 	for _, h := range harnesses {
 		if status, err := StatusOf(h.File); err == nil && status == Outdated {
-			_ = Install(h.File)
+			// Not Install: its MkdirAll would bring back a skill an uninstall just removed.
+			_ = ioutil.WriteFileAtomic(h.File, []byte(skill()), 0o644)
 		}
 	}
 }

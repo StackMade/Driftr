@@ -57,8 +57,9 @@ Agent shells usually have no terminal, and that changes a few things:
 These change state outside the project:
 
 - `driftr default` changes the version every project without a pin uses.
-- `driftr uninstall`, `driftr prune --yes` and `driftr node clean --yes` delete files. Run
-  `driftr prune --dry-run` first and show the result.
+- `driftr uninstall`, `driftr prune --yes` and `driftr node clean --yes` delete files. Show
+  what will go first: `driftr prune --dry-run` for prune, plain `driftr node clean` for clean, and
+  the exact version for uninstall.
 - `driftr setup` and `driftr doctor --fix` edit shell startup files.
 - `driftr self-update` replaces the driftr binary.
 
