@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -63,6 +62,7 @@ func extractZipToBin(archivePath, destDir, prefix, binName string, cleanup *inst
 	}
 
 	matched := false
+	budget := maxExtractedBytes
 	for _, f := range zr.File {
 		if !strings.HasPrefix(f.Name, prefix) {
 			continue
@@ -82,7 +82,7 @@ func extractZipToBin(archivePath, destDir, prefix, binName string, cleanup *inst
 			return fmt.Errorf("archive entry %q escapes the extraction directory", f.Name)
 		}
 
-		if err := extractZipEntry(root, path.Join("bin", rel), f); err != nil {
+		if err := extractZipEntry(root, path.Join("bin", rel), f, &budget); err != nil {
 			return err
 		}
 		matched = true
@@ -108,7 +108,7 @@ func extractZipToBin(archivePath, destDir, prefix, binName string, cleanup *inst
 }
 
 // extractZipEntry writes one zip file entry into an os.Root-sandboxed directory.
-func extractZipEntry(root *os.Root, relPath string, f *zip.File) error {
+func extractZipEntry(root *os.Root, relPath string, f *zip.File, budget *int64) error {
 	if dir := path.Dir(relPath); dir != "." {
 		if err := root.MkdirAll(dir, 0o755); err != nil {
 			return fmt.Errorf("failed to create parent dir for %s: %w", relPath, err)
@@ -125,7 +125,7 @@ func extractZipEntry(root *os.Root, relPath string, f *zip.File) error {
 	if err != nil {
 		return fmt.Errorf("failed to create file %s: %w", relPath, err)
 	}
-	if _, err := io.Copy(out, src); err != nil {
+	if err := copyWithin(out, src, budget); err != nil {
 		out.Close()
 		return fmt.Errorf("failed to write file %s: %w", relPath, err)
 	}

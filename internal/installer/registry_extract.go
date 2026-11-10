@@ -57,6 +57,7 @@ func extractRegistryPackage(archivePath, destDir, binaryPath string, cleanup *in
 	}
 
 	tr := tar.NewReader(gz)
+	budget := maxExtractedBytes
 	for {
 		hdr, err := tr.Next()
 		if errors.Is(err, io.EOF) {
@@ -77,7 +78,7 @@ func extractRegistryPackage(archivePath, destDir, binaryPath string, cleanup *in
 			continue
 		}
 
-		if err := extractToRoot(root, name, hdr, tr); err != nil {
+		if err := extractToRoot(root, name, hdr, tr, &budget); err != nil {
 			root.Close()
 			os.RemoveAll(tmpDir)
 			return err
